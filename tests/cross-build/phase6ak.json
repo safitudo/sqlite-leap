@@ -1,0 +1,110 @@
+{
+  "phase": "6ak",
+  "description": "Phase 6ak gate — IF EXISTS on DROP / IF NOT EXISTS on CREATE. Idempotency modifiers; no new opcodes. max_invariant=43 unchanged.",
+  "cases": [
+    {
+      "name": "drop-table-if-exists-present",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",         "expect": {"rows": []}},
+        {"sql": "DROP TABLE IF EXISTS t;",              "expect": {"rows": []}},
+        {"sql": "CREATE TABLE t (b INTEGER);",          "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "drop-table-if-exists-missing",
+      "description": "DROP TABLE IF EXISTS on non-existent table is a silent no-op.",
+      "program": [
+        {"sql": "DROP TABLE IF EXISTS nonexistent;",    "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "drop-table-without-if-exists-missing-still-errors",
+      "description": "Plain DROP TABLE still raises when target missing.",
+      "program": [
+        {"sql": "DROP TABLE nonexistent;",              "expect": {"error": "STORAGE_TABLE_NOT_FOUND"}}
+      ]
+    },
+    {
+      "name": "drop-index-if-exists-missing",
+      "program": [
+        {"sql": "DROP INDEX IF EXISTS idx_nope;",       "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "drop-index-if-exists-present",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",          "expect": {"rows": []}},
+        {"sql": "CREATE INDEX i ON t (a);",             "expect": {"rows": []}},
+        {"sql": "DROP INDEX IF EXISTS i;",              "expect": {"rows": []}},
+        {"sql": "CREATE INDEX i ON t (a);",             "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "create-table-if-not-exists-new",
+      "description": "CREATE TABLE IF NOT EXISTS on new name creates the table.",
+      "program": [
+        {"sql": "CREATE TABLE IF NOT EXISTS t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                 "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t;",                          "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "create-table-if-not-exists-duplicate-suppressed",
+      "description": "Duplicate CREATE TABLE IF NOT EXISTS is silent no-op; existing table untouched.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (42);",                 "expect": {"rows": []}},
+        {"sql": "CREATE TABLE IF NOT EXISTS t (b TEXT);",     "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t;",                           "expect": {"rows": [[42]]}}
+      ]
+    },
+    {
+      "name": "create-table-without-if-not-exists-duplicate-errors",
+      "description": "Plain CREATE TABLE on duplicate still raises STORAGE_TABLE_EXISTS.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                "expect": {"rows": []}},
+        {"sql": "CREATE TABLE t (b TEXT);",                   "expect": {"error": "STORAGE_TABLE_EXISTS"}}
+      ]
+    },
+    {
+      "name": "create-index-if-not-exists-new",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                "expect": {"rows": []}},
+        {"sql": "CREATE INDEX IF NOT EXISTS i ON t (a);",     "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "create-index-if-not-exists-duplicate-suppressed",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                "expect": {"rows": []}},
+        {"sql": "CREATE INDEX i ON t (a);",                   "expect": {"rows": []}},
+        {"sql": "CREATE INDEX IF NOT EXISTS i ON t (a);",     "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "if-not-exists-different-kind-not-suppressed",
+      "description": "CREATE TABLE IF NOT EXISTS idx when idx is an INDEX — still raises, different object kind.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx ON t (a);",                 "expect": {"rows": []}},
+        {"sql": "CREATE TABLE IF NOT EXISTS idx (b INTEGER);", "expect": {"error": "STORAGE_TABLE_EXISTS"}}
+      ]
+    },
+    {
+      "name": "drop-table-if-missing-exists-token",
+      "description": "DROP TABLE IF <ident> is parse error — must be DROP TABLE IF EXISTS.",
+      "program": [
+        {"sql": "DROP TABLE IF t;",                           "expect": {"error": "PARSE_UNEXPECTED_TOKEN"}}
+      ]
+    },
+    {
+      "name": "case-insensitive-suppression",
+      "description": "DROP TABLE IF EXISTS matches case-insensitively against schema.",
+      "program": [
+        {"sql": "CREATE TABLE FooBar (x INTEGER);",           "expect": {"rows": []}},
+        {"sql": "DROP TABLE IF EXISTS foobar;",                "expect": {"rows": []}},
+        {"sql": "CREATE TABLE FooBar (y INTEGER);",            "expect": {"rows": []}}
+      ]
+    }
+  ]
+}

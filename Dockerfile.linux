@@ -1,0 +1,52 @@
+# Dockerfile.linux — minimal Linux x86_64 CI image for sqlite-leap.
+#
+# Builds both the C target (src-c/Makefile) and the Rust target
+# (src-rust/Cargo.toml) from a single image. WASM build is intentionally
+# NOT installed here — it lives in a separate workflow.
+#
+# Build:
+#     docker build -f Dockerfile.linux -t sqlite-leap-ci .
+# Run CI:
+#     docker run --rm sqlite-leap-ci /repo/scripts/ci-linux.sh
+# Or mount a local checkout:
+#     docker run --rm -v "$PWD":/repo -w /repo sqlite-leap-ci /repo/scripts/ci-linux.sh
+
+FROM debian:bookworm-slim
+
+ARG RUST_VERSION=1.82.0
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Minimal build deps. Keep this list tight — anything unrelated to
+# building C + Rust + running the test harness should NOT be here.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        build-essential \
+        gcc \
+        clang \
+        make \
+        pkg-config \
+        perl \
+        git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Rust via rustup (pinned toolchain, not the distro's rustc).
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/usr/local/cargo/bin:$PATH
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+        | sh -s -- -y --default-toolchain ${RUST_VERSION} --profile minimal --no-modify-path \
+    && rustup --version \
+    && cargo --version \
+    && rustc --version
+
+# Copy the repo into the image. CI workflows that mount the checkout as a
+# volume at /repo will override this; for standalone `docker run` this
+# gives a self-contained image.
+WORKDIR /repo
+COPY . /repo
+
+# Default command prints versions; override with scripts/ci-linux.sh.
+CMD ["bash", "-lc", "rustc --version && cargo --version && cc --version | head -n1 && echo 'sqlite-leap CI image ready'"]

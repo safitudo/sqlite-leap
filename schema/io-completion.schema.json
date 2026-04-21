@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sqlite-leap.dev/schema/io-completion.schema.json",
+  "title": "IO completion record",
+  "description": "Language-neutral description of a completion event emitted by the I/O backend. Every submission eventually produces either exactly one completion record OR is dropped (when its epoch is stale — see io-submission.schema.json § 'epoch' and pager-async.spec.md § 'Cancellation semantics'). Fields other than user_data are populated per-op; see § 'Result interpretation' below.",
+  "type": "object",
+  "required": ["user_data", "epoch", "outcome"],
+  "properties": {
+    "user_data": {
+      "description": "Verbatim echo of the submission's user_data. The submitter uses this as the correlation key.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "epoch": {
+      "description": "Verbatim echo of the submission's epoch. If the submitter's current epoch has advanced past this value, the submitter MUST drop this completion without raising an error.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "outcome": {
+      "description": "Terminal status of the submission. 'ok' means success; 'error' means the backend raised one of the enumerated error conditions; 'cancelled' means the submission was cancelled (either by an explicit cancel op or by backend-initiated teardown on epoch advance).",
+      "enum": ["ok", "error", "cancelled"]
+    },
+    "result_bytes": {
+      "description": "For a successful read or write, the number of bytes transferred. MUST equal the submission's 'length' on success; a lower value MUST be reported as outcome='error' with error_condition='IO_BACKEND_SHORT_READ' or 'IO_BACKEND_SHORT_WRITE'. For open_read / open_write, this is the assigned handle identifier (to be stored by the submitter and used in subsequent submissions). For fsync / fsync_dir / close / rename / unlink / cancel, this field is absent or zero.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "error_condition": {
+      "description": "Required when outcome == 'error'. Absent otherwise. See § 'Error conditions' in io-backend.spec.md for the complete enumeration.",
+      "enum": [
+        "IO_BACKEND_SHORT_READ",
+        "IO_BACKEND_SHORT_WRITE",
+        "IO_BACKEND_CANCELLED",
+        "IO_BACKEND_EIO",
+        "IO_BACKEND_ENOSPC",
+        "IO_BACKEND_ENOENT",
+        "IO_BACKEND_EACCES",
+        "IO_BACKEND_EEXIST",
+        "IO_BACKEND_EINVAL",
+        "IO_BACKEND_EINTR",
+        "IO_BACKEND_FULL_QUEUE",
+        "IO_BACKEND_UNSUPPORTED",
+        "IO_BACKEND_BACKEND_CRASH",
+        "IO_BACKEND_TIMEOUT"
+      ]
+    },
+    "reason": {
+      "description": "Optional human-readable diagnostic string. Generators MAY populate this with errno names, std::io::Error displays, or other native error text. Never consulted by callers for control flow; tests match against error_condition only.",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": { "properties": { "outcome": { "const": "error" } } },
+      "then": { "required": ["error_condition"] }
+    }
+  ]
+}

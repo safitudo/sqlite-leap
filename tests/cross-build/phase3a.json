@@ -1,0 +1,236 @@
+{
+  "phase": "3a",
+  "description": "Phase 3a gate — on-disk SQLite-compatible storage backend. Tests open_database / close_database / reopen persistence, minimal integer serial-type selection, TEXT, NULL, tombstone persistence across reopen, and corrupt-header / unsupported-feature error surfacing. Memory-backend compat cases confirm Phase 1..2c-3 behaviour is UNCHANGED on in-memory. All 1..2c-3 fixtures must stay green. Cross-build equivalence between C and Rust is required.",
+  "schema": {
+    "case": {
+      "name": "string — unique",
+      "backend": "string — 'memory' (default) or 'disk'",
+      "preload_hex": "string — optional, disk-only. Hex bytes (no 0x prefix, no separators) to write at offset 0 BEFORE open. Harness zero-pads to at least 4096 bytes before opening.",
+      "open_error": "object — optional, disk-only. If set, open is expected to fail and program is not run. Compared as {name, fields}.",
+      "program": "array — ordered steps. Each item is either {sql, expect} or {reopen: true}. On 'reopen', harness calls close_database then open_database(same path) before continuing."
+    }
+  },
+  "cases": [
+    {
+      "name": "memory-phase2a-still-works",
+      "description": "In-memory backend semantics unchanged after 3a landing.",
+      "backend": "memory",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                    "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t;",                             "expect": {"rows": [[1], [2]]}}
+      ]
+    },
+    {
+      "name": "memory-phase2c3-still-works",
+      "description": "UPDATE/DELETE on the in-memory backend behave exactly as in 2c-3.",
+      "backend": "memory",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                    "expect": {"rows": []}},
+        {"sql": "DELETE FROM t WHERE x = 2;",                   "expect": {"rows": []}},
+        {"sql": "UPDATE t SET x = x * 10;",                     "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t;",                             "expect": {"rows": [[10], [30]]}}
+      ]
+    },
+    {
+      "name": "disk-empty-open-close",
+      "description": "Open a fresh path, close immediately. Resulting file is a valid empty SQLite database.",
+      "backend": "disk",
+      "program": []
+    },
+    {
+      "name": "disk-create-table-only",
+      "description": "Create a table with no rows; reopen and SELECT — returns empty rows.",
+      "backend": "disk",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                  "expect": {"rows": []}},
+        {"reopen": true},
+        {"sql": "SELECT x FROM t;",                             "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "disk-insert-and-select",
+      "description": "Simple insert+select in one session (no reopen).",
+      "backend": "disk",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                    "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t;",                             "expect": {"rows": [[1], [2], [3]]}}
+      ]
+    },
+    {
+      "name": "disk-reopen-preserves-rows",
+      "description": "Close, reopen, verify rows survive.",
+      "backend": "disk",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                    "expect": {"rows": []}},
+        {"reopen": true},
+        {"sql": "SELECT x FROM t;",                             "expect": {"rows": [[1], [2], [3]]}}
+      ]
+    },
+    {
+      "name": "disk-reopen-after-delete",
+      "description": "DELETE then reopen: deleted rows stay deleted.",
+      "backend": "disk",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (10);",                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (20);",                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (30);",                   "expect": {"rows": []}},
+        {"sql": "DELETE FROM t WHERE x = 20;",                  "expect": {"rows": []}},
+        {"reopen": true},
+        {"sql": "SELECT x FROM t;",                             "expect": {"rows": [[10], [30]]}}
+      ]
+    },
+    {
+      "name": "disk-reopen-after-update",
+      "description": "UPDATE then reopen: mutated values survive.",
+      "backend": "disk",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 20);",                "expect": {"rows": []}},
+        {"sql": "UPDATE t SET b = b + 100 WHERE a = 2;",        "expect": {"rows": []}},
+        {"reopen": true},
+        {"sql": "SELECT a, b FROM t;",                          "expect": {"rows": [[1, 10], [2, 120]]}}
+      ]
+    },
+    {
+      "name": "disk-multiple-tables",
+      "description": "Two tables coexist, each on its own root page. Reopen reads both schemas.",
+      "backend": "disk",
+      "program": [
+        {"sql": "CREATE TABLE a (x INTEGER);",                  "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (y TEXT);",                     "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (7);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES ('hi');",                 "expect": {"rows": []}},
+        {"reopen": true},
+        {"sql": "SELECT x FROM a;",                             "expect": {"rows": [[7]]}},
+        {"sql": "SELECT y FROM b;",                             "expect": {"rows": [["hi"]]}}
+      ]
+    },
+    {
+      "name": "disk-integer-minimal-serial-type-small",
+      "description": "Values fitting in serial type 1 (i8) are written with 1-byte body. Round-trip recovers identical ints.",
+      "backend": "disk",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (0);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (127);",                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (-128);",                 "expect": {"rows": []}},
+        {"reopen": true},
+        {"sql": "SELECT x FROM t;",                             "expect": {"rows": [[0], [127], [-128]]}}
+      ]
+    },
+    {
+      "name": "disk-integer-serial-types-boundary",
+      "description": "Values at each signed boundary round-trip correctly — exercises serial types 2, 3, 4, 5, 6. Phase 3a does NOT test i64::MIN directly because `signed-literal` cannot express it (tokenizer range is [0, 2^63 − 1]). i64::MAX at serial type 6 is the only extreme tested on the negative-magnitude side; i64::MIN coverage is deferred.",
+      "backend": "disk",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (32767);",                     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (-32768);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (8388607);",                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2147483647);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (-2147483648);",               "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (140737488355327);",           "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (9223372036854775807);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (-9223372036854775807);",      "expect": {"rows": []}},
+        {"reopen": true},
+        {"sql": "SELECT x FROM t;",                                  "expect": {"rows": [[32767], [-32768], [8388607], [2147483647], [-2147483648], [140737488355327], [9223372036854775807], [-9223372036854775807]]}}
+      ]
+    },
+    {
+      "name": "disk-text-ascii-roundtrip",
+      "description": "ASCII TEXT values survive close/reopen intact.",
+      "backend": "disk",
+      "program": [
+        {"sql": "CREATE TABLE t (s TEXT);",                     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('');",                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('hello');",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('a b c d');",            "expect": {"rows": []}},
+        {"reopen": true},
+        {"sql": "SELECT s FROM t;",                             "expect": {"rows": [[""], ["hello"], ["a b c d"]]}}
+      ]
+    },
+    {
+      "name": "disk-null-values",
+      "description": "NULL values encode as serial type 0 and round-trip.",
+      "backend": "disk",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b TEXT);",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL, NULL);",           "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, NULL);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL, 'x');",            "expect": {"rows": []}},
+        {"reopen": true},
+        {"sql": "SELECT a, b FROM t;",                          "expect": {"rows": [[null, null], [1, null], [null, "x"]]}}
+      ]
+    },
+    {
+      "name": "disk-insert-after-delete-no-tombstone-on-disk",
+      "description": "After DELETE+INSERT+reopen, the freed cell space may be reused; what matters is the visible row set.",
+      "backend": "disk",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                    "expect": {"rows": []}},
+        {"sql": "DELETE FROM t WHERE x = 1;",                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                    "expect": {"rows": []}},
+        {"reopen": true},
+        {"sql": "SELECT x FROM t;",                             "expect": {"rows": [[2], [3]]}}
+      ]
+    },
+    {
+      "name": "disk-table-not-found",
+      "description": "SELECT against a non-existent table after reopen raises STORAGE_TABLE_NOT_FOUND (schema registry is rebuilt from page 1).",
+      "backend": "disk",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                  "expect": {"rows": []}},
+        {"reopen": true},
+        {"sql": "SELECT x FROM other;",                         "expect": {"error": {"name": "STORAGE_TABLE_NOT_FOUND", "fields": {"table": "other"}}}}
+      ]
+    },
+    {
+      "name": "disk-page-full-single-oversized-text",
+      "description": "A single TEXT value larger than a page's usable bytes raises STORAGE_PAGE_FULL (no overflow in Phase 3a).",
+      "backend": "disk",
+      "program": [
+        {"sql": "CREATE TABLE t (s TEXT);",                     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA');", "expect": {"error": {"name": "STORAGE_PAGE_FULL"}}}
+      ]
+    },
+    {
+      "name": "disk-open-error-bad-magic",
+      "description": "Preloaded file with corrupted magic raises STORAGE_CORRUPT_HEADER on open.",
+      "backend": "disk",
+      "preload_hex": "00000000000000000000000000000000",
+      "open_error": {"name": "STORAGE_CORRUPT_HEADER", "fields": {"field": "magic"}},
+      "program": []
+    },
+    {
+      "name": "disk-open-error-unsupported-page-size",
+      "description": "Page size field of 300 (not a supported power of two) raises STORAGE_CORRUPT_HEADER. Bytes 0-15: valid magic. Bytes 16-17: 0x012C = 300.",
+      "backend": "disk",
+      "preload_hex": "53514c69746520666f726d6174203300012c",
+      "open_error": {"name": "STORAGE_CORRUPT_HEADER", "fields": {"field": "page_size"}},
+      "program": []
+    },
+    {
+      "name": "disk-open-error-non-utf8-encoding",
+      "description": "Text encoding field != 1 (UTF-8) raises STORAGE_UNSUPPORTED_FEATURE. Full valid-magic header with offset 56 set to 2 (UTF-16LE). Other header fields set to Phase 3a defaults; page-leaf header at offset 100 describes an empty page.",
+      "backend": "disk",
+      "preload_hex": "53514c69746520666f726d61742033001000010100402020000000000000000100000000000000000000000000000004000000000000000000000002000000000000000000000000000000000000000000000000000000000000000000000000002e5b300d00000000100000",
+      "open_error": {"name": "STORAGE_UNSUPPORTED_FEATURE", "fields": {"feature": "text_encoding"}},
+      "program": []
+    }
+  ]
+}

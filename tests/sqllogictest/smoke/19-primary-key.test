@@ -1,0 +1,44 @@
+# Smoke: PRIMARY KEY — INTEGER (rowid alias) and non-INTEGER (auto-index).
+
+# INTEGER PRIMARY KEY = rowid alias (no separate index)
+statement ok
+CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)
+
+statement ok
+INSERT INTO users VALUES (1, 'alice')
+
+statement ok
+INSERT INTO users VALUES (2, 'bob')
+
+query IT nosort
+SELECT id, name FROM users ORDER BY id
+----
+1
+alice
+2
+bob
+
+# Duplicate INTEGER PK raises UNIQUE violation
+statement error
+INSERT INTO users VALUES (1, 'clone')
+
+# Non-INTEGER PRIMARY KEY creates sqlite_autoindex_* (UNIQUE enforced)
+statement ok
+CREATE TABLE t (k TEXT PRIMARY KEY, v INTEGER)
+
+statement ok
+INSERT INTO t VALUES ('alpha', 1)
+
+statement ok
+INSERT INTO t VALUES ('beta', 2)
+
+statement error
+INSERT INTO t VALUES ('alpha', 3)
+
+query TI rowsort
+SELECT k, v FROM t
+----
+alpha
+1
+beta
+2

@@ -1,0 +1,82 @@
+{
+  "phase": "6bf",
+  "description": "Phase 6bf gate — ALTER TABLE subset: RENAME TABLE, RENAME COLUMN, ADD COLUMN. Mainline SQLite-compatible catalog mutations.",
+  "cases": [
+    {
+      "name": "alter-rename-table",
+      "program": [
+        {"sql": "CREATE TABLE t1 (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t1 VALUES (1), (2);", "expect": {"rows": []}},
+        {"sql": "ALTER TABLE t1 RENAME TO t2;", "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t2 ORDER BY a;", "expect": {"rows": [[1], [2]]}},
+        {"sql": "SELECT a FROM t1;", "expect": {"error": "COMPILE_UNKNOWN_TABLE"}}
+      ]
+    },
+    {
+      "name": "alter-rename-column",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10), (2, 20);", "expect": {"rows": []}},
+        {"sql": "ALTER TABLE t RENAME COLUMN a TO id;", "expect": {"rows": []}},
+        {"sql": "SELECT id, b FROM t ORDER BY id;", "expect": {"rows": [[1, 10], [2, 20]]}},
+        {"sql": "SELECT a FROM t;", "expect": {"error": "COMPILE_UNKNOWN_COLUMN"}}
+      ]
+    },
+    {
+      "name": "alter-add-column",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2);", "expect": {"rows": []}},
+        {"sql": "ALTER TABLE t ADD COLUMN b INTEGER;", "expect": {"rows": []}},
+        {"sql": "SELECT a, b FROM t ORDER BY a;", "expect": {"rows": [[1, null], [2, null]]}}
+      ]
+    },
+    {
+      "name": "alter-add-column-with-default",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2);", "expect": {"rows": []}},
+        {"sql": "ALTER TABLE t ADD COLUMN b TEXT DEFAULT 'x';", "expect": {"rows": []}},
+        {"sql": "SELECT a, b FROM t ORDER BY a;", "expect": {"rows": [[1, "x"], [2, "x"]]}}
+      ]
+    },
+    {
+      "name": "alter-add-column-then-insert",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);", "expect": {"rows": []}},
+        {"sql": "ALTER TABLE t ADD COLUMN b INTEGER;", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 20);", "expect": {"rows": []}},
+        {"sql": "SELECT a, b FROM t ORDER BY a;", "expect": {"rows": [[1, null], [2, 20]]}}
+      ]
+    },
+    {
+      "name": "alter-rename-unknown-table-rejects",
+      "program": [
+        {"sql": "ALTER TABLE nope RENAME TO foo;", "expect": {"error": "COMPILE_UNKNOWN_TABLE"}}
+      ]
+    },
+    {
+      "name": "alter-rename-column-unknown-rejects",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "ALTER TABLE t RENAME COLUMN nope TO foo;", "expect": {"error": "COMPILE_UNKNOWN_COLUMN"}}
+      ]
+    },
+    {
+      "name": "alter-add-duplicate-column-rejects",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);", "expect": {"rows": []}},
+        {"sql": "ALTER TABLE t ADD COLUMN a INTEGER;", "expect": {"error": "COMPILE_DUPLICATE_COLUMN"}}
+      ]
+    },
+    {
+      "name": "alter-rename-to-existing-table-rejects",
+      "program": [
+        {"sql": "CREATE TABLE t1 (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE TABLE t2 (b INTEGER);", "expect": {"rows": []}},
+        {"sql": "ALTER TABLE t1 RENAME TO t2;", "expect": {"error": "COMPILE_DUPLICATE_TABLE"}}
+      ]
+    }
+  ]
+}

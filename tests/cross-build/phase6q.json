@@ -1,0 +1,232 @@
+{
+  "phase": "6q",
+  "description": "Phase 6q gate — string concatenation `||`. New token CONCAT (two consecutive `|`). New opcode `Concat { left_reg, right_reg, dest }`. New precedence level `concat` between `unary` and `multiplicative`. NULL propagates; Integer coerces to decimal TEXT; Real raises VDBE_UNSUPPORTED_CAST (deferred to 6r). All phase1..6p fixtures must stay green.",
+  "cases": [
+    {
+      "name": "concat-basic-two-strings",
+      "program": [
+        {"sql": "SELECT 'a' || 'b';", "expect": {"rows": [["ab"]]}}
+      ]
+    },
+    {
+      "name": "concat-left-associative-three",
+      "description": "`a || b || c` parses as `(a || b) || c` (left-assoc). Observable as the order of result assembly, but all standard concat implementations produce the same string.",
+      "program": [
+        {"sql": "SELECT 'a' || 'b' || 'c';", "expect": {"rows": [["abc"]]}}
+      ]
+    },
+    {
+      "name": "concat-empty-strings",
+      "program": [
+        {"sql": "SELECT '' || '' || 'x';", "expect": {"rows": [["x"]]}},
+        {"sql": "SELECT '' || 'y' || '';", "expect": {"rows": [["y"]]}},
+        {"sql": "SELECT '' || '' || '';",  "expect": {"rows": [[""]]}}
+      ]
+    },
+    {
+      "name": "concat-integer-text",
+      "program": [
+        {"sql": "SELECT 5 || 'x';",  "expect": {"rows": [["5x"]]}},
+        {"sql": "SELECT 'x-' || 42;", "expect": {"rows": [["x-42"]]}},
+        {"sql": "SELECT 0 || 'end';", "expect": {"rows": [["0end"]]}}
+      ]
+    },
+    {
+      "name": "concat-integer-integer",
+      "description": "Both operands Integer → both coerced to decimal text, result is Text.",
+      "program": [
+        {"sql": "SELECT 1 || 2;", "expect": {"rows": [["12"]]}}
+      ]
+    },
+    {
+      "name": "concat-negative-integer",
+      "description": "Unary `-` binds tighter than `||` (precedence: unary > concat).",
+      "program": [
+        {"sql": "SELECT -5 || 'x';",  "expect": {"rows": [["-5x"]]}},
+        {"sql": "SELECT 'x' || -7;",  "expect": {"rows": [["x-7"]]}}
+      ]
+    },
+    {
+      "name": "concat-i64-min-via-expression",
+      "description": "Integer coercion of i64::MIN. Unary minus cannot directly produce -9223372036854775808 because +9223372036854775808 is out-of-range for i64; construct via (0 - MAX - 1) or similar.",
+      "program": [
+        {"sql": "SELECT (0 - 9223372036854775807 - 1) || '';", "expect": {"rows": [["-9223372036854775808"]]}}
+      ]
+    },
+    {
+      "name": "concat-i64-max",
+      "program": [
+        {"sql": "SELECT 9223372036854775807 || 'end';", "expect": {"rows": [["9223372036854775807end"]]}}
+      ]
+    },
+    {
+      "name": "concat-null-propagates-left",
+      "program": [
+        {"sql": "SELECT NULL || 'x';", "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "concat-null-propagates-right",
+      "program": [
+        {"sql": "SELECT 'x' || NULL;", "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "concat-null-both",
+      "program": [
+        {"sql": "SELECT NULL || NULL;", "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "concat-null-in-chain",
+      "description": "NULL propagates through any position in a chain.",
+      "program": [
+        {"sql": "SELECT 'a' || NULL || 'c';", "expect": {"rows": [[null]]}},
+        {"sql": "SELECT NULL || 'b' || 'c';", "expect": {"rows": [[null]]}},
+        {"sql": "SELECT 'a' || 'b' || NULL;", "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "concat-null-with-integer",
+      "program": [
+        {"sql": "SELECT NULL || 5;",  "expect": {"rows": [[null]]}},
+        {"sql": "SELECT 5 || NULL;",  "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "concat-real-left-rejected",
+      "description": "Phase 6r lifted the Real-operand UNSUPPORTED_CAST in Concat; Real is now coerced to fixed 17-digit scientific notation. Fixture retained under its original name to pin the post-6r behavior.",
+      "program": [
+        {"sql": "SELECT 3.14 || 'x';", "expect": {"rows": [["3.1400000000000001e+00x"]]}}
+      ]
+    },
+    {
+      "name": "concat-real-right-rejected",
+      "description": "Phase 6r lifted the Real-operand UNSUPPORTED_CAST in Concat.",
+      "program": [
+        {"sql": "SELECT 'x' || 3.14;", "expect": {"rows": [["x3.1400000000000001e+00"]]}}
+      ]
+    },
+    {
+      "name": "concat-real-both-rejected",
+      "description": "Phase 6r lifted the Real-operand UNSUPPORTED_CAST in Concat.",
+      "program": [
+        {"sql": "SELECT 1.5 || 2.5;", "expect": {"rows": [["1.5000000000000000e+002.5000000000000000e+00"]]}}
+      ]
+    },
+    {
+      "name": "concat-null-short-circuits-over-real",
+      "description": "NULL short-circuits BEFORE the Real-rejection check. `NULL || 3.14` → Null, NOT an error.",
+      "program": [
+        {"sql": "SELECT NULL || 3.14;", "expect": {"rows": [[null]]}},
+        {"sql": "SELECT 3.14 || NULL;", "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "concat-on-text-columns",
+      "program": [
+        {"sql": "CREATE TABLE people (first TEXT, last TEXT);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO people VALUES ('Ada',  'Lovelace');", "expect": {"rows": []}},
+        {"sql": "INSERT INTO people VALUES ('Alan', 'Turing');",   "expect": {"rows": []}},
+        {"sql": "SELECT first || ' ' || last FROM people;", "expect": {"rows": [["Ada Lovelace"], ["Alan Turing"]]}}
+      ]
+    },
+    {
+      "name": "concat-in-where",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER, name TEXT);",   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 'foo');",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 'bar');",          "expect": {"rows": []}},
+        {"sql": "SELECT id FROM t WHERE name || '!' = 'foo!';", "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "concat-with-null-column",
+      "description": "A NULL column value propagates through `||`, yielding Null for that row.",
+      "program": [
+        {"sql": "CREATE TABLE t (a TEXT, b TEXT);",  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('x', 'y');",  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('x', NULL);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL, 'y');", "expect": {"rows": []}},
+        {"sql": "SELECT a || b FROM t;",             "expect": {"rows": [["xy"], [null], [null]]}}
+      ]
+    },
+    {
+      "name": "concat-result-is-text-not-integer",
+      "description": "`1 || 2` must evaluate to Text('12'), verifiable by piping through LENGTH (two UTF-8 bytes → Integer 2). If the result were Integer 12, LENGTH would raise VDBE_TYPE_MISMATCH.",
+      "program": [
+        {"sql": "SELECT LENGTH(1 || 2);", "expect": {"rows": [[2]]}}
+      ]
+    },
+    {
+      "name": "concat-precedence-vs-comparison",
+      "description": "`||` is higher precedence than comparison. `'a' || 'b' = 'ab'` parses as `('a' || 'b') = 'ab'` → true (1).",
+      "program": [
+        {"sql": "SELECT 'a' || 'b' = 'ab';", "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "concat-precedence-vs-additive",
+      "description": "`||` is higher than `+ -`. `2 + 3 || 4` parses as `2 + (3 || 4)` = Integer(2) + Text('34') → EVAL_TYPE_ERROR on the `+` operator (same error name + field shape as phase2c1 `SELECT 1-'x';`). If concat were lower precedence, it would parse as `(2 + 3) || 4` = '54' (no error). Asserting the error distinguishes the two precedence assignments. Uses EVAL_TYPE_ERROR (not VDBE_TYPE_MISMATCH) because the canonical error for binary-operator type mismatches is EVAL_TYPE_ERROR {op, left_type, right_type}; VDBE_TYPE_MISMATCH is reserved for scalar-function / aggregate type errors.",
+      "program": [
+        {"sql": "SELECT 2 + 3 || 4;", "expect": {"error": {"name": "EVAL_TYPE_ERROR", "fields": {"op": "+", "left_type": "INTEGER", "right_type": "TEXT"}}}}
+      ]
+    },
+    {
+      "name": "concat-chain-with-integer-in-middle",
+      "program": [
+        {"sql": "SELECT 'a-' || 42 || '-b';", "expect": {"rows": [["a-42-b"]]}}
+      ]
+    },
+    {
+      "name": "concat-with-parens",
+      "description": "Parentheses override precedence; `(a || b)` is a primary expression.",
+      "program": [
+        {"sql": "SELECT ('a' || 'b') || ('c' || 'd');", "expect": {"rows": [["abcd"]]}}
+      ]
+    },
+    {
+      "name": "concat-bare-pipe-lex-error",
+      "description": "A single `|` (not followed by another `|`) raises LEX_UNEXPECTED_CHARACTER at the `|`'s position.",
+      "program": [
+        {"sql": "SELECT 'a' | 'b';", "expect": {"error": {"name": "LEX_UNEXPECTED_CHARACTER", "fields": {"pos": 11}}}}
+      ]
+    },
+    {
+      "name": "concat-missing-right-operand",
+      "program": [
+        {"sql": "SELECT 'a' ||;", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "SEMICOLON"}}}}
+      ]
+    },
+    {
+      "name": "concat-prefix-not-allowed",
+      "description": "`||` has no unary / prefix form; appears at expression-start → parse error at the CONCAT token.",
+      "program": [
+        {"sql": "SELECT || 'a';", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "CONCAT"}}}}
+      ]
+    },
+    {
+      "name": "concat-in-order-by",
+      "program": [
+        {"sql": "CREATE TABLE t (a TEXT, b TEXT);",  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('x', 'b');",  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('x', 'a');",  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('x', 'c');",  "expect": {"rows": []}},
+        {"sql": "SELECT b FROM t ORDER BY a || b;",  "expect": {"rows": [["a"], ["b"], ["c"]]}}
+      ]
+    },
+    {
+      "name": "concat-in-compound-select",
+      "program": [
+        {"sql": "SELECT 'a' || 'b' UNION ALL SELECT 'c' || 'd';", "expect": {"rows": [["ab"], ["cd"]]}}
+      ]
+    },
+    {
+      "name": "concat-with-cast-integer",
+      "description": "CAST coerces Real to Integer first, then Integer || Text works.",
+      "program": [
+        {"sql": "SELECT CAST(3.7 AS INTEGER) || 'x';", "expect": {"rows": [["3x"]]}}
+      ]
+    }
+  ]
+}

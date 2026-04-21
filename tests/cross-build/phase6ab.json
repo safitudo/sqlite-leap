@@ -1,0 +1,100 @@
+{
+  "phase": "6ab",
+  "description": "Phase 6ab gate — INSERT OR IGNORE and INSERT OR REPLACE conflict-resolution. Reuses 9g UNIQUE-probe + existing DeleteRow/InsertRow machinery. No new opcodes.",
+  "cases": [
+    {
+      "name": "or-ignore-skips-conflict",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER PRIMARY KEY, v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);",                        "expect": {"rows": []}},
+        {"sql": "INSERT OR IGNORE INTO t VALUES (1, 999);",             "expect": {"rows": []}},
+        {"sql": "SELECT id, v FROM t ORDER BY id;",                     "expect": {"rows": [[1, 10]]}}
+      ]
+    },
+    {
+      "name": "or-ignore-partial-multirow",
+      "description": "In a multi-row INSERT OR IGNORE, conflicting tuples are skipped; non-conflicting ones succeed.",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER PRIMARY KEY, v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 20);",                        "expect": {"rows": []}},
+        {"sql": "INSERT OR IGNORE INTO t VALUES (1, 10), (2, 99), (3, 30);", "expect": {"rows": []}},
+        {"sql": "SELECT id, v FROM t ORDER BY id;",                     "expect": {"rows": [[1, 10], [2, 20], [3, 30]]}}
+      ]
+    },
+    {
+      "name": "or-replace-overwrites-conflict",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER PRIMARY KEY, v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);",                        "expect": {"rows": []}},
+        {"sql": "INSERT OR REPLACE INTO t VALUES (1, 999);",            "expect": {"rows": []}},
+        {"sql": "SELECT id, v FROM t ORDER BY id;",                     "expect": {"rows": [[1, 999]]}}
+      ]
+    },
+    {
+      "name": "or-replace-multirow",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER PRIMARY KEY, v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10), (2, 20);",               "expect": {"rows": []}},
+        {"sql": "INSERT OR REPLACE INTO t VALUES (2, 888), (3, 30);",   "expect": {"rows": []}},
+        {"sql": "SELECT id, v FROM t ORDER BY id;",                     "expect": {"rows": [[1, 10], [2, 888], [3, 30]]}}
+      ]
+    },
+    {
+      "name": "default-insert-still-conflicts",
+      "description": "Without OR IGNORE/REPLACE, duplicate key still raises STORAGE_UNIQUE_VIOLATION (phase 9g behavior preserved).",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER PRIMARY KEY, v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);",                        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 20);",                        "expect": {"error": "STORAGE_UNIQUE_VIOLATION"}}
+      ]
+    },
+    {
+      "name": "or-ignore-on-unique-index",
+      "description": "OR IGNORE also skips conflicts on a non-PK UNIQUE index (9g path).",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER PRIMARY KEY, email TEXT);", "expect": {"rows": []}},
+        {"sql": "CREATE UNIQUE INDEX idx_email ON t (email);",           "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 'a@x');",                      "expect": {"rows": []}},
+        {"sql": "INSERT OR IGNORE INTO t VALUES (2, 'a@x');",            "expect": {"rows": []}},
+        {"sql": "SELECT id, email FROM t ORDER BY id;",                  "expect": {"rows": [[1, "a@x"]]}}
+      ]
+    },
+    {
+      "name": "or-replace-on-unique-index",
+      "description": "OR REPLACE on non-PK UNIQUE: DELETEs the old row that holds the conflicting key, then INSERTs the new row.",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER PRIMARY KEY, email TEXT);", "expect": {"rows": []}},
+        {"sql": "CREATE UNIQUE INDEX idx_email ON t (email);",           "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 'a@x');",                      "expect": {"rows": []}},
+        {"sql": "INSERT OR REPLACE INTO t VALUES (2, 'a@x');",           "expect": {"rows": []}},
+        {"sql": "SELECT id, email FROM t ORDER BY id;",                  "expect": {"rows": [[2, "a@x"]]}}
+      ]
+    },
+    {
+      "name": "or-replace-preserves-other-rows",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER PRIMARY KEY, v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10), (2, 20), (3, 30);",      "expect": {"rows": []}},
+        {"sql": "INSERT OR REPLACE INTO t VALUES (2, 888);",            "expect": {"rows": []}},
+        {"sql": "SELECT id, v FROM t ORDER BY id;",                     "expect": {"rows": [[1, 10], [2, 888], [3, 30]]}}
+      ]
+    },
+    {
+      "name": "or-ignore-no-conflict",
+      "description": "OR IGNORE with no conflict is identical to plain INSERT.",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER PRIMARY KEY, v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT OR IGNORE INTO t VALUES (1, 10);",              "expect": {"rows": []}},
+        {"sql": "SELECT id, v FROM t;",                                 "expect": {"rows": [[1, 10]]}}
+      ]
+    },
+    {
+      "name": "or-rollback-rejected",
+      "description": "v1 only supports IGNORE and REPLACE; OR ROLLBACK / OR ABORT / OR FAIL are parse errors.",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER PRIMARY KEY);", "expect": {"rows": []}},
+        {"sql": "INSERT OR ROLLBACK INTO t VALUES (1);",     "expect": {"error": "PARSE_UNEXPECTED_TOKEN"}}
+      ]
+    }
+  ]
+}

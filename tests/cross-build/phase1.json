@@ -1,0 +1,31 @@
+{
+  "phase": 1,
+  "description": "Phase 1 gate — SELECT <literal>. Each case supplies an SQL input and either an expected Result or an expected error condition. Every case must pass on BOTH the C and Rust generated builds, and the two builds must agree byte-for-byte on success cases (cross-build equivalence). Note: parse-error `expected` sets reflect the Phase 2a-widened grammar (STAR/IDENTIFIER/CREATE/INSERT may appear where Phase 1 would have listed only literals/SELECT) because the running parser is always the latest phase's parser — Phase 1 is now a behavioural subset, not a frozen earlier parser.",
+  "success_cases": [
+    {"name": "integer-1",            "sql": "SELECT 1;",              "expect": {"rows": [[1]]}},
+    {"name": "integer-42",           "sql": "SELECT 42",              "expect": {"rows": [[42]]}},
+    {"name": "integer-0",            "sql": "SELECT 0;",              "expect": {"rows": [[0]]}},
+    {"name": "integer-max-i64",      "sql": "SELECT 9223372036854775807;", "expect": {"rows": [[9223372036854775807]]}},
+    {"name": "string-hello",         "sql": "SELECT 'hello';",        "expect": {"rows": [["hello"]]}},
+    {"name": "string-empty",         "sql": "SELECT '';",             "expect": {"rows": [[""]]}},
+    {"name": "string-escaped-quote", "sql": "SELECT 'it''s';",        "expect": {"rows": [["it's"]]}},
+    {"name": "string-multi-escape",  "sql": "SELECT '''a''b''';",     "expect": {"rows": [["'a'b'"]]}},
+    {"name": "null-upper",           "sql": "SELECT NULL;",           "expect": {"rows": [[null]]}},
+    {"name": "null-lower",           "sql": "select null;",           "expect": {"rows": [[null]]}},
+    {"name": "null-mixed",           "sql": "SeLeCt NuLl;",           "expect": {"rows": [[null]]}},
+    {"name": "no-semicolon",         "sql": "SELECT 7",               "expect": {"rows": [[7]]}},
+    {"name": "leading-whitespace",   "sql": "  SELECT 5;",            "expect": {"rows": [[5]]}},
+    {"name": "trailing-whitespace",  "sql": "SELECT 5  ;  ",          "expect": {"rows": [[5]]}},
+    {"name": "interior-whitespace",  "sql": "SELECT\t\n 'ws'\n;",     "expect": {"rows": [["ws"]]}}
+  ],
+  "error_cases": [
+    {"name": "unexpected-char-at",   "sql": "SELECT @;",              "expect_error": {"name": "LEX_UNEXPECTED_CHARACTER", "fields": {"pos": 7}}},
+    {"name": "digit-alpha-adjacency","sql": "SELECT 42abc;",          "expect_error": {"name": "LEX_UNEXPECTED_CHARACTER", "fields": {"pos": 9}}},
+    {"name": "non-ascii-byte",       "sql": "SELECT \u00e9;",         "expect_error": {"name": "LEX_UNEXPECTED_CHARACTER", "fields": {"pos": 7}}},
+    {"name": "unterminated-string",  "sql": "SELECT 'abc",            "expect_error": {"name": "LEX_UNTERMINATED_STRING", "fields": {"pos": 7}}},
+    {"name": "integer-overflow",     "sql": "SELECT 99999999999999999999;", "expect_error": {"name": "LEX_INTEGER_OVERFLOW", "fields": {"pos": 7}}},
+    {"name": "missing-literal",      "sql": "SELECT;",                "expect_error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "SEMICOLON", "pos": 6, "expected": ["STAR", "IDENTIFIER", "INTEGER_LITERAL", "STRING_LITERAL", "KEYWORD_NULL"]}}},
+    {"name": "trailing-garbage",     "sql": "SELECT 1 2;",            "expect_error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "INTEGER_LITERAL", "pos": 9, "expected": ["SEMICOLON", "EOF", "COMMA", "KEYWORD_FROM"]}}},
+    {"name": "empty-input",          "sql": "",                       "expect_error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "EOF", "pos": 0, "expected": ["KEYWORD_SELECT", "KEYWORD_CREATE", "KEYWORD_INSERT", "KEYWORD_UPDATE", "KEYWORD_DELETE"]}}}
+  ]
+}

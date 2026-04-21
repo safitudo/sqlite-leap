@@ -1,0 +1,3 @@
+# Everything built / downloaded by fetch-baselines.sh is gitignored.
+src/
+bin/

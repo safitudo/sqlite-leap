@@ -1,0 +1,1 @@
+SELECT 1 WHERE NOT (1 = 2) AND (3 = 3 OR 4 = 5);

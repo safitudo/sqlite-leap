@@ -1,0 +1,26 @@
+# Smoke: numeric scalar functions — ABS.
+
+query I nosort
+SELECT ABS(5)
+----
+5
+
+query I nosort
+SELECT ABS(-5)
+----
+5
+
+query I nosort
+SELECT ABS(0)
+----
+0
+
+query R nosort
+SELECT ABS(-3.14)
+----
+3.140
+
+query R nosort
+SELECT ABS(3.14)
+----
+3.140

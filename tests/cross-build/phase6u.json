@@ -1,0 +1,123 @@
+{
+  "phase": "6u",
+  "description": "Phase 6u gate — IS NULL / IS NOT NULL postfix operators. No new VDBE opcodes; max_invariant=42 unchanged. Algorithm per spec/sql-grammar.spec.md § 'Phase 6u'. All prior phase fixtures must stay green. Byte-identical cross-build on result rows.",
+  "cases": [
+    {
+      "name": "is-null-on-null-literal",
+      "program": [
+        {"sql": "SELECT NULL IS NULL;", "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "is-null-on-non-null-literal",
+      "program": [
+        {"sql": "SELECT 1 IS NULL;", "expect": {"rows": [[0]]}}
+      ]
+    },
+    {
+      "name": "is-not-null-on-null-literal",
+      "program": [
+        {"sql": "SELECT NULL IS NOT NULL;", "expect": {"rows": [[0]]}}
+      ]
+    },
+    {
+      "name": "is-not-null-on-non-null-literal",
+      "program": [
+        {"sql": "SELECT 42 IS NOT NULL;", "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "is-null-on-text",
+      "program": [
+        {"sql": "SELECT 'x' IS NULL;", "expect": {"rows": [[0]]}}
+      ]
+    },
+    {
+      "name": "is-null-on-real",
+      "program": [
+        {"sql": "SELECT 3.14 IS NULL;", "expect": {"rows": [[0]]}}
+      ]
+    },
+    {
+      "name": "is-null-on-column-null",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL);",             "expect": {"rows": []}},
+        {"sql": "SELECT a IS NULL FROM t;",                  "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "is-null-on-column-non-null",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",                "expect": {"rows": []}},
+        {"sql": "SELECT a IS NULL FROM t;",                  "expect": {"rows": [[0]]}}
+      ]
+    },
+    {
+      "name": "where-is-null-filters-to-null-rows",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b TEXT);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 'hello');",                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL, 'world');",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3, NULL);",                       "expect": {"rows": []}},
+        {"sql": "SELECT b FROM t WHERE a IS NULL;",                      "expect": {"rows": [["world"]]}}
+      ]
+    },
+    {
+      "name": "where-is-not-null-filters-to-non-null-rows",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL);",                       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                          "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t WHERE a IS NOT NULL ORDER BY a;",    "expect": {"rows": [[1], [3]]}}
+      ]
+    },
+    {
+      "name": "is-null-combined-with-and",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, NULL);",                      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 5);",                         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL, 5);",                       "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t WHERE a = 1 AND b IS NULL;",           "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "is-null-combined-with-or",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL);",                         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                            "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(*) FROM t WHERE a IS NULL OR a = 3;",     "expect": {"rows": [[2]]}}
+      ]
+    },
+    {
+      "name": "null-equality-still-yields-null-not-boolean",
+      "description": "Sanity: NULL = NULL is NULL (3VL), distinct from NULL IS NULL = 1. Row is filtered out by WHERE because NULL is not truthy.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL);",           "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(*) FROM t WHERE a = NULL;", "expect": {"rows": [[0]]}},
+        {"sql": "SELECT COUNT(*) FROM t WHERE a IS NULL;","expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "is-null-on-expression",
+      "program": [
+        {"sql": "SELECT (NULL + 1) IS NULL;", "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "is-not-null-inverts-is-null",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL);",                 "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(*) FROM t WHERE a IS NOT NULL;",  "expect": {"rows": [[1]]}}
+      ]
+    }
+  ]
+}

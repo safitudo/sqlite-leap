@@ -1,0 +1,91 @@
+{
+  "phase": "6by",
+  "description": "Phase 6by gate — two interacting bugs surfaced by `random/aggregates/*` and `random/groupby/*` residuals in the 2026-04-20 rust corpus v2. (1) `SELECT *` with GROUP BY emitted zero output rows because `compile_select_aggregated` collapsed `Projection::Star` to an empty proj_exprs slice, so `num_proj = 0` → no result slots. Fix: expand Star to an explicit `Expression::ColumnRef` list (leaked to satisfy the 'src AST lifetime) before calling `compile_grouped_aggregated`. Bare-column refs outside the GROUP BY key set are already handled by Phase 6bo. (2) LEFT JOIN followed by a CROSS/INNER JOIN (the `tab2 LEFT JOIN tab0 ON 0, tab1` shape producing 27 rows instead of 9×3×3=81 from the distinct-star hash fixture) lost the downstream cross-product at the LEFT-null-fill tail. `emit_join_scan_n` previously emitted one terminal body at `threshold=i` when a LEFT step saw no matches, skipping the nested levels (i+1)..n. Fix: at each LEFT-null-fill tail, emit `emit_nested_null_fill` which re-enters the (i+1)..n loops with a per-cursor null mask (cursor i forced NULL; cursors > i emit real values). The `emit_body_with_threshold` callback signature gained a `u64 extra_null_mask` parameter so the deepest emit can distinguish 'cursors >= threshold are NULL' (legacy trailing-null semantics) from 'cursors flagged in mask are NULL' (nested per-cursor null). No new VDBE opcodes. max_invariant=43 unchanged.",
+  "cases": [
+    {
+      "name": "select-star-group-by-returns-rows",
+      "description": "Pre-fix: `SELECT * FROM t GROUP BY k` returned zero rows (Projection::Star + GROUP BY hit the empty-proj_exprs branch). Post-fix: returns one row per group with all columns (non-key columns take any value from the group; Phase 6bo bare-column handling).",
+      "program": [
+        {"sql": "CREATE TABLE t(a INTEGER, b INTEGER, c INTEGER);"},
+        {"sql": "INSERT INTO t VALUES(1, 10, 100);"},
+        {"sql": "INSERT INTO t VALUES(2, 20, 200);"},
+        {"sql": "INSERT INTO t VALUES(3, 30, 300);"},
+        {"sql": "SELECT COUNT(*) FROM (SELECT * FROM t GROUP BY a, b, c);", "expect": {"rows": [[3]]}}
+      ]
+    },
+    {
+      "name": "select-star-group-by-all-keys",
+      "description": "Each row unique on all columns → 3 groups, 3 output rows.",
+      "program": [
+        {"sql": "CREATE TABLE t(a INTEGER, b INTEGER, c INTEGER);"},
+        {"sql": "INSERT INTO t VALUES(1, 10, 100);"},
+        {"sql": "INSERT INTO t VALUES(2, 20, 200);"},
+        {"sql": "INSERT INTO t VALUES(3, 30, 300);"},
+        {"sql": "SELECT * FROM t GROUP BY a, b, c ORDER BY a;", "expect": {"rows": [[1, 10, 100], [2, 20, 200], [3, 30, 300]]}}
+      ]
+    },
+    {
+      "name": "select-star-group-by-single-key-bare-col",
+      "description": "Grouping by one key; bare-column values in output are implementation-defined per Phase 6bo (any row within the group). Check row count only.",
+      "program": [
+        {"sql": "CREATE TABLE t(a INTEGER, b INTEGER);"},
+        {"sql": "INSERT INTO t VALUES(1, 10);"},
+        {"sql": "INSERT INTO t VALUES(1, 11);"},
+        {"sql": "INSERT INTO t VALUES(2, 20);"},
+        {"sql": "SELECT COUNT(*) FROM (SELECT * FROM t GROUP BY a);", "expect": {"rows": [[2]]}}
+      ]
+    },
+    {
+      "name": "left-join-false-on-then-cross",
+      "description": "Corpus shape `A LEFT JOIN B ON FALSE, C`. A has 3 rows, B has 3, C has 3. LEFT JOIN emits 3 rows with B nulled (no matches), then CROSS JOIN with C produces 3×3=9 rows. Pre-fix returned 3 (downstream levels skipped at null-fill).",
+      "program": [
+        {"sql": "CREATE TABLE a(x INTEGER);"},
+        {"sql": "CREATE TABLE b(y INTEGER);"},
+        {"sql": "CREATE TABLE c(z INTEGER);"},
+        {"sql": "INSERT INTO a VALUES(1);"},
+        {"sql": "INSERT INTO a VALUES(2);"},
+        {"sql": "INSERT INTO a VALUES(3);"},
+        {"sql": "INSERT INTO b VALUES(10);"},
+        {"sql": "INSERT INTO b VALUES(20);"},
+        {"sql": "INSERT INTO b VALUES(30);"},
+        {"sql": "INSERT INTO c VALUES(100);"},
+        {"sql": "INSERT INTO c VALUES(200);"},
+        {"sql": "INSERT INTO c VALUES(300);"},
+        {"sql": "SELECT COUNT(*) FROM a LEFT JOIN b ON 0, c;", "expect": {"rows": [[9]]}}
+      ]
+    },
+    {
+      "name": "left-join-false-on-then-cross-values",
+      "description": "Values check: B columns must be NULL; C columns must be real.",
+      "program": [
+        {"sql": "CREATE TABLE a(x INTEGER);"},
+        {"sql": "CREATE TABLE b(y INTEGER);"},
+        {"sql": "CREATE TABLE c(z INTEGER);"},
+        {"sql": "INSERT INTO a VALUES(1);"},
+        {"sql": "INSERT INTO b VALUES(10);"},
+        {"sql": "INSERT INTO c VALUES(100);"},
+        {"sql": "INSERT INTO c VALUES(200);"},
+        {"sql": "SELECT * FROM a LEFT JOIN b ON 0, c ORDER BY z;", "expect": {"rows": [[1, null, 100], [1, null, 200]]}}
+      ]
+    },
+    {
+      "name": "left-join-true-on-then-cross-unchanged",
+      "description": "Regression check: LEFT JOIN ON TRUE + CROSS continues to produce the cartesian product. 3×3×3 = 27 rows.",
+      "program": [
+        {"sql": "CREATE TABLE a(x INTEGER);"},
+        {"sql": "CREATE TABLE b(y INTEGER);"},
+        {"sql": "CREATE TABLE c(z INTEGER);"},
+        {"sql": "INSERT INTO a VALUES(1);"},
+        {"sql": "INSERT INTO a VALUES(2);"},
+        {"sql": "INSERT INTO a VALUES(3);"},
+        {"sql": "INSERT INTO b VALUES(10);"},
+        {"sql": "INSERT INTO b VALUES(20);"},
+        {"sql": "INSERT INTO b VALUES(30);"},
+        {"sql": "INSERT INTO c VALUES(100);"},
+        {"sql": "INSERT INTO c VALUES(200);"},
+        {"sql": "INSERT INTO c VALUES(300);"},
+        {"sql": "SELECT COUNT(*) FROM a LEFT JOIN b ON 1, c;", "expect": {"rows": [[27]]}}
+      ]
+    }
+  ]
+}

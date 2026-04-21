@@ -1,0 +1,88 @@
+{
+  "phase": "6ap",
+  "description": "Phase 6ap gate — GROUP_CONCAT aggregate + TOTAL aggregate. GROUP_CONCAT is the main string-aggregating aggregate. TOTAL is like SUM but returns 0.0 for empty/all-NULL input.",
+  "cases": [
+    {
+      "name": "group-concat-default-sep",
+      "program": [
+        {"sql": "CREATE TABLE t (s TEXT);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('a'), ('b'), ('c');", "expect": {"rows": []}},
+        {"sql": "SELECT GROUP_CONCAT(s) FROM t;", "expect": {"rows": [["a,b,c"]]}}
+      ]
+    },
+    {
+      "name": "group-concat-explicit-sep",
+      "program": [
+        {"sql": "CREATE TABLE t (s TEXT);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('a'), ('b'), ('c');", "expect": {"rows": []}},
+        {"sql": "SELECT GROUP_CONCAT(s, ';') FROM t;", "expect": {"rows": [["a;b;c"]]}}
+      ]
+    },
+    {
+      "name": "group-concat-with-group-by",
+      "program": [
+        {"sql": "CREATE TABLE t (g INTEGER, s TEXT);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 'a'), (1, 'b'), (2, 'c'), (2, 'd');", "expect": {"rows": []}},
+        {"sql": "SELECT g, GROUP_CONCAT(s) FROM t GROUP BY g ORDER BY g;", "expect": {"rows": [[1, "a,b"], [2, "c,d"]]}}
+      ]
+    },
+    {
+      "name": "group-concat-ignores-null",
+      "program": [
+        {"sql": "CREATE TABLE t (s TEXT);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('a'), (NULL), ('b'), (NULL);", "expect": {"rows": []}},
+        {"sql": "SELECT GROUP_CONCAT(s) FROM t;", "expect": {"rows": [["a,b"]]}}
+      ]
+    },
+    {
+      "name": "group-concat-empty",
+      "description": "GROUP_CONCAT over empty input returns NULL (like other aggregates).",
+      "program": [
+        {"sql": "CREATE TABLE t (s TEXT);", "expect": {"rows": []}},
+        {"sql": "SELECT GROUP_CONCAT(s) FROM t;", "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "group-concat-integer-values",
+      "description": "GROUP_CONCAT coerces non-text values to text.",
+      "program": [
+        {"sql": "CREATE TABLE t (n INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2), (3);", "expect": {"rows": []}},
+        {"sql": "SELECT GROUP_CONCAT(n) FROM t;", "expect": {"rows": [["1,2,3"]]}}
+      ]
+    },
+    {
+      "name": "total-basic",
+      "program": [
+        {"sql": "CREATE TABLE t (v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2), (3);", "expect": {"rows": []}},
+        {"sql": "SELECT TOTAL(v) FROM t;", "expect": {"rows": [[6.0]]}}
+      ]
+    },
+    {
+      "name": "total-empty-returns-zero",
+      "description": "TOTAL differs from SUM: empty input → 0.0 (not NULL).",
+      "program": [
+        {"sql": "CREATE TABLE t (v INTEGER);", "expect": {"rows": []}},
+        {"sql": "SELECT TOTAL(v) FROM t;",     "expect": {"rows": [[0.0]]}}
+      ]
+    },
+    {
+      "name": "total-all-null-returns-zero",
+      "description": "TOTAL over all-NULL input → 0.0 (not NULL).",
+      "program": [
+        {"sql": "CREATE TABLE t (v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL), (NULL);", "expect": {"rows": []}},
+        {"sql": "SELECT TOTAL(v) FROM t;", "expect": {"rows": [[0.0]]}}
+      ]
+    },
+    {
+      "name": "sum-vs-total-empty",
+      "description": "Demonstrates SUM/TOTAL distinction explicitly.",
+      "program": [
+        {"sql": "CREATE TABLE t (v INTEGER);", "expect": {"rows": []}},
+        {"sql": "SELECT SUM(v), TOTAL(v) FROM t;", "expect": {"rows": [[null, 0.0]]}}
+      ]
+    }
+  ]
+}

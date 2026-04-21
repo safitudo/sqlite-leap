@@ -1,0 +1,211 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$id": "https://sqlite-leap/schema/opcode.schema.json",
+  "title": "Opcode",
+  "description": "A single VDBE opcode. See spec/vdbe-opcodes.spec.md for semantics. Phase 2b defines the first 12; Phase 2c-1 adds 11 more (arithmetic / comparison / Negate).",
+  "oneOf": [
+    {"type": "object", "additionalProperties": false, "required": ["op"], "properties": {"op": {"const": "Init"}}},
+    {"type": "object", "additionalProperties": false, "required": ["op"], "properties": {"op": {"const": "Halt"}}},
+    {
+      "type": "object", "additionalProperties": false, "required": ["op", "dest", "value"],
+      "properties": {"op": {"const": "LoadConst"}, "dest": {"type": "integer", "minimum": 0}, "value": {"$ref": "value.schema.json"}}
+    },
+    {
+      "type": "object", "additionalProperties": false, "required": ["op", "start", "count"],
+      "properties": {"op": {"const": "ResultRow"}, "start": {"type": "integer", "minimum": 0}, "count": {"type": "integer", "minimum": 1}}
+    },
+    {
+      "type": "object", "additionalProperties": false, "required": ["op", "cursor", "table"],
+      "properties": {"op": {"const": "OpenRead"}, "cursor": {"type": "integer", "minimum": 0}, "table": {"type": "string", "minLength": 1}}
+    },
+    {
+      "type": "object", "additionalProperties": false, "required": ["op", "cursor", "table"],
+      "properties": {"op": {"const": "OpenWrite"}, "cursor": {"type": "integer", "minimum": 0}, "table": {"type": "string", "minLength": 1}}
+    },
+    {
+      "type": "object", "additionalProperties": false, "required": ["op", "cursor"],
+      "properties": {"op": {"const": "Close"}, "cursor": {"type": "integer", "minimum": 0}}
+    },
+    {
+      "type": "object", "additionalProperties": false, "required": ["op", "cursor", "jump_if_empty"],
+      "properties": {"op": {"const": "Rewind"}, "cursor": {"type": "integer", "minimum": 0}, "jump_if_empty": {"type": "integer", "minimum": 0}}
+    },
+    {
+      "type": "object", "additionalProperties": false, "required": ["op", "cursor", "jump_if_more"],
+      "properties": {"op": {"const": "Next"}, "cursor": {"type": "integer", "minimum": 0}, "jump_if_more": {"type": "integer", "minimum": 0}}
+    },
+    {
+      "type": "object", "additionalProperties": false, "required": ["op", "cursor", "column", "dest"],
+      "properties": {"op": {"const": "Column"}, "cursor": {"type": "integer", "minimum": 0}, "column": {"type": "integer", "minimum": 0}, "dest": {"type": "integer", "minimum": 0}}
+    },
+    {
+      "type": "object", "additionalProperties": false, "required": ["op", "cursor", "column_names", "start", "count"],
+      "properties": {
+        "op": {"const": "InsertRow"},
+        "cursor": {"type": "integer", "minimum": 0},
+        "column_names": {"oneOf": [{"type": "null"}, {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}]},
+        "start": {"type": "integer", "minimum": 0},
+        "count": {"type": "integer", "minimum": 1}
+      }
+    },
+    {
+      "type": "object", "additionalProperties": false, "required": ["op", "table", "columns"],
+      "properties": {
+        "op": {"const": "CreateTable"},
+        "table": {"type": "string", "minLength": 1},
+        "columns": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["name", "type"], "properties": {"name": {"type": "string", "minLength": 1}, "type": {"type": "string", "enum": ["INTEGER", "TEXT"]}}}}
+      }
+    },
+    {"type": "object", "additionalProperties": false, "required": ["op", "dest", "lhs", "rhs"], "properties": {"op": {"const": "Add"},       "dest": {"type": "integer", "minimum": 0}, "lhs": {"type": "integer", "minimum": 0}, "rhs": {"type": "integer", "minimum": 0}}},
+    {"type": "object", "additionalProperties": false, "required": ["op", "dest", "lhs", "rhs"], "properties": {"op": {"const": "Subtract"},  "dest": {"type": "integer", "minimum": 0}, "lhs": {"type": "integer", "minimum": 0}, "rhs": {"type": "integer", "minimum": 0}}},
+    {"type": "object", "additionalProperties": false, "required": ["op", "dest", "lhs", "rhs"], "properties": {"op": {"const": "Multiply"},  "dest": {"type": "integer", "minimum": 0}, "lhs": {"type": "integer", "minimum": 0}, "rhs": {"type": "integer", "minimum": 0}}},
+    {"type": "object", "additionalProperties": false, "required": ["op", "dest", "lhs", "rhs"], "properties": {"op": {"const": "Divide"},    "dest": {"type": "integer", "minimum": 0}, "lhs": {"type": "integer", "minimum": 0}, "rhs": {"type": "integer", "minimum": 0}}},
+    {"type": "object", "additionalProperties": false, "required": ["op", "dest", "src"],        "properties": {"op": {"const": "Negate"},    "dest": {"type": "integer", "minimum": 0}, "src": {"type": "integer", "minimum": 0}}},
+    {"type": "object", "additionalProperties": false, "required": ["op", "dest", "lhs", "rhs"], "properties": {"op": {"const": "Eq"},        "dest": {"type": "integer", "minimum": 0}, "lhs": {"type": "integer", "minimum": 0}, "rhs": {"type": "integer", "minimum": 0}}},
+    {"type": "object", "additionalProperties": false, "required": ["op", "dest", "lhs", "rhs"], "properties": {"op": {"const": "Ne"},        "dest": {"type": "integer", "minimum": 0}, "lhs": {"type": "integer", "minimum": 0}, "rhs": {"type": "integer", "minimum": 0}}},
+    {"type": "object", "additionalProperties": false, "required": ["op", "dest", "lhs", "rhs"], "properties": {"op": {"const": "Lt"},        "dest": {"type": "integer", "minimum": 0}, "lhs": {"type": "integer", "minimum": 0}, "rhs": {"type": "integer", "minimum": 0}}},
+    {"type": "object", "additionalProperties": false, "required": ["op", "dest", "lhs", "rhs"], "properties": {"op": {"const": "Le"},        "dest": {"type": "integer", "minimum": 0}, "lhs": {"type": "integer", "minimum": 0}, "rhs": {"type": "integer", "minimum": 0}}},
+    {"type": "object", "additionalProperties": false, "required": ["op", "dest", "lhs", "rhs"], "properties": {"op": {"const": "Gt"},        "dest": {"type": "integer", "minimum": 0}, "lhs": {"type": "integer", "minimum": 0}, "rhs": {"type": "integer", "minimum": 0}}},
+    {"type": "object", "additionalProperties": false, "required": ["op", "dest", "lhs", "rhs"], "properties": {"op": {"const": "Ge"},        "dest": {"type": "integer", "minimum": 0}, "lhs": {"type": "integer", "minimum": 0}, "rhs": {"type": "integer", "minimum": 0}}},
+    {"type": "object", "additionalProperties": false, "required": ["op", "dest", "lhs", "rhs"], "properties": {"op": {"const": "And"},       "dest": {"type": "integer", "minimum": 0}, "lhs": {"type": "integer", "minimum": 0}, "rhs": {"type": "integer", "minimum": 0}}},
+    {"type": "object", "additionalProperties": false, "required": ["op", "dest", "lhs", "rhs"], "properties": {"op": {"const": "Or"},        "dest": {"type": "integer", "minimum": 0}, "lhs": {"type": "integer", "minimum": 0}, "rhs": {"type": "integer", "minimum": 0}}},
+    {"type": "object", "additionalProperties": false, "required": ["op", "dest", "src"],        "properties": {"op": {"const": "Not"},       "dest": {"type": "integer", "minimum": 0}, "src": {"type": "integer", "minimum": 0}}},
+    {"type": "object", "additionalProperties": false, "required": ["op", "cond", "target"],    "properties": {"op": {"const": "JumpIfFalse"},"cond": {"type": "integer", "minimum": 0}, "target": {"type": "integer", "minimum": 0}}},
+    {
+      "type": "object", "additionalProperties": false, "required": ["op", "cursor", "column_names", "start", "count"],
+      "properties": {
+        "op": {"const": "UpdateRow"},
+        "cursor": {"type": "integer", "minimum": 0},
+        "column_names": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "start": {"type": "integer", "minimum": 0},
+        "count": {"type": "integer", "minimum": 1}
+      }
+    },
+    {
+      "type": "object", "additionalProperties": false, "required": ["op", "cursor"],
+      "properties": {"op": {"const": "DeleteRow"}, "cursor": {"type": "integer", "minimum": 0}}
+    },
+    {
+      "type": "object", "additionalProperties": false, "required": ["op", "sorter", "key_count", "value_count", "direction_mask"],
+      "properties": {
+        "op":             {"const": "SorterOpen"},
+        "sorter":         {"type": "integer", "minimum": 0},
+        "key_count":      {"type": "integer", "minimum": 0},
+        "value_count":    {"type": "integer", "minimum": 0},
+        "direction_mask": {"type": "integer", "minimum": 0, "description": "Bit i set => key i is DESC. Bits above key_count-1 MUST be 0."}
+      }
+    },
+    {
+      "type": "object", "additionalProperties": false, "required": ["op", "sorter", "keys_reg", "values_reg"],
+      "properties": {
+        "op":         {"const": "SorterInsert"},
+        "sorter":     {"type": "integer", "minimum": 0},
+        "keys_reg":   {"type": "integer", "minimum": 0},
+        "values_reg": {"type": "integer", "minimum": 0}
+      }
+    },
+    {
+      "type": "object", "additionalProperties": false, "required": ["op", "sorter"],
+      "properties": {"op": {"const": "SorterSort"}, "sorter": {"type": "integer", "minimum": 0}}
+    },
+    {
+      "type": "object", "additionalProperties": false, "required": ["op", "sorter", "jump_if_empty"],
+      "properties": {
+        "op":            {"const": "SorterRewind"},
+        "sorter":        {"type": "integer", "minimum": 0},
+        "jump_if_empty": {"type": "integer", "minimum": 0}
+      }
+    },
+    {
+      "type": "object", "additionalProperties": false, "required": ["op", "sorter", "jump_if_more"],
+      "properties": {
+        "op":           {"const": "SorterNext"},
+        "sorter":       {"type": "integer", "minimum": 0},
+        "jump_if_more": {"type": "integer", "minimum": 0}
+      }
+    },
+    {
+      "type": "object", "additionalProperties": false, "required": ["op", "sorter", "slot", "dest"],
+      "properties": {
+        "op":     {"const": "SorterRead"},
+        "sorter": {"type": "integer", "minimum": 0},
+        "slot":   {"type": "integer", "minimum": 0},
+        "dest":   {"type": "integer", "minimum": 0}
+      }
+    },
+    {
+      "type": "object", "additionalProperties": false, "required": ["op", "sorter", "slot", "dest"],
+      "properties": {
+        "op":     {"const": "SorterReadKey"},
+        "sorter": {"type": "integer", "minimum": 0},
+        "slot":   {"type": "integer", "minimum": 0, "description": "Phase 6d: zero-based index into the sorter's KEY tuple. Invariant 23: slot < key_count."},
+        "dest":   {"type": "integer", "minimum": 0}
+      }
+    },
+    {
+      "type": "object", "additionalProperties": false, "required": ["op", "dest", "lhs", "rhs"],
+      "properties": {
+        "op":   {"const": "SortValueEq"},
+        "dest": {"type": "integer", "minimum": 0},
+        "lhs":  {"type": "integer", "minimum": 0},
+        "rhs":  {"type": "integer", "minimum": 0}
+      },
+      "description": "Phase 6d (generator-added): sort-order-aware equality used for GROUP BY group-break detection. NULL==NULL → 1, NULL==non-NULL → 0, else strict value equality. Never returns NULL. Cross-corroboration candidate: spec leaves the comparison chain target-defined; independent generators adopting the same helper suggests spec-pinning."
+    },
+    {
+      "type": "object", "additionalProperties": false, "required": ["op", "dest", "src"],
+      "properties": {
+        "op":   {"const": "Copy"},
+        "dest": {"type": "integer", "minimum": 0},
+        "src":  {"type": "integer", "minimum": 0}
+      },
+      "description": "Phase 6d (generator-added): register-to-register copy preserving TEXT. Cross-corroboration candidate."
+    },
+    {
+      "type": "object", "additionalProperties": false, "required": ["op", "target"],
+      "properties": {
+        "op":     {"const": "Jump"},
+        "target": {"type": "integer", "minimum": 0}
+      },
+      "description": "Phase 6d (generator-added): unconditional branch. Cross-corroboration candidate."
+    },
+    {
+      "type": "object", "additionalProperties": false, "required": ["op", "acc_reg", "kind", "arg_reg"],
+      "properties": {
+        "op":      {"const": "AggStep"},
+        "acc_reg": {"type": "integer", "minimum": 0},
+        "kind":    {"type": "string", "enum": ["CountStar", "Count", "Sum", "Min", "Max", "Avg"]},
+        "arg_reg": {"type": "integer", "minimum": 0, "description": "Unused for CountStar (any in-range value legal)."}
+      }
+    },
+    {
+      "type": "object", "additionalProperties": false, "required": ["op", "acc_reg", "kind", "dest"],
+      "properties": {
+        "op":      {"const": "AggFinal"},
+        "acc_reg": {"type": "integer", "minimum": 0},
+        "kind":    {"type": "string", "enum": ["CountStar", "Count", "Sum", "Min", "Max", "Avg"]},
+        "dest":    {"type": "integer", "minimum": 0}
+      }
+    },
+    {
+      "type": "object", "additionalProperties": false, "required": ["op", "kind", "arg_reg", "dest"],
+      "properties": {
+        "op":      {"const": "Scalar"},
+        "kind":    {"type": "string", "enum": ["CastInteger", "CastReal", "CastText", "Length", "Abs", "Upper", "Lower", "Trim", "Ltrim", "Rtrim"], "description": "Phase 6i CAST variants (CastInteger, CastReal, CastText) + Phase 6j scalar functions (Length, Abs) + Phase 6k scalar functions (Upper, Lower) + Phase 6l scalar functions (Trim, Ltrim, Rtrim). Further kinds will be added in Phase 6m+."},
+        "arg_reg": {"type": "integer", "minimum": 0},
+        "dest":    {"type": "integer", "minimum": 0, "description": "arg_reg == dest is legal (in-place cast / scalar apply)."}
+      },
+      "description": "Phase 6i: single-argument pure-function opcode. Phase 6i consumers: CAST (CastInteger, CastReal, CastText). Phase 6j consumers: LENGTH, ABS. Invariant 25: arg_reg < num_registers && dest < num_registers; no register-aliasing restriction."
+    },
+    {
+      "type": "object", "additionalProperties": false, "required": ["op", "state_reg", "dest", "src"],
+      "properties": {
+        "op":        {"const": "SubqueryEmit"},
+        "state_reg": {"type": "integer", "minimum": 0, "description": "Run-state register (Integer): 0 = no row emitted yet, 1 = a row was already emitted. Initialised to Integer(0) by a LoadConst in the preamble."},
+        "dest":      {"type": "integer", "minimum": 0, "description": "Cache register for the subquery's single-row value. Initialised to Null by a LoadConst in the preamble so the zero-rows-→-Null contract is satisfied by construction."},
+        "src":       {"type": "integer", "minimum": 0, "description": "Source register (the subquery projection's only column; projection width is guaranteed 1 by the compile-time arity check)."}
+      },
+      "description": "Phase 6n: emit one row of a scalar subquery body. First call: state_reg becomes Integer(1); dest := src (value-clone). Subsequent call: raise VDBE_SUBQUERY_MORE_THAN_ONE_ROW. Invariant 26: all three registers in-bounds; no aliasing restriction."
+    }
+  ]
+}

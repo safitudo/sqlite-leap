@@ -1,0 +1,66 @@
+{
+  "phase": "6bj",
+  "description": "Phase 6bj gate — GENERATED columns (virtual only). Column whose value is computed from an expression over the row's other columns, evaluated on every read.",
+  "cases": [
+    {
+      "name": "generated-always-virtual-simple",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER GENERATED ALWAYS AS (a * 2) VIRTUAL);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (a) VALUES (5);", "expect": {"rows": []}},
+        {"sql": "SELECT a, b FROM t;", "expect": {"rows": [[5, 10]]}}
+      ]
+    },
+    {
+      "name": "generated-without-always-keyword",
+      "description": "`GENERATED ALWAYS` is optional — `AS (expr) VIRTUAL` is sufficient.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER AS (a + 1));", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (a) VALUES (10);", "expect": {"rows": []}},
+        {"sql": "SELECT a, b FROM t;", "expect": {"rows": [[10, 11]]}}
+      ]
+    },
+    {
+      "name": "generated-multi-col",
+      "program": [
+        {"sql": "CREATE TABLE t (price REAL, qty INTEGER, total REAL GENERATED ALWAYS AS (price * qty) VIRTUAL);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (price, qty) VALUES (1.5, 3), (2.0, 4);", "expect": {"rows": []}},
+        {"sql": "SELECT price, qty, total FROM t ORDER BY price;", "expect": {"rows": [[1.5, 3, 4.5], [2.0, 4, 8.0]]}}
+      ]
+    },
+    {
+      "name": "generated-cannot-insert-explicit",
+      "description": "Attempting to INSERT an explicit value into a GENERATED column is an error.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER GENERATED ALWAYS AS (a * 2) VIRTUAL);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (a, b) VALUES (1, 99);", "expect": {"error": "RUNTIME_CANNOT_INSERT_INTO_GENERATED_COLUMN"}}
+      ]
+    },
+    {
+      "name": "generated-null-propagates",
+      "description": "Expression over a NULL source produces NULL.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER GENERATED ALWAYS AS (a * 2) VIRTUAL);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (a) VALUES (NULL);", "expect": {"rows": []}},
+        {"sql": "SELECT a, b FROM t;", "expect": {"rows": [[null, null]]}}
+      ]
+    },
+    {
+      "name": "generated-update-source-reflects",
+      "description": "UPDATE of source column changes the computed column's visible value on next read.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER GENERATED ALWAYS AS (a * 2) VIRTUAL);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (a) VALUES (5);", "expect": {"rows": []}},
+        {"sql": "UPDATE t SET a = 10;", "expect": {"rows": []}},
+        {"sql": "SELECT a, b FROM t;", "expect": {"rows": [[10, 20]]}}
+      ]
+    },
+    {
+      "name": "generated-in-where-clause",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER GENERATED ALWAYS AS (a * 10) VIRTUAL);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (a) VALUES (1), (2), (3);", "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t WHERE b > 15 ORDER BY a;", "expect": {"rows": [[2], [3]]}}
+      ]
+    }
+  ]
+}

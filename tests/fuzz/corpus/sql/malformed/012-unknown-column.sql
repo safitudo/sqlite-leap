@@ -1,0 +1,1 @@
+CREATE TABLE t (a); SELECT zzzz FROM t;

@@ -1,0 +1,57 @@
+{
+  "phase": "6ax",
+  "description": "Phase 6ax gate — sqlite_master / sqlite_schema read-only introspection tables.",
+  "cases": [
+    {
+      "name": "select-master-tables",
+      "program": [
+        {"sql": "CREATE TABLE a (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (y TEXT);", "expect": {"rows": []}},
+        {"sql": "SELECT type, name FROM sqlite_master WHERE type = 'table' ORDER BY name;", "expect": {"rows": [["table", "a"], ["table", "b"]]}}
+      ]
+    },
+    {
+      "name": "sqlite-schema-alias",
+      "description": "sqlite_schema is an alias for sqlite_master.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "SELECT name FROM sqlite_schema WHERE type = 'table';", "expect": {"rows": [["t"]]}}
+      ]
+    },
+    {
+      "name": "master-includes-index",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t(x);", "expect": {"rows": []}},
+        {"sql": "SELECT type, name, tbl_name FROM sqlite_master WHERE type = 'index' ORDER BY name;", "expect": {"rows": [["index", "idx_x", "t"]]}}
+      ]
+    },
+    {
+      "name": "master-includes-view",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE VIEW v AS SELECT x FROM t;", "expect": {"rows": []}},
+        {"sql": "SELECT type, name FROM sqlite_master WHERE type = 'view' ORDER BY name;", "expect": {"rows": [["view", "v"]]}}
+      ]
+    },
+    {
+      "name": "master-sql-column-has-create-text",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "SELECT sql FROM sqlite_master WHERE name = 't';", "expect": {"rows": [["CREATE TABLE t (x INTEGER)"]]}}
+      ]
+    },
+    {
+      "name": "master-reject-insert",
+      "program": [
+        {"sql": "INSERT INTO sqlite_master VALUES ('table', 'fake', 'fake', 0, NULL);", "expect": {"error": "RUNTIME_READONLY_TABLE"}}
+      ]
+    },
+    {
+      "name": "master-empty-db",
+      "program": [
+        {"sql": "SELECT COUNT(*) FROM sqlite_master;", "expect": {"rows": [[0]]}}
+      ]
+    }
+  ]
+}

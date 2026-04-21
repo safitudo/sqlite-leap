@@ -1,0 +1,28 @@
+# Smoke: `||` string concatenation (Phase 6q).
+
+query T nosort
+SELECT 'hello' || ' ' || 'world'
+----
+hello world
+
+query T nosort
+SELECT 'val=' || 42
+----
+val=42
+
+# NULL short-circuits concat to NULL
+query T nosort
+SELECT 'x' || NULL
+----
+NULL
+
+query T nosort
+SELECT NULL || 'y'
+----
+NULL
+
+# Real→Text coercion via || uses Phase 6r 17-digit format
+query T nosort
+SELECT 'pi=' || CAST(3.14 AS REAL)
+----
+pi=3.1400000000000001e+00

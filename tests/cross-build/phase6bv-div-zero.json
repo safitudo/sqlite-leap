@@ -1,0 +1,120 @@
+{
+  "phase": "6bv",
+  "description": "Phase 6bv gate — SQLite-compat quirk: integer `x / 0` and `x % 0` return NULL, not an error. Mainline SQLite verified on 2026-04-20 via `/usr/bin/sqlite3 :memory:` for every literal case below. Before 6bv both generators raised `EVAL_DIVISION_BY_ZERO`, producing 42 Rust + 7 C failures in random/aggregates/* where corpus expectations are NULL. No new opcode, no new invariant. The `EVAL_DIVISION_BY_ZERO` error kind is preserved in both cores for ABI symmetry but is unreached by the DIV/MOD paths after this change. IEEE real-division divergence (mainline SQLite returns NULL for `5.0 / 0`; leap engines return IEEE `+inf`/`NaN`) is OUT OF SCOPE for 6bv — tracked separately. Cases below exercise the integer and type-promotion paths only.",
+  "cases": [
+    {
+      "name": "int-div-zero",
+      "description": "Baseline: integer `5 / 0` yields NULL (was EVAL_DIVISION_BY_ZERO before 6bv).",
+      "program": [
+        {"sql": "SELECT 5/0;", "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "int-mod-zero",
+      "description": "Integer modulo-by-zero yields NULL (was EVAL_DIVISION_BY_ZERO before 6bv).",
+      "program": [
+        {"sql": "SELECT 5%0;", "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "neg-div-zero",
+      "description": "Signed integer LHS: `-5 / 0` yields NULL. Sign of the LHS does not matter.",
+      "program": [
+        {"sql": "SELECT -5/0;", "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "zero-div-zero",
+      "description": "`0 / 0` yields NULL (integer path — both sides are integer literals).",
+      "program": [
+        {"sql": "SELECT 0/0;", "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "zero-mod-zero",
+      "description": "Paired with zero-div-zero: `0 % 0` yields NULL.",
+      "program": [
+        {"sql": "SELECT 0%0;", "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "null-div-zero",
+      "description": "NULL-propagation precedence still holds: NULL / 0 yields NULL by the NULL rule, not by the zero-handling rule. Both rules agree on the result — this case confirms NULL propagation still wins when both apply.",
+      "program": [
+        {"sql": "SELECT NULL/0;", "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "null-mod-zero",
+      "description": "Paired with null-div-zero: NULL %% 0 yields NULL by NULL propagation.",
+      "program": [
+        {"sql": "SELECT NULL%0;", "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "div-in-select",
+      "description": "Row-at-a-time integer DIV: rows with b=0 project NULL, others project the integer quotient. Verified mainline: the b=0 row returns NULL (empty in the CLI output), non-zero rows project 5 and 10 respectively.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (10, 2);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (20, 0);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (30, 3);", "expect": {"rows": []}},
+        {"sql": "SELECT a/b FROM t ORDER BY a;", "expect": {"rows": [[5], [null], [10]]}}
+      ]
+    },
+    {
+      "name": "mod-in-select",
+      "description": "Row-at-a-time integer MOD: rows with b=0 project NULL; non-zero b rows return a%b.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (10, 3);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (20, 0);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (7, 4);", "expect": {"rows": []}},
+        {"sql": "SELECT a%b FROM t ORDER BY a;", "expect": {"rows": [[3], [1], [null]]}}
+      ]
+    },
+    {
+      "name": "agg-with-div-zero",
+      "description": "SUM over an integer DIV expression where some rows divide by zero. SUM skips NULL per existing aggregate NULL semantics: SUM(10/2, 20/0, 30/3) = SUM(5, NULL, 10) = 15. Verified mainline.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (10, 2);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (20, 0);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (30, 3);", "expect": {"rows": []}},
+        {"sql": "SELECT SUM(a/b) FROM t;", "expect": {"rows": [[15]]}}
+      ]
+    },
+    {
+      "name": "count-preserved-through-div-zero",
+      "description": "COUNT counts non-NULL values of its argument (COUNT(expr) skips NULL). Integer-div-by-zero yields NULL, so the zero-divisor row is not counted. Rows (a=10,b=2), (a=20,b=0), (a=30,b=3) -> COUNT(a/b) = 2.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (10, 2);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (20, 0);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (30, 3);", "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(a/b) FROM t;", "expect": {"rows": [[2]]}}
+      ]
+    },
+    {
+      "name": "where-div-zero-skips-row",
+      "description": "The SQLite-compat quirk interacts with WHERE: `WHERE a/b = 5` with b=0 evaluates the LHS to NULL; comparison NULL = 5 yields NULL; the WHERE gate treats NULL as NOT TRUE and skips the row. Only the row where a/b = 5 (a=10,b=2) is returned.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (10, 2);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (20, 0);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (30, 3);", "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t WHERE a/b = 5 ORDER BY a;", "expect": {"rows": [[10]]}}
+      ]
+    },
+    {
+      "name": "update-with-div-zero",
+      "description": "UPDATE with an RHS expression that divides by zero writes NULL (since the expr yields NULL, INTEGER columns accept NULL). Starting row (a=10, b=0): UPDATE t SET a = a/b; leaves a = NULL.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (10, 0);", "expect": {"rows": []}},
+        {"sql": "UPDATE t SET a = a/b;", "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t;", "expect": {"rows": [[null]]}}
+      ]
+    }
+  ]
+}

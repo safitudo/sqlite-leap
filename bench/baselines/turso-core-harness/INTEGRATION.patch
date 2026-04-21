@@ -1,0 +1,75 @@
+# Integration patch for lanes 2/3/4 — add `turso-core` as a target.
+#
+# Context: bench/lanes/0{2,3,4}/run.sh were being rewritten by a parallel
+# agent (Bench integrity fix) when this harness was built. To avoid stepping
+# on that work, the turso-core wiring for those three lanes is parked here.
+#
+# APPLY AFTER the bench-fix agent commits. Each hunk adds an extra case arm
+# to the existing target-dispatch `case "$TARGET" in` block.
+#
+# Note: the harness accepts non-strict multi-statement SQL in run-mode, so
+# these corpora "just work" even when they contain statements that some
+# engines reject (see the PRAGMA journal_mode=MEMORY caveat documented in
+# bench/baselines/turso-core-harness/README.md).
+#
+# After applying, invoke the lanes normally:
+#   bash bench/lanes/02-parse-speed/run.sh     --target turso-core
+#   bash bench/lanes/03-select-in-memory/run.sh --target turso-core
+#   bash bench/lanes/04-insert-throughput/run.sh --target turso-core
+#
+# -----------------------------------------------------------------------
+# Lane 2 (parse-speed): add after the `sqlite-mainline|turso)` case arm.
+# -----------------------------------------------------------------------
+#
+# --- a/bench/lanes/02-parse-speed/run.sh
+# +++ b/bench/lanes/02-parse-speed/run.sh
+# @@
+#  case "$TARGET" in
+#      sqlite-mainline|turso)
+#          cmd=(bash -c "$bin :memory: < $CORPUS")
+#          ;;
+# +    turso-core)
+# +        # Library variant: reads SQL from --sql-file against :memory:.
+# +        # Non-strict by default; errors get logged to stderr and the
+# +        # run continues (same as the CLI turso baseline).
+# +        cmd=("$bin" "--mode=run" "--sql-file=$CORPUS")
+# +        ;;
+#      sqlite-leap-c|sqlite-leap-rust)
+#          ...
+#
+# -----------------------------------------------------------------------
+# Lane 3 (select-in-memory): identical shape to lane 2.
+# -----------------------------------------------------------------------
+#
+# --- a/bench/lanes/03-select-in-memory/run.sh
+# +++ b/bench/lanes/03-select-in-memory/run.sh
+# @@
+#  case "$TARGET" in
+#      sqlite-mainline|turso)
+#          cmd=(bash -c "$bin :memory: < $WORKLOAD")
+#          ;;
+# +    turso-core)
+# +        cmd=("$bin" "--mode=run" "--sql-file=$WORKLOAD")
+# +        ;;
+#      sqlite-leap-c|sqlite-leap-rust)
+#          ...
+#
+# -----------------------------------------------------------------------
+# Lane 4 (insert-throughput): file DB in a per-run tmpdir, like the CLI
+# baselines. Use --db=... since the harness's default is :memory:.
+# -----------------------------------------------------------------------
+#
+# --- a/bench/lanes/04-insert-throughput/run.sh
+# +++ b/bench/lanes/04-insert-throughput/run.sh
+# @@
+#  case "$TARGET" in
+#      sqlite-mainline|turso)
+#          invoke="d=\$(mktemp -d); $bin \$d/db.sqlite < $WORKLOAD > /dev/null; rm -rf \$d"
+#          ;;
+# +    turso-core)
+# +        # Use --db to pick up the per-run tmp file DB; harness is
+# +        # --mode=run for multi-statement SQL with a file-backed DB.
+# +        invoke="d=\$(mktemp -d); $bin --mode=run --db=\$d/db.sqlite --sql-file=$WORKLOAD > /dev/null; rm -rf \$d"
+# +        ;;
+#      sqlite-leap-c|sqlite-leap-rust)
+#          ...

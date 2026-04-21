@@ -1,0 +1,82 @@
+/*
+ * AFL++ persistent-mode harness for sqlite-leap C build.
+ *
+ * THIS IS A TEMPLATE, not a live target. To wire up:
+ *   1. Ensure src-c/ has been generated (see generators/c/) and a static
+ *      library libsqliteleap.a is built (or link the object files directly).
+ *   2. Copy this file to a build location of your choice, e.g.
+ *      build/fuzz/afl-harness.c.
+ *   3. Compile with afl-clang-fast:
+ *        afl-clang-fast -O2 -I src-c/include \
+ *            build/fuzz/afl-harness.c src-c/build/libsqliteleap.a \
+ *            -o build/fuzz/afl-harness
+ *   4. Run:
+ *        afl-fuzz -i tests/fuzz/sql/seeds -o afl-out -- build/fuzz/afl-harness
+ *
+ * Contract mirrors the cargo-fuzz target:
+ *   - Input bytes are SQL text. We attempt to parse and execute against a
+ *     fresh in-memory DB per input. Named engine errors are fine; crashes
+ *     (abort, SIGSEGV, ASan hits) are findings.
+ */
+
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+/*
+ * Public headers from the generated C build. Exact names TBD by the C
+ * generator; adjust these two lines to match whatever src-c/include/ ships.
+ */
+#include "sqliteleap.h"
+
+/* AFL++ persistent-mode declarations. */
+__AFL_FUZZ_INIT();
+
+#define MAX_INPUT_LEN (64 * 1024)
+
+int main(int argc, char **argv) {
+    (void)argc;
+    (void)argv;
+
+#ifdef __AFL_HAVE_MANUAL_CONTROL
+    __AFL_INIT();
+#endif
+
+    unsigned char *buf = __AFL_FUZZ_TESTCASE_BUF;
+
+    while (__AFL_LOOP(10000)) {
+        int len = __AFL_FUZZ_TESTCASE_LEN;
+        if (len <= 0 || len > MAX_INPUT_LEN) {
+            continue;
+        }
+
+        /*
+         * Copy input into a NUL-terminated buffer — the engine's SQL entry
+         * point expects a C string. A NUL byte mid-input is treated by the
+         * engine as end-of-input; that's a legitimate engine behavior,
+         * not a finding.
+         */
+        char sql[MAX_INPUT_LEN + 1];
+        memcpy(sql, buf, (size_t)len);
+        sql[len] = '\0';
+
+        sqliteleap_db *db = NULL;
+        if (sqliteleap_open_memory(&db) != SQLITELEAP_OK) {
+            continue;
+        }
+
+        /*
+         * Drive the full parse -> compile -> execute path. The public
+         * exec function must internally iterate result rows; if the
+         * C API surfaces a step-based cursor, replace with a loop that
+         * calls sqliteleap_step(stmt) until DONE.
+         */
+        (void)sqliteleap_exec(db, sql, /*callback=*/NULL, /*udata=*/NULL);
+
+        sqliteleap_close(db);
+    }
+
+    return 0;
+}

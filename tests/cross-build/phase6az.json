@@ -1,0 +1,56 @@
+{
+  "phase": "6az",
+  "description": "Phase 6az gate — NOT BETWEEN. Parse-time desugar to NOT (x BETWEEN lo AND hi). No new opcodes. max_invariant=43 unchanged.",
+  "cases": [
+    {
+      "name": "not-between-true",
+      "program": [
+        {"sql": "SELECT 5 NOT BETWEEN 10 AND 20;", "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "not-between-false-inside",
+      "program": [
+        {"sql": "SELECT 15 NOT BETWEEN 10 AND 20;", "expect": {"rows": [[0]]}}
+      ]
+    },
+    {
+      "name": "not-between-false-at-boundary",
+      "program": [
+        {"sql": "SELECT 10 NOT BETWEEN 10 AND 20;", "expect": {"rows": [[0]]}}
+      ]
+    },
+    {
+      "name": "not-between-null-propagates",
+      "description": "NOT BETWEEN with any Null operand → Null (3VL).",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL);",                      "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(*) FROM t WHERE a NOT BETWEEN 1 AND 5;", "expect": {"rows": [[0]]}}
+      ]
+    },
+    {
+      "name": "not-between-in-where",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (5), (10), (15), (20), (25);", "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t WHERE a NOT BETWEEN 5 AND 20 ORDER BY a;", "expect": {"rows": [[1], [25]]}}
+      ]
+    },
+    {
+      "name": "not-between-with-or",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (15), (25);",             "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t WHERE a NOT BETWEEN 5 AND 10 OR a > 20 ORDER BY a;", "expect": {"rows": [[1], [15], [25]]}}
+      ]
+    },
+    {
+      "name": "between-still-works",
+      "description": "Regression: plain BETWEEN still works.",
+      "program": [
+        {"sql": "SELECT 15 BETWEEN 10 AND 20;", "expect": {"rows": [[1]]}}
+      ]
+    }
+  ]
+}

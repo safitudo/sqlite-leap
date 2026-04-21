@@ -1,0 +1,57 @@
+{
+  "phase": "3d",
+  "description": "Phase 3d gate — atomic-rename commit durability. Verifies: (a) normal mutate/close/reopen commits the new bytes; (b) an existing <path>.leap-stage file is unlinked on open (cleanup from prior crashed process) and does NOT pollute the read of <path>; (c) multiple commit cycles accumulate state correctly; (d) the Phase 3a/3b single-page and multi-page behaviour is unchanged under the new close protocol. All 1..3b fixtures must stay green. Cross-build equivalence required.",
+  "schema": {
+    "case": "inherits phase3b.json schema plus one new field:",
+    "preload_staging_hex": "string — optional, disk-only. Hex bytes (no prefix, no separators) written to <path>.leap-stage BEFORE the first open. Harness zero-pads to at least 4096 bytes. The open protocol MUST unlink this file; the test then proceeds as if it never existed."
+  },
+  "cases": [
+    {
+      "name": "disk-normal-commit-survives-reopen",
+      "description": "Baseline: mutate, close (atomic-rename commit), reopen, bytes are visible.",
+      "backend": "disk",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",   "expect": {"rows": []}},
+        {"reopen": true},
+        {"sql": "SELECT x FROM t;",            "expect": {"rows": [[1], [2]]}}
+      ]
+    },
+    {
+      "name": "disk-staging-leftover-cleaned-on-open",
+      "description": "A stale .leap-stage file exists before the first open. The open MUST unlink it and read <path> normally. The stale file's content MUST NOT leak into the session's read of <path>.",
+      "backend": "disk",
+      "preload_staging_hex": "deadbeef",
+      "program": [
+        {"sql": "CREATE TABLE fresh (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO fresh VALUES (42);",  "expect": {"rows": []}},
+        {"reopen": true},
+        {"sql": "SELECT x FROM fresh;",            "expect": {"rows": [[42]]}}
+      ]
+    },
+    {
+      "name": "disk-multiple-commit-cycles",
+      "description": "Open/mutate/close three times, each cycle persists its mutations.",
+      "backend": "disk",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",   "expect": {"rows": []}},
+        {"reopen": true},
+        {"sql": "INSERT INTO t VALUES (2);",   "expect": {"rows": []}},
+        {"reopen": true},
+        {"sql": "INSERT INTO t VALUES (3);",   "expect": {"rows": []}},
+        {"reopen": true},
+        {"sql": "SELECT x FROM t;",            "expect": {"rows": [[1], [2], [3]]}}
+      ]
+    },
+    {
+      "name": "disk-3a-regression-empty-db-still-reads",
+      "description": "Phase 3a behaviour under the 3d protocol: empty DB round-trip.",
+      "backend": "disk",
+      "program": [
+        {"reopen": true}
+      ]
+    }
+  ]
+}

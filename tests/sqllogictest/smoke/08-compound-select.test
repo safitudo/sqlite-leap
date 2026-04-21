@@ -1,0 +1,57 @@
+# Smoke: UNION / UNION ALL / INTERSECT / EXCEPT.
+
+query I rowsort
+SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 1
+----
+1
+1
+2
+
+query I rowsort
+SELECT 1 UNION SELECT 2 UNION SELECT 1
+----
+1
+2
+
+statement ok
+CREATE TABLE a (x INTEGER)
+
+statement ok
+INSERT INTO a VALUES (1)
+
+statement ok
+INSERT INTO a VALUES (2)
+
+statement ok
+INSERT INTO a VALUES (3)
+
+statement ok
+CREATE TABLE b (y INTEGER)
+
+statement ok
+INSERT INTO b VALUES (2)
+
+statement ok
+INSERT INTO b VALUES (3)
+
+statement ok
+INSERT INTO b VALUES (4)
+
+query I rowsort
+SELECT x FROM a INTERSECT SELECT y FROM b
+----
+2
+3
+
+query I rowsort
+SELECT x FROM a EXCEPT SELECT y FROM b
+----
+1
+
+query I rowsort
+SELECT x FROM a UNION SELECT y FROM b
+----
+1
+2
+3
+4

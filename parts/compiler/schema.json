@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Compiler part API",
+  "description": "Abstract API of the compiler part. Each language target maps this to idiomatic syntax.",
+  "part": "compiler",
+  "entry": {
+    "name": "compile",
+    "inputs": [
+      {"name": "ast",            "ref":  "../../schema/ast.schema.json"},
+      {"name": "storage_handle", "type": "handle", "readonly": true, "description": "opaque read-only Database handle (for schema lookup only)"}
+    ],
+    "outputs": {
+      "success": {"ref": "../../schema/program.schema.json"},
+      "errors": [
+        {"name": "STORAGE_TABLE_NOT_FOUND",     "fields": {"table":  {"type": "string"}}},
+        {"name": "STORAGE_COLUMN_NOT_FOUND",    "fields": {"table":  {"type": "string"}, "column": {"type": "string"}}},
+        {"name": "STORAGE_DUPLICATE_COLUMN",    "fields": {"table":  {"type": "string"}, "column": {"type": "string"}}},
+        {"name": "EVAL_COLUMN_WITHOUT_TABLE",   "fields": {"column": {"type": "string"}}}
+      ]
+    }
+  }
+}

@@ -1,0 +1,59 @@
+// cargo-fuzz target for sqlite-leap Rust build.
+//
+// THIS IS A TEMPLATE, not a live target. To wire up:
+//   1. Ensure src-rust/ has been generated (see generators/rust/).
+//   2. From inside src-rust/:  cargo fuzz init
+//   3. Copy this file to src-rust/fuzz/fuzz_targets/fuzz_sql.rs
+//      (rename `sqliteleap` below to whatever the generated crate is
+//      actually called — check `src-rust/Cargo.toml`).
+//   4. Run:  cargo +nightly fuzz run fuzz_sql -- -max_total_time=3600
+//
+// Contract:
+//   - Input bytes are interpreted as UTF-8 SQL. Non-UTF-8 input is a
+//     legitimate engine outcome (ENGINE_ERROR: INVALID_UTF8), not a
+//     fuzz finding.
+//   - We parse, compile, and optionally execute the statement against
+//     a fresh :memory: DB. Any engine error (named condition) returns
+//     silently. Only panics / aborts / sanitizer hits count as findings.
+
+#![no_main]
+
+use libfuzzer_sys::fuzz_target;
+
+// Adjust the crate name to match src-rust/Cargo.toml's [package] name.
+use sqliteleap::engine::{Engine, EngineError};
+
+fuzz_target!(|data: &[u8]| {
+    // Reject non-UTF-8 silently — the engine's public API takes &str.
+    let sql = match std::str::from_utf8(data) {
+        Ok(s) => s,
+        Err(_) => return,
+    };
+
+    // Skip pathologically long inputs to keep exec time bounded.
+    // (libFuzzer also enforces -max_len; this is belt-and-suspenders.)
+    if sql.len() > 64 * 1024 {
+        return;
+    }
+
+    let mut engine = Engine::open_memory();
+
+    // We catch errors from the public API and drop them — the engine
+    // is allowed to reject any input as long as it does so cleanly.
+    // Panics are NOT caught here; libFuzzer treats them as findings.
+    match engine.execute(sql) {
+        Ok(mut rows) => {
+            // Drain rows to exercise the result pipeline.
+            while let Some(row) = rows.next() {
+                match row {
+                    Ok(_) => {}
+                    Err(_) => return,
+                }
+            }
+        }
+        Err(e) => {
+            // Named engine errors are acceptable outcomes.
+            let _: EngineError = e;
+        }
+    }
+});

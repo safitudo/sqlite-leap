@@ -1,0 +1,24 @@
+# Smoke: statement error — engine should reject these.
+
+statement error
+SELECT * FROM nonexistent_table
+
+statement error
+SELECT nonexistent_column FROM (SELECT 1 AS x)
+
+statement ok
+CREATE TABLE dup_test (a INTEGER)
+
+statement error
+CREATE TABLE dup_test (a INTEGER)
+
+statement error
+INSERT INTO no_such_table VALUES (1)
+
+# Parse error — unterminated string
+statement error
+SELECT 'hello
+
+# Parse error — unbalanced parens
+statement error
+SELECT (1 + 2

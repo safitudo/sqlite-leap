@@ -1,0 +1,78 @@
+{
+  "phase": "6ca",
+  "description": "Phase 6ca — AGG(DISTINCT constant) dedup inside a SELECT DISTINCT wrapper. Regression for compile_select_distinct losing the agg_distinct flag when splicing the inner program, which caused SUM(DISTINCT -10) to return -30 on a 3-row table.",
+  "cases": [
+    {
+      "name": "sum-distinct-constant-under-select-distinct",
+      "description": "SUM(DISTINCT -10) over 3 rows should still be -10 even when wrapped in SELECT DISTINCT.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2), (3);", "expect": {"rows": []}},
+        {"sql": "SELECT DISTINCT SUM(DISTINCT -10) FROM t;", "expect": {"rows": [[-10]]}}
+      ]
+    },
+    {
+      "name": "sum-distinct-constant-plus-offset",
+      "description": "Exact shape that slt_good_0.test line 18126 exercises.",
+      "program": [
+        {"sql": "CREATE TABLE tab2 (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO tab2 VALUES (1), (2), (3);", "expect": {"rows": []}},
+        {"sql": "SELECT DISTINCT + SUM(DISTINCT -10) + 63 FROM tab2 AS cor0;", "expect": {"rows": [[53]]}}
+      ]
+    },
+    {
+      "name": "count-distinct-constant-under-select-distinct",
+      "description": "COUNT(DISTINCT -10) over N rows must be 1 (constant deduped); then SELECT DISTINCT picks the single 1 row.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2), (3), (4), (5);", "expect": {"rows": []}},
+        {"sql": "SELECT DISTINCT COUNT(DISTINCT -10) FROM t;", "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "count-distinct-null-under-select-distinct",
+      "description": "COUNT(DISTINCT NULL) is 0 regardless of row count; SELECT DISTINCT doesn't change that.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2), (3);", "expect": {"rows": []}},
+        {"sql": "SELECT DISTINCT COUNT(DISTINCT NULL) FROM t;", "expect": {"rows": [[0]]}}
+      ]
+    },
+    {
+      "name": "sum-distinct-null-under-select-distinct",
+      "description": "SUM(DISTINCT NULL) is NULL.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2), (3);", "expect": {"rows": []}},
+        {"sql": "SELECT DISTINCT SUM(DISTINCT NULL) FROM t;", "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "min-distinct-constant-under-select-distinct",
+      "description": "MIN(DISTINCT c) = c — DISTINCT is a no-op for MIN but must still not error and must still produce the constant.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2), (3);", "expect": {"rows": []}},
+        {"sql": "SELECT DISTINCT MIN(DISTINCT 7) FROM t;", "expect": {"rows": [[7]]}}
+      ]
+    },
+    {
+      "name": "avg-distinct-constant-under-select-distinct",
+      "description": "AVG(DISTINCT c) over N rows = c (constant deduped → single value → avg is itself).",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2), (3), (4);", "expect": {"rows": []}},
+        {"sql": "SELECT DISTINCT AVG(DISTINCT 5) FROM t;", "expect": {"rows": [[5.0]]}}
+      ]
+    },
+    {
+      "name": "sum-distinct-column-with-duplicates-under-select-distinct",
+      "description": "SUM(DISTINCT a) over [1,1,2,3] must be 6 (1+2+3), independent of the outer DISTINCT.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (1), (2), (3);", "expect": {"rows": []}},
+        {"sql": "SELECT DISTINCT SUM(DISTINCT a) FROM t;", "expect": {"rows": [[6]]}}
+      ]
+    }
+  ]
+}

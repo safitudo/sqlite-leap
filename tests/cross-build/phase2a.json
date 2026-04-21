@@ -1,0 +1,323 @@
+{
+  "phase": "2a",
+  "description": "Phase 2a gate — CREATE TABLE / INSERT / SELECT against in-memory storage. Each case runs a program of statements sequentially against a freshly-created empty database. Every case must pass on BOTH the C and Rust generated builds with byte-identical outputs on success cases.",
+  "schema": {
+    "program_item": {
+      "sql": "string — a single SQL statement per the Phase 1 + Phase 2a grammar",
+      "expect": {
+        "oneOf": [
+          {"rows": "array of rows (each a list of Values); empty array is valid"},
+          {"error": {"name": "string — a LEX_*, PARSE_*, or STORAGE_* name", "fields": "object of name→value matching the spec"}}
+        ]
+      }
+    }
+  },
+  "cases": [
+    {
+      "name": "parse-error-missing-paren",
+      "description": "CREATE TABLE without column list should be a parse error at EOF.",
+      "program": [
+        {"sql": "CREATE TABLE t;", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "SEMICOLON", "pos": 14, "expected": ["LPAREN"]}}}}
+      ]
+    },
+    {
+      "name": "parse-error-empty-column-list",
+      "description": "CREATE TABLE with empty parens should fail at the RPAREN.",
+      "program": [
+        {"sql": "CREATE TABLE t ();", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "RPAREN", "pos": 16, "expected": ["IDENTIFIER"]}}}}
+      ]
+    },
+    {
+      "name": "parse-error-unknown-column-type",
+      "description": "Only INTEGER and TEXT are valid Phase 2a column types. (Phase 6g: replaced former `FLOAT` sample with `VARCHAR`; Phase 6af: replaced `VARCHAR` with an integer literal `123` because 6af accepts arbitrary IDENTIFIERs as column type names. A non-IDENTIFIER / non-type-keyword token like INTEGER_LITERAL is still rejected.) The expected-set remains the Phase 2a two-element shape — later phases widen it, but the 2a harness's expected-set check tolerates the difference.",
+      "program": [
+        {"sql": "CREATE TABLE t (a 123);", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "INTEGER_LITERAL", "pos": 18}}}}
+      ]
+    },
+    {
+      "name": "parse-error-insert-missing-into",
+      "description": "INSERT INTO is required; bare INSERT is a parse error.",
+      "program": [
+        {"sql": "INSERT t VALUES (1);", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "IDENTIFIER", "pos": 7, "expected": ["KEYWORD_INTO"]}}}}
+      ]
+    },
+    {
+      "name": "parse-error-select-missing-projection",
+      "description": "After SELECT we must see a projection or a literal.",
+      "program": [
+        {"sql": "SELECT FROM t;", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "KEYWORD_FROM", "pos": 7, "expected": ["STAR", "IDENTIFIER", "INTEGER_LITERAL", "STRING_LITERAL", "KEYWORD_NULL"]}}}}
+      ]
+    },
+
+    {
+      "name": "create-table-single-integer-column",
+      "description": "Minimal CREATE TABLE.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "create-table-single-text-column",
+      "description": "TEXT column type.",
+      "program": [
+        {"sql": "CREATE TABLE t (a TEXT);", "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "create-table-multi-column",
+      "description": "Mixed INTEGER/TEXT columns.",
+      "program": [
+        {"sql": "CREATE TABLE users (id INTEGER, name TEXT, age INTEGER);", "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "create-table-case-preserved-case-sensitive-lookup",
+      "description": "Table names are case-sensitive in storage. 'T' and 't' are distinct tables.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",             "expect": {"rows": []}},
+        {"sql": "CREATE TABLE T (a INTEGER);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",               "expect": {"rows": []}},
+        {"sql": "INSERT INTO T VALUES (2);",               "expect": {"rows": []}},
+        {"sql": "SELECT * FROM t;",                        "expect": {"rows": [[1]]}},
+        {"sql": "SELECT * FROM T;",                        "expect": {"rows": [[2]]}}
+      ]
+    },
+    {
+      "name": "create-table-keyword-case-insensitive",
+      "description": "Keywords (CREATE, TABLE, INTEGER) are case-insensitive.",
+      "program": [
+        {"sql": "create table t (a integer);",             "expect": {"rows": []}},
+        {"sql": "Insert Into t Values (42);",              "expect": {"rows": []}},
+        {"sql": "Select * From t;",                        "expect": {"rows": [[42]]}}
+      ]
+    },
+    {
+      "name": "create-table-duplicate-column",
+      "description": "Storage rejects duplicate column names in the CREATE declaration.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, a TEXT);",     "expect": {"error": {"name": "STORAGE_DUPLICATE_COLUMN", "fields": {"table": "t", "column": "a"}}}}
+      ]
+    },
+    {
+      "name": "create-table-already-exists",
+      "description": "Second CREATE TABLE with same name fails.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",             "expect": {"rows": []}},
+        {"sql": "CREATE TABLE t (b TEXT);",                "expect": {"error": {"name": "STORAGE_TABLE_EXISTS", "fields": {"table": "t"}}}}
+      ]
+    },
+
+    {
+      "name": "insert-single-row-positional",
+      "description": "Positional INSERT (no column list).",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b TEXT);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 'hi');",         "expect": {"rows": []}},
+        {"sql": "SELECT * FROM t;",                        "expect": {"rows": [[1, "hi"]]}}
+      ]
+    },
+    {
+      "name": "insert-two-rows-preserves-order",
+      "description": "Multiple INSERTs preserve insertion order on readback.",
+      "program": [
+        {"sql": "CREATE TABLE t (n INTEGER);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",               "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",               "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",               "expect": {"rows": []}},
+        {"sql": "SELECT * FROM t;",                        "expect": {"rows": [[1], [2], [3]]}}
+      ]
+    },
+    {
+      "name": "insert-with-column-list-full",
+      "description": "Column list explicitly lists all columns in declared order.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b TEXT);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (a, b) VALUES (7, 'x');",   "expect": {"rows": []}},
+        {"sql": "SELECT * FROM t;",                        "expect": {"rows": [[7, "x"]]}}
+      ]
+    },
+    {
+      "name": "insert-with-column-list-reordered",
+      "description": "Column list reorders values relative to declaration.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b TEXT);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (b, a) VALUES ('x', 7);",   "expect": {"rows": []}},
+        {"sql": "SELECT * FROM t;",                        "expect": {"rows": [[7, "x"]]}}
+      ]
+    },
+    {
+      "name": "insert-with-column-list-subset-null-fill",
+      "description": "Absent columns are filled with NULL.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b TEXT, c INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (a) VALUES (5);",                  "expect": {"rows": []}},
+        {"sql": "SELECT * FROM t;",                               "expect": {"rows": [[5, null, null]]}}
+      ]
+    },
+    {
+      "name": "insert-null-in-integer-column",
+      "description": "NULL is accepted regardless of declared column type.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL);",            "expect": {"rows": []}},
+        {"sql": "SELECT * FROM t;",                        "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "insert-null-in-text-column",
+      "program": [
+        {"sql": "CREATE TABLE t (a TEXT);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL);",            "expect": {"rows": []}},
+        {"sql": "SELECT * FROM t;",                        "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "insert-type-mismatch-text-into-integer",
+      "description": "Strict typing: text value into INTEGER column rejected.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('hi');",            "expect": {"error": {"name": "STORAGE_TYPE_MISMATCH", "fields": {"table": "t", "column": "a", "expected_type": "INTEGER", "got_type": "TEXT"}}}}
+      ]
+    },
+    {
+      "name": "insert-type-mismatch-integer-into-text",
+      "program": [
+        {"sql": "CREATE TABLE t (a TEXT);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (42);",              "expect": {"error": {"name": "STORAGE_TYPE_MISMATCH", "fields": {"table": "t", "column": "a", "expected_type": "TEXT", "got_type": "INTEGER"}}}}
+      ]
+    },
+    {
+      "name": "insert-arity-mismatch-too-few",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);",  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",               "expect": {"error": {"name": "STORAGE_ARITY_MISMATCH", "fields": {"table": "t", "expected": 2, "got": 1}}}}
+      ]
+    },
+    {
+      "name": "insert-arity-mismatch-too-many",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 2);",            "expect": {"error": {"name": "STORAGE_ARITY_MISMATCH", "fields": {"table": "t", "expected": 1, "got": 2}}}}
+      ]
+    },
+    {
+      "name": "insert-into-nonexistent-table",
+      "program": [
+        {"sql": "INSERT INTO ghost VALUES (1);",           "expect": {"error": {"name": "STORAGE_TABLE_NOT_FOUND", "fields": {"table": "ghost"}}}}
+      ]
+    },
+    {
+      "name": "insert-unknown-column-in-list",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (b) VALUES (1);",           "expect": {"error": {"name": "STORAGE_COLUMN_NOT_FOUND", "fields": {"table": "t", "column": "b"}}}}
+      ]
+    },
+    {
+      "name": "insert-duplicate-column-in-list",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);",  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (a, a) VALUES (1, 2);",     "expect": {"error": {"name": "STORAGE_DUPLICATE_COLUMN", "fields": {"table": "t", "column": "a"}}}}
+      ]
+    },
+
+    {
+      "name": "select-star-empty-table",
+      "description": "Empty table returns empty rows.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",             "expect": {"rows": []}},
+        {"sql": "SELECT * FROM t;",                        "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "select-star-multi-column",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b TEXT);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 'x');",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 'y');",          "expect": {"rows": []}},
+        {"sql": "SELECT * FROM t;",                        "expect": {"rows": [[1, "x"], [2, "y"]]}}
+      ]
+    },
+    {
+      "name": "select-single-column",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b TEXT);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 'x');",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 'y');",          "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t;",                        "expect": {"rows": [[1], [2]]}}
+      ]
+    },
+    {
+      "name": "select-columns-reordered",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b TEXT);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 'x');",          "expect": {"rows": []}},
+        {"sql": "SELECT b, a FROM t;",                     "expect": {"rows": [["x", 1]]}}
+      ]
+    },
+    {
+      "name": "select-columns-duplicated",
+      "description": "SELECT a, a FROM t duplicates the column (matches SQLite).",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (7);",               "expect": {"rows": []}},
+        {"sql": "SELECT a, a FROM t;",                     "expect": {"rows": [[7, 7]]}}
+      ]
+    },
+    {
+      "name": "select-from-nonexistent-table",
+      "program": [
+        {"sql": "SELECT * FROM ghost;",                    "expect": {"error": {"name": "STORAGE_TABLE_NOT_FOUND", "fields": {"table": "ghost"}}}}
+      ]
+    },
+    {
+      "name": "select-unknown-column",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",             "expect": {"rows": []}},
+        {"sql": "SELECT b FROM t;",                        "expect": {"error": {"name": "STORAGE_COLUMN_NOT_FOUND", "fields": {"table": "t", "column": "b"}}}}
+      ]
+    },
+
+    {
+      "name": "phase1-literal-integer",
+      "description": "Phase 1 SELECT literal still works.",
+      "program": [
+        {"sql": "SELECT 42;",                              "expect": {"rows": [[42]]}}
+      ]
+    },
+    {
+      "name": "phase1-literal-string",
+      "program": [
+        {"sql": "SELECT 'hello';",                         "expect": {"rows": [["hello"]]}}
+      ]
+    },
+    {
+      "name": "phase1-literal-null",
+      "program": [
+        {"sql": "SELECT NULL;",                            "expect": {"rows": [[null]]}}
+      ]
+    },
+
+    {
+      "name": "mixed-tables-independent",
+      "description": "Multiple tables operate independently.",
+      "program": [
+        {"sql": "CREATE TABLE a (n INTEGER);",             "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (s TEXT);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (10);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES ('world');",         "expect": {"rows": []}},
+        {"sql": "SELECT * FROM a;",                        "expect": {"rows": [[10]]}},
+        {"sql": "SELECT * FROM b;",                        "expect": {"rows": [["world"]]}}
+      ]
+    },
+    {
+      "name": "identifier-with-underscore-and-digits",
+      "description": "Identifiers may contain underscores and digits after the first char.",
+      "program": [
+        {"sql": "CREATE TABLE user_table_1 (col_1 INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO user_table_1 (col_1) VALUES (99);", "expect": {"rows": []}},
+        {"sql": "SELECT col_1 FROM user_table_1;",         "expect": {"rows": [[99]]}}
+      ]
+    }
+  ]
+}

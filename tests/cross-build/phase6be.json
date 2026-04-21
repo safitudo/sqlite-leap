@@ -1,0 +1,108 @@
+{
+  "phase": "6be",
+  "description": "Phase 6be gate — INSERT INTO <table> <select-statement>. Reuses existing VDBE machinery; no new opcodes. max_invariant=43 unchanged.",
+  "cases": [
+    {
+      "name": "insert-select-basic",
+      "description": "Copy all rows from t to u via SELECT.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                "expect": {"rows": []}},
+        {"sql": "CREATE TABLE u (b INTEGER);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2), (3);",        "expect": {"rows": []}},
+        {"sql": "INSERT INTO u SELECT a FROM t;",             "expect": {"rows": []}},
+        {"sql": "SELECT b FROM u ORDER BY b;",                "expect": {"rows": [[1], [2], [3]]}}
+      ]
+    },
+    {
+      "name": "insert-select-with-filter",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                "expect": {"rows": []}},
+        {"sql": "CREATE TABLE u (b INTEGER);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2), (3), (4), (5);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO u SELECT a FROM t WHERE a > 2;", "expect": {"rows": []}},
+        {"sql": "SELECT b FROM u ORDER BY b;",                "expect": {"rows": [[3], [4], [5]]}}
+      ]
+    },
+    {
+      "name": "insert-select-multi-col",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);",     "expect": {"rows": []}},
+        {"sql": "CREATE TABLE u (x INTEGER, y INTEGER);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10), (2, 20);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO u SELECT a, b FROM t ORDER BY a;", "expect": {"rows": []}},
+        {"sql": "SELECT x, y FROM u ORDER BY x;",             "expect": {"rows": [[1, 10], [2, 20]]}}
+      ]
+    },
+    {
+      "name": "insert-select-explicit-columns",
+      "description": "INSERT INTO u (b, a) SELECT x, y FROM t — explicit column order reshapes projection.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER, y INTEGER);",     "expect": {"rows": []}},
+        {"sql": "CREATE TABLE u (a INTEGER, b INTEGER);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (10, 100);",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO u (b, a) SELECT x, y FROM t;",   "expect": {"rows": []}},
+        {"sql": "SELECT a, b FROM u;",                        "expect": {"rows": [[100, 10]]}}
+      ]
+    },
+    {
+      "name": "insert-select-with-expression",
+      "description": "Projection computes values inline.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                "expect": {"rows": []}},
+        {"sql": "CREATE TABLE u (doubled INTEGER);",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2), (3);",        "expect": {"rows": []}},
+        {"sql": "INSERT INTO u SELECT a*2 FROM t ORDER BY a;", "expect": {"rows": []}},
+        {"sql": "SELECT doubled FROM u ORDER BY doubled;",    "expect": {"rows": [[2], [4], [6]]}}
+      ]
+    },
+    {
+      "name": "insert-select-empty-source",
+      "description": "SELECT produces zero rows — INSERT is a no-op.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                "expect": {"rows": []}},
+        {"sql": "CREATE TABLE u (b INTEGER);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO u SELECT a FROM t;",             "expect": {"rows": []}},
+        {"sql": "SELECT count(*) FROM u;",                    "expect": {"rows": [[0]]}}
+      ]
+    },
+    {
+      "name": "insert-select-column-count-mismatch",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);",     "expect": {"rows": []}},
+        {"sql": "CREATE TABLE u (x INTEGER);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO u SELECT a, b FROM t;",          "expect": {"error": "COMPILE_INSERT_COLUMN_COUNT_MISMATCH"}}
+      ]
+    },
+    {
+      "name": "insert-select-from-join",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                "expect": {"rows": []}},
+        {"sql": "CREATE TABLE s (b INTEGER);",                "expect": {"rows": []}},
+        {"sql": "CREATE TABLE u (sum INTEGER);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO s VALUES (10), (20);",           "expect": {"rows": []}},
+        {"sql": "INSERT INTO u SELECT a+b FROM t, s;",        "expect": {"rows": []}},
+        {"sql": "SELECT count(*), sum(sum) FROM u;",          "expect": {"rows": [[4, 66]]}}
+      ]
+    },
+    {
+      "name": "insert-select-self-insert",
+      "description": "INSERT INTO t SELECT FROM t — snapshot-at-start, SELECT scan completes before inserts land.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2), (3);",        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t SELECT a*10 FROM t;",          "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t ORDER BY a;",                "expect": {"rows": [[1], [2], [3], [10], [20], [30]]}}
+      ]
+    },
+    {
+      "name": "insert-values-regression",
+      "description": "Regression: existing INSERT VALUES still works.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (42);",                 "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t;",                           "expect": {"rows": [[42]]}}
+      ]
+    }
+  ]
+}

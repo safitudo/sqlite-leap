@@ -1,0 +1,39 @@
+# Keep the Docker build context small + platform-correct.
+# Generated code and heavyweight data are rebuilt / regenerated inside the
+# container so we don't ship host artifacts (wrong arch, bloats the image).
+
+.git
+.github
+.claude
+.idea
+.vscode
+
+# Host-built generator output — must be rebuilt inside the container.
+src-c/bin
+src-c/obj
+src-c/*.o
+src-rust/target
+src-wasm
+
+# Rust global target if it ever exists at repo root.
+target
+
+# Upstream corpus is huge (1.2G); the container uses only tests/sqllogictest/smoke.
+tests/sqllogictest/upstream
+tests/sqllogictest/results
+tests/sqllogictest/.fetched
+
+# Baselines are (re)built inside the image.
+bench/baselines/src
+bench/baselines/bin
+
+# Bench results from the host — the container writes its own.
+bench/results
+
+# OS / editor noise
+.DS_Store
+*.swp
+*.swo
+
+# Previous scratch directories
+_original

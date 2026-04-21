@@ -1,0 +1,235 @@
+{
+  "phase": "6c",
+  "description": "Phase 6c gate — aggregate functions COUNT, COUNT(*), SUM, MIN, MAX in SELECT projection. No GROUP BY. Single-result-row semantics, empty-input handling, NULL-skipping for non-CountStar, mixed-type comparisons for MIN/MAX, interaction with WHERE, multi-aggregate projections. Case-insensitive function names. Compile-time rejection of aggregates with ORDER BY/LIMIT and of bare columns in aggregated SELECT. Parse error paths reuse existing PARSE_* names; compile errors introduce new COMPILE_* names. All phase1..6b fixtures must stay green.",
+  "cases": [
+    {
+      "name": "count-star-nonempty",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",         "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(*) FROM t;",           "expect": {"rows": [[3]]}}
+      ]
+    },
+    {
+      "name": "count-star-empty-table",
+      "description": "COUNT(*) on empty table returns one row with 0.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",       "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(*) FROM t;",           "expect": {"rows": [[0]]}}
+      ]
+    },
+    {
+      "name": "count-star-counts-null-rows",
+      "description": "COUNT(*) counts rows regardless of column NULLs.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL);",      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL);",      "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(*) FROM t;",           "expect": {"rows": [[3]]}}
+      ]
+    },
+    {
+      "name": "count-expr-skips-null",
+      "description": "COUNT(x) counts non-NULL rows only.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL);",      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL);",      "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(x) FROM t;",           "expect": {"rows": [[2]]}}
+      ]
+    },
+    {
+      "name": "count-expr-empty",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",       "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(x) FROM t;",           "expect": {"rows": [[0]]}}
+      ]
+    },
+    {
+      "name": "sum-basic",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (10);",        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (20);",        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (30);",        "expect": {"rows": []}},
+        {"sql": "SELECT SUM(x) FROM t;",             "expect": {"rows": [[60]]}}
+      ]
+    },
+    {
+      "name": "sum-skips-null",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL);",      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (10);",        "expect": {"rows": []}},
+        {"sql": "SELECT SUM(x) FROM t;",             "expect": {"rows": [[15]]}}
+      ]
+    },
+    {
+      "name": "sum-all-null",
+      "description": "SUM with zero non-NULL inputs returns NULL (not 0).",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL);",      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL);",      "expect": {"rows": []}},
+        {"sql": "SELECT SUM(x) FROM t;",             "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "sum-empty-table",
+      "description": "SUM on empty input returns NULL.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",       "expect": {"rows": []}},
+        {"sql": "SELECT SUM(x) FROM t;",             "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "sum-type-mismatch",
+      "description": "SUM over TEXT argument raises VDBE_TYPE_MISMATCH.",
+      "program": [
+        {"sql": "CREATE TABLE t (s TEXT);",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('hello');",   "expect": {"rows": []}},
+        {"sql": "SELECT SUM(s) FROM t;",             "expect": {"error": {"name": "VDBE_TYPE_MISMATCH", "fields": {"operation": "sum"}}}}
+      ]
+    },
+    {
+      "name": "min-basic",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (30);",        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (10);",        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (20);",        "expect": {"rows": []}},
+        {"sql": "SELECT MIN(x) FROM t;",             "expect": {"rows": [[10]]}}
+      ]
+    },
+    {
+      "name": "max-basic",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (30);",        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (10);",        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (20);",        "expect": {"rows": []}},
+        {"sql": "SELECT MAX(x) FROM t;",             "expect": {"rows": [[30]]}}
+      ]
+    },
+    {
+      "name": "min-max-skip-null",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL);",      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL);",      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (7);",         "expect": {"rows": []}},
+        {"sql": "SELECT MIN(x), MAX(x) FROM t;",     "expect": {"rows": [[5, 7]]}}
+      ]
+    },
+    {
+      "name": "min-max-empty-returns-null",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",       "expect": {"rows": []}},
+        {"sql": "SELECT MIN(x), MAX(x) FROM t;",     "expect": {"rows": [[null, null]]}}
+      ]
+    },
+    {
+      "name": "min-text-lex",
+      "program": [
+        {"sql": "CREATE TABLE t (s TEXT);",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('charlie');", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('alpha');",   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('bravo');",   "expect": {"rows": []}},
+        {"sql": "SELECT MIN(s) FROM t;",             "expect": {"rows": [["alpha"]]}}
+      ]
+    },
+    {
+      "name": "multi-aggregate-projection",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (4);",                        "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(*), SUM(x), MIN(x), MAX(x) FROM t;",  "expect": {"rows": [[4, 10, 1, 4]]}}
+      ]
+    },
+    {
+      "name": "aggregate-with-where",
+      "description": "WHERE filters pre-aggregation.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (4);",                       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",                       "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(*), SUM(x) FROM t WHERE x > 2;",     "expect": {"rows": [[3, 12]]}}
+      ]
+    },
+    {
+      "name": "aggregate-case-insensitive",
+      "description": "Function names are case-insensitive.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (10);",        "expect": {"rows": []}},
+        {"sql": "SELECT count(*), Sum(x), mIn(x), MAX(x) FROM t;", "expect": {"rows": [[2, 15, 5, 10]]}}
+      ]
+    },
+    {
+      "name": "compile-error-unknown-function",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",       "expect": {"rows": []}},
+        {"sql": "SELECT FOO(x) FROM t;",             "expect": {"error": {"name": "COMPILE_UNKNOWN_FUNCTION", "fields": {"name": "FOO"}}}}
+      ]
+    },
+    {
+      "name": "compile-error-sum-star",
+      "description": "SUM(*) is not allowed; only COUNT accepts STAR.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",       "expect": {"rows": []}},
+        {"sql": "SELECT SUM(*) FROM t;",             "expect": {"error": {"name": "COMPILE_AGGREGATE_ARG_MISMATCH", "fields": {"function": "SUM", "reason": "star-only-for-count"}}}}
+      ]
+    },
+    {
+      "name": "compile-error-bare-column-in-aggregated",
+      "description": "Bare column outside an aggregate in an aggregated SELECT is illegal without GROUP BY.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);",              "expect": {"rows": []}},
+        {"sql": "SELECT a, SUM(b) FROM t;",                   "expect": {"error": {"name": "COMPILE_COLUMN_IN_AGGREGATED_SELECT_WITHOUT_GROUP_BY", "fields": {"column": "a"}}}}
+      ]
+    },
+    {
+      "name": "compile-error-aggregate-in-where",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",               "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE SUM(x) > 0;",         "expect": {"error": {"name": "COMPILE_AGGREGATE_IN_NON_PROJECTION_CONTEXT", "fields": {"location": "where"}}}}
+      ]
+    },
+    {
+      "name": "compile-error-aggregate-in-order-by",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",               "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t ORDER BY SUM(x);",          "expect": {"error": {"name": "COMPILE_AGGREGATE_IN_NON_PROJECTION_CONTEXT", "fields": {"location": "order-by"}}}}
+      ]
+    },
+    {
+      "name": "compile-error-aggregated-with-order-by",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",               "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(*) FROM t ORDER BY 1;",        "expect": {"error": {"name": "COMPILE_AGGREGATE_WITH_ORDER_OR_LIMIT", "fields": {"clause": "order-by"}}}}
+      ]
+    },
+    {
+      "name": "compile-error-aggregated-with-limit",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",               "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(*) FROM t LIMIT 1;",           "expect": {"error": {"name": "COMPILE_AGGREGATE_WITH_ORDER_OR_LIMIT", "fields": {"clause": "limit"}}}}
+      ]
+    }
+  ]
+}

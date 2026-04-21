@@ -1,0 +1,90 @@
+{
+  "phase": "6bn",
+  "description": "Phase 6bn gate — parser gaps identified from random/ sqllogictest analysis: unary + prefix, implicit column alias (no AS), CAST type liberality.",
+  "cases": [
+    {
+      "name": "unary-plus-literal",
+      "program": [
+        {"sql": "SELECT +5;", "expect": {"rows": [[5]]}}
+      ]
+    },
+    {
+      "name": "unary-plus-minus-chain",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (7);", "expect": {"rows": []}},
+        {"sql": "SELECT + - a FROM t;", "expect": {"rows": [[-7]]}}
+      ]
+    },
+    {
+      "name": "unary-plus-in-expr",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (10, 3);", "expect": {"rows": []}},
+        {"sql": "SELECT + a - + b FROM t;", "expect": {"rows": [[7]]}}
+      ]
+    },
+    {
+      "name": "unary-plus-null",
+      "program": [
+        {"sql": "SELECT + NULL;", "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "implicit-alias-simple",
+      "program": [
+        {"sql": "CREATE TABLE t (col0 INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (42);", "expect": {"rows": []}},
+        {"sql": "SELECT col0 foo FROM t;", "expect": {"rows": [[42]]}}
+      ]
+    },
+    {
+      "name": "implicit-alias-expression",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);", "expect": {"rows": []}},
+        {"sql": "SELECT a + 1 total FROM t;", "expect": {"rows": [[6]]}}
+      ]
+    },
+    {
+      "name": "implicit-alias-in-order-by",
+      "description": "Implicit alias must be visible in ORDER BY (per 6aj rules).",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3), (1), (2);", "expect": {"rows": []}},
+        {"sql": "SELECT a v FROM t ORDER BY v;", "expect": {"rows": [[1], [2], [3]]}}
+      ]
+    },
+    {
+      "name": "cast-decimal",
+      "program": [
+        {"sql": "SELECT CAST('3.14' AS DECIMAL);", "expect": {"rows": [[3.14]]}}
+      ]
+    },
+    {
+      "name": "cast-numeric",
+      "program": [
+        {"sql": "SELECT CAST('42' AS NUMERIC);", "expect": {"rows": [[42]]}}
+      ]
+    },
+    {
+      "name": "cast-varchar",
+      "program": [
+        {"sql": "SELECT CAST(42 AS VARCHAR);", "expect": {"rows": [["42"]]}}
+      ]
+    },
+    {
+      "name": "cast-with-size-params",
+      "description": "CAST accepts and discards size params, matching CREATE TABLE's 6af behavior.",
+      "program": [
+        {"sql": "SELECT CAST('hi' AS VARCHAR(10));", "expect": {"rows": [["hi"]]}}
+      ]
+    },
+    {
+      "name": "cast-float",
+      "program": [
+        {"sql": "SELECT CAST(5 AS FLOAT);", "expect": {"rows": [[5.0]]}}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,106 @@
+{
+  "phase": "6ag",
+  "description": "Phase 6ag gate — correlated subqueries. Inner SELECT references columns from enclosing scope. No new VDBE opcodes. max_invariant=43 unchanged. Scope stack in compiler; naive per-outer-row execution.",
+  "cases": [
+    {
+      "name": "correlated-scalar-subquery-count",
+      "program": [
+        {"sql": "CREATE TABLE t1 (a INTEGER, b INTEGER);",                           "expect": {"rows": []}},
+        {"sql": "INSERT INTO t1 VALUES (1, 10), (2, 20), (3, 30);",                   "expect": {"rows": []}},
+        {"sql": "SELECT a, (SELECT COUNT(*) FROM t1 AS x WHERE x.b < t1.b) FROM t1 ORDER BY a;", "expect": {"rows": [[1, 0], [2, 1], [3, 2]]}}
+      ]
+    },
+    {
+      "name": "correlated-in-where",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10), (2, 20), (3, 30);",                    "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t WHERE b > (SELECT AVG(b) FROM t AS x WHERE x.a <= t.a) ORDER BY a;", "expect": {"rows": [[2], [3]]}}
+      ]
+    },
+    {
+      "name": "correlated-exists-equivalent-form",
+      "description": "Pre-6ae: use COUNT(*)>0 trick instead of EXISTS.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                                       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2), (3);",                                "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t WHERE (SELECT COUNT(*) FROM t AS x WHERE x.a = t.a * 2) > 0 ORDER BY a;", "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "two-level-nesting",
+      "description": "Three levels of SELECT, innermost refs outermost.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                                       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2);",                                     "expect": {"rows": []}},
+        {"sql": "SELECT a, (SELECT (SELECT COUNT(*) FROM t z WHERE z.a = t.a) FROM t y WHERE y.a = 1) FROM t ORDER BY a;", "expect": {"rows": [[1, 1], [2, 1]]}}
+      ]
+    },
+    {
+      "name": "correlated-with-aggregate-in-outer",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10), (2, 20), (3, 30);",                    "expect": {"rows": []}},
+        {"sql": "SELECT SUM((SELECT COUNT(*) FROM t AS x WHERE x.b <= t.b)) FROM t;", "expect": {"rows": [[6]]}}
+      ]
+    },
+    {
+      "name": "inner-shadowing-outer-alias",
+      "description": "Inner alias with same name as outer: inner wins within inner scope.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                                       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2);",                                     "expect": {"rows": []}},
+        {"sql": "SELECT t.a, (SELECT t.a FROM t WHERE t.a = 99) FROM t ORDER BY t.a;", "expect": {"rows": [[1, null], [2, null]]}}
+      ]
+    },
+    {
+      "name": "qualified-outer-column-ref",
+      "description": "Explicit outer.col in inner scope — must resolve to outer.",
+      "program": [
+        {"sql": "CREATE TABLE outer_t (a INTEGER);",                                 "expect": {"rows": []}},
+        {"sql": "CREATE TABLE inner_t (b INTEGER);",                                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO outer_t VALUES (1), (2);",                               "expect": {"rows": []}},
+        {"sql": "INSERT INTO inner_t VALUES (1), (2), (3);",                          "expect": {"rows": []}},
+        {"sql": "SELECT outer_t.a, (SELECT COUNT(*) FROM inner_t WHERE inner_t.b > outer_t.a) FROM outer_t ORDER BY outer_t.a;", "expect": {"rows": [[1, 2], [2, 1]]}}
+      ]
+    },
+    {
+      "name": "correlated-no-rows-yields-null",
+      "description": "Inner subquery matches no rows → scalar subquery result is Null (per Phase 6n semantics). Correlation via outer column in inner WHERE.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                                       "expect": {"rows": []}},
+        {"sql": "CREATE TABLE u (b INTEGER);",                                       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2);",                                     "expect": {"rows": []}},
+        {"sql": "INSERT INTO u VALUES (99);",                                         "expect": {"rows": []}},
+        {"sql": "SELECT a, (SELECT b FROM u WHERE b = t.a) FROM t ORDER BY a;",      "expect": {"rows": [[1, null], [2, null]]}}
+      ]
+    },
+    {
+      "name": "task81-countstar-correlated-plus-uncorrelated-group-by",
+      "description": "Task #81 trigger: correlated CountStar + uncorrelated CountStar + GROUP BY. Prior to the fix, the grouped-emit drain phase closed the outer cursor before splicing the correlated-subquery body, so the spliced `Column cursor:0` read panicked with 'Column on closed cursor (compiler bug)'. Fix carries outer-row column values through the sorter as bare-col slots and rewrites spliced outer-cursor reads to Copy from those registers.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);",                             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10), (2, 20), (3, 30);",                    "expect": {"rows": []}},
+        {"sql": "SELECT a, (SELECT COUNT(*) FROM t WHERE a = o.a), (SELECT COUNT(*) FROM t) FROM t AS o GROUP BY a ORDER BY a;", "expect": {"rows": [[1, 1, 3], [2, 1, 3], [3, 1, 3]]}}
+      ]
+    },
+    {
+      "name": "task81-correlated-countstar-alone-group-by-order-by",
+      "description": "Task #81 isolation: correlated CountStar alone inside GROUP BY + ORDER BY. No uncorrelated sibling. Validates that the outer-column rewrite doesn't depend on having multiple subqueries.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);",                             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10), (2, 20), (3, 30);",                    "expect": {"rows": []}},
+        {"sql": "SELECT (SELECT COUNT(*) FROM t WHERE a = o.a) FROM t AS o GROUP BY a ORDER BY a;", "expect": {"rows": [[1], [1], [1]]}}
+      ]
+    },
+    {
+      "name": "task81-uncorrelated-countstar-group-by-order-by",
+      "description": "Task #81 isolation: uncorrelated CountStar inside GROUP BY + ORDER BY. No outer-column reference in the subquery. Regression guard to confirm the fix leaves this previously-working path intact.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);",                             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10), (2, 20), (3, 30);",                    "expect": {"rows": []}},
+        {"sql": "SELECT (SELECT COUNT(*) FROM t) FROM t AS o GROUP BY a ORDER BY a;", "expect": {"rows": [[3], [3], [3]]}}
+      ]
+    }
+  ]
+}

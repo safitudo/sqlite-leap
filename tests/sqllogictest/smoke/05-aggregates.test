@@ -1,0 +1,64 @@
+# Smoke: aggregate functions (COUNT, SUM, AVG, MIN, MAX) with and without GROUP BY.
+
+statement ok
+CREATE TABLE sales (region TEXT, amount INTEGER)
+
+statement ok
+INSERT INTO sales VALUES ('north', 100)
+
+statement ok
+INSERT INTO sales VALUES ('north', 200)
+
+statement ok
+INSERT INTO sales VALUES ('south', 150)
+
+statement ok
+INSERT INTO sales VALUES ('south', 250)
+
+statement ok
+INSERT INTO sales VALUES ('east',   50)
+
+query I nosort
+SELECT COUNT(*) FROM sales
+----
+5
+
+query I nosort
+SELECT SUM(amount) FROM sales
+----
+750
+
+query R nosort
+SELECT AVG(amount) FROM sales
+----
+150.000
+
+query I nosort
+SELECT MIN(amount) FROM sales
+----
+50
+
+query I nosort
+SELECT MAX(amount) FROM sales
+----
+250
+
+query TI rowsort
+SELECT region, SUM(amount) FROM sales GROUP BY region
+----
+east
+50
+north
+300
+south
+400
+
+query TI nosort
+SELECT region, COUNT(*) FROM sales GROUP BY region ORDER BY region
+----
+east
+1
+north
+2
+south
+2

@@ -1,0 +1,145 @@
+{
+  "phase": "3b",
+  "description": "Phase 3b gate — multi-page tables on the on-disk backend. Covers first-split (leaf-to-interior promotion), subsequent leaf splits under the same interior root, multi-leaf scans, cross-page UPDATE in-place, cross-page DELETE tombstones surviving reopen, and interior-full STORAGE_PAGE_FULL (at ~270k rows for default 4096-byte pages). Memory-backend semantics unchanged. All phase1..3a fixtures must stay green. Cross-build equivalence between C and Rust is required.",
+  "schema": {
+    "case": "inherits phase3a.json schema plus three new step kinds:",
+    "bulk_insert_int_range_step": {
+      "bulk_insert_int_range": {"table": "string", "start": "integer", "count": "integer (>= 1)"},
+      "expect": {"rows": []},
+      "behavior": "For i in [start, start+count), the harness tokenize/parse/compile/run `INSERT INTO <table> VALUES (<i>);` as if it were a separate SQL step. Any individual failure aborts the batch and reports the failure as this step."
+    },
+    "select_rows_int_range_step": {
+      "sql": "string",
+      "expect": {"rows_int_range": {"start": "integer", "count": "integer (>= 0)"}},
+      "behavior": "Compares actual rows against the generated sequence [[start], [start+1], ..., [start+count-1]]. Each row has exactly one column (integer)."
+    },
+    "select_row_count_step": {
+      "sql": "string",
+      "expect": {"row_count": "integer"},
+      "behavior": "Runs the SELECT and asserts the row count only (not row contents). Used for large scans where enumerating contents bloats JSON."
+    }
+  },
+  "cases": [
+    {
+      "name": "memory-unchanged-phase2c3",
+      "backend": "memory",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",   "expect": {"rows": []}},
+        {"sql": "DELETE FROM t WHERE x = 1;",  "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t;",            "expect": {"rows": [[2]]}}
+      ]
+    },
+    {
+      "name": "disk-single-page-still-works",
+      "description": "Phase 3a single-page path continues to work under the new code path.",
+      "backend": "disk",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"bulk_insert_int_range": {"table": "t", "start": 1, "count": 10}, "expect": {"rows": []}},
+        {"reopen": true},
+        {"sql": "SELECT x FROM t;", "expect": {"rows_int_range": {"start": 1, "count": 10}}}
+      ]
+    },
+    {
+      "name": "disk-first-split-triggers-interior-root",
+      "description": "Insert enough tiny-row entries to cross the single-leaf threshold, forcing the first split. After the split the table's root is an interior page with two leaf children.",
+      "backend": "disk",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"bulk_insert_int_range": {"table": "t", "start": 1, "count": 1000}, "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t;", "expect": {"rows_int_range": {"start": 1, "count": 1000}}}
+      ]
+    },
+    {
+      "name": "disk-split-survives-reopen",
+      "description": "After first split, close and reopen. All 1000 rows must come back in order, confirming interior pages round-trip correctly through disk.",
+      "backend": "disk",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"bulk_insert_int_range": {"table": "t", "start": 1, "count": 1000}, "expect": {"rows": []}},
+        {"reopen": true},
+        {"sql": "SELECT x FROM t;", "expect": {"rows_int_range": {"start": 1, "count": 1000}}}
+      ]
+    },
+    {
+      "name": "disk-many-leaves-one-interior",
+      "description": "~5000 rows produces a 2-level tree with many leaves. Verify all rows are returned and counted.",
+      "backend": "disk",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"bulk_insert_int_range": {"table": "t", "start": 1, "count": 5000}, "expect": {"rows": []}},
+        {"reopen": true},
+        {"sql": "SELECT x FROM t;", "expect": {"rows_int_range": {"start": 1, "count": 5000}}}
+      ]
+    },
+    {
+      "name": "disk-delete-across-pages",
+      "description": "Delete rows from the middle of a multi-leaf tree. Tombstones on interior leaves must be invisible to subsequent SELECTs.",
+      "backend": "disk",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"bulk_insert_int_range": {"table": "t", "start": 1, "count": 1000}, "expect": {"rows": []}},
+        {"sql": "DELETE FROM t WHERE x = 1;",    "expect": {"rows": []}},
+        {"sql": "DELETE FROM t WHERE x = 500;",  "expect": {"rows": []}},
+        {"sql": "DELETE FROM t WHERE x = 1000;", "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t;",              "expect": {"row_count": 997}}
+      ]
+    },
+    {
+      "name": "disk-delete-across-pages-survives-reopen",
+      "backend": "disk",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"bulk_insert_int_range": {"table": "t", "start": 1, "count": 1000}, "expect": {"rows": []}},
+        {"sql": "DELETE FROM t WHERE x = 250;", "expect": {"rows": []}},
+        {"sql": "DELETE FROM t WHERE x = 750;", "expect": {"rows": []}},
+        {"reopen": true},
+        {"sql": "SELECT x FROM t;", "expect": {"row_count": 998}}
+      ]
+    },
+    {
+      "name": "disk-update-in-place-cross-page",
+      "description": "UPDATE a row in a non-root leaf. Same-width replacement fits in place (no split). After UPDATE, SELECT sees new value.",
+      "backend": "disk",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"bulk_insert_int_range": {"table": "t", "start": 1, "count": 500}, "expect": {"rows": []}},
+        {"sql": "UPDATE t SET x = 99999 WHERE x = 250;", "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 99999;",      "expect": {"rows": [[99999]]}},
+        {"reopen": true},
+        {"sql": "SELECT x FROM t WHERE x = 99999;",      "expect": {"rows": [[99999]]}}
+      ]
+    },
+    {
+      "name": "disk-multiple-tables-all-split",
+      "description": "Two tables both cross the split boundary. Their root pages stay stable (sqlite_schema.rootpage invariant). Both survive reopen.",
+      "backend": "disk",
+      "program": [
+        {"sql": "CREATE TABLE a (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (y INTEGER);", "expect": {"rows": []}},
+        {"bulk_insert_int_range": {"table": "a", "start": 1,     "count": 600}, "expect": {"rows": []}},
+        {"bulk_insert_int_range": {"table": "b", "start": 10000, "count": 600}, "expect": {"rows": []}},
+        {"reopen": true},
+        {"sql": "SELECT x FROM a;", "expect": {"rows_int_range": {"start": 1,     "count": 600}}},
+        {"sql": "SELECT y FROM b;", "expect": {"rows_int_range": {"start": 10000, "count": 600}}}
+      ]
+    },
+    {
+      "name": "disk-interior-stays-stable-across-many-splits",
+      "description": "Insert 3000 rows in 3 batches with reopens between. Tree grows through multiple leaf splits; root-page number must remain stable.",
+      "backend": "disk",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"bulk_insert_int_range": {"table": "t", "start": 1,    "count": 1000}, "expect": {"rows": []}},
+        {"reopen": true},
+        {"bulk_insert_int_range": {"table": "t", "start": 1001, "count": 1000}, "expect": {"rows": []}},
+        {"reopen": true},
+        {"bulk_insert_int_range": {"table": "t", "start": 2001, "count": 1000}, "expect": {"rows": []}},
+        {"reopen": true},
+        {"sql": "SELECT x FROM t;", "expect": {"row_count": 3000}}
+      ]
+    }
+  ]
+}

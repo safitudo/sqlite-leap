@@ -1,0 +1,54 @@
+{
+  "phase": "6bb",
+  "description": "Phase 6bb gate — ASC/DESC modifier in CREATE INDEX column list. Parse-only extension; no execution-time effect in v1. max_invariant=43 unchanged.",
+  "cases": [
+    {
+      "name": "create-index-asc",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);",     "expect": {"rows": []}},
+        {"sql": "CREATE INDEX i ON t (a ASC);",               "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3, 30), (1, 10), (2, 20);", "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t ORDER BY a;",                "expect": {"rows": [[1], [2], [3]]}}
+      ]
+    },
+    {
+      "name": "create-index-desc",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                "expect": {"rows": []}},
+        {"sql": "CREATE INDEX i ON t (a DESC);",              "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "create-index-multi-col-mixed-direction",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);",     "expect": {"rows": []}},
+        {"sql": "CREATE INDEX i ON t (a ASC, b DESC);",       "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "create-index-default-direction",
+      "description": "Column without ASC/DESC defaults to ASC; mixing default and explicit is fine.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER, c INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE INDEX i ON t (a, b DESC, c);",               "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "create-index-desc-duplicate-errors",
+      "description": "ASC DESC adjacent on same column — parse error on the second direction token.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                "expect": {"rows": []}},
+        {"sql": "CREATE INDEX i ON t (a ASC DESC);",          "expect": {"error": "PARSE_UNEXPECTED_TOKEN"}}
+      ]
+    },
+    {
+      "name": "drop-index-still-works-on-directional-index",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                "expect": {"rows": []}},
+        {"sql": "CREATE INDEX i ON t (a DESC);",              "expect": {"rows": []}},
+        {"sql": "DROP INDEX i;",                              "expect": {"rows": []}},
+        {"sql": "CREATE INDEX i ON t (a);",                   "expect": {"rows": []}}
+      ]
+    }
+  ]
+}

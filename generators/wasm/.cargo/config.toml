@@ -1,0 +1,25 @@
+# Local cargo config for the WASM wrapper crate.
+#
+# Why this exists: src-rust/.cargo/config.toml sets
+#   rustflags = ["-C", "target-cpu=native"]
+# at the [build] level, which is appropriate for native benchmark builds but is
+# a hard error when compiling to wasm32-unknown-unknown (there is no "native"
+# wasm CPU — the bytecode is target-CPU-agnostic).
+#
+# Cargo resolves .cargo/config.toml by walking up from the invocation directory,
+# so running `cargo build` from generators/wasm/ finds THIS file first and
+# stops before reaching src-rust/.cargo/. That isolation is why the wrapper
+# lives in its own directory rather than as a workspace member of src-rust.
+[build]
+# Empty rustflags — the wasm target needs no CPU-specific codegen hints.
+rustflags = []
+
+[target.wasm32-unknown-unknown]
+# Export all `#[no_mangle] extern "C"` symbols reachable from lib.rs. Without
+# this, Rust's wasm linker aggressively dead-strips FFI exports that are not
+# referenced by a `main` (there is no main in a cdylib).
+#
+# We rely on the rustc default behaviour of exporting `#[no_mangle]` symbols
+# from a cdylib; if future toolchain changes break that, add:
+#   rustflags = ["-C", "link-arg=--export=sqlite_leap_open", ...]
+# here, one line per export.

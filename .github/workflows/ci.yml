@@ -1,0 +1,50 @@
+# sqlite-leap Linux CI — cross-validation sanity check.
+#
+# Builds the Dockerfile.linux image on every push / PR and runs the
+# Linux CI harness inside it. The harness builds both the C and Rust
+# targets, runs every phase*_test binary, and does a sqllogictest smoke
+# pass. Exits non-zero on any failure.
+#
+# Intentionally minimal. WASM is a separate workflow; bench is a
+# separate workflow. This one only exists to prove the Linux x86_64
+# cross-validation toolchain works end to end.
+
+name: ci-linux
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+  workflow_dispatch:
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build sqlite-leap CI image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile.linux
+          tags: sqlite-leap-ci:latest
+          load: true
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run ci-linux.sh inside image
+        run: |
+          docker run --rm \
+            -v "$PWD":/repo \
+            -w /repo \
+            sqlite-leap-ci:latest \
+            /repo/scripts/ci-linux.sh

@@ -1,0 +1,58 @@
+# Smoke: literal evaluation — every literal type parses and evaluates.
+# This file exercises statement, query, query-with-hash, rendering-rules, NULL, REAL, INTEGER, TEXT.
+
+statement ok
+CREATE TABLE t (a INTEGER, b REAL, c TEXT)
+
+query I nosort
+SELECT 1
+----
+1
+
+query I nosort
+SELECT -1
+----
+-1
+
+query I nosort
+SELECT 0
+----
+0
+
+query R nosort
+SELECT 3.14
+----
+3.140
+
+query R nosort
+SELECT 0.0
+----
+0.000
+
+query T nosort
+SELECT 'hello'
+----
+hello
+
+query T nosort
+SELECT ''
+----
+(empty)
+
+query T nosort
+SELECT NULL
+----
+NULL
+
+query II nosort
+SELECT 1, 2
+----
+1
+2
+
+query III nosort
+SELECT 1, 2, 3
+----
+1
+2
+3

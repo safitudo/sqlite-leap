@@ -1,0 +1,208 @@
+{
+  "phase": "6k",
+  "description": "Phase 6k gate — UPPER and LOWER scalar functions, ASCII-only byte-wise case conversion. Non-ASCII bytes pass through unchanged. Null passes through. Non-Text values raise VDBE_TYPE_MISMATCH. All phase1..6j fixtures must stay green.",
+  "cases": [
+    {
+      "name": "upper-basic-ascii",
+      "program": [
+        {"sql": "SELECT UPPER('hello');", "expect": {"rows": [["HELLO"]]}}
+      ]
+    },
+    {
+      "name": "upper-empty-string",
+      "program": [
+        {"sql": "SELECT UPPER('');", "expect": {"rows": [[""]]}}
+      ]
+    },
+    {
+      "name": "upper-mixed-case",
+      "program": [
+        {"sql": "SELECT UPPER('HeLLo WoRLd');", "expect": {"rows": [["HELLO WORLD"]]}}
+      ]
+    },
+    {
+      "name": "upper-already-uppercase",
+      "program": [
+        {"sql": "SELECT UPPER('ALREADY');", "expect": {"rows": [["ALREADY"]]}}
+      ]
+    },
+    {
+      "name": "upper-digits-and-punctuation-untouched",
+      "program": [
+        {"sql": "SELECT UPPER('abc123!@#');", "expect": {"rows": [["ABC123!@#"]]}}
+      ]
+    },
+    {
+      "name": "upper-non-ascii-passthrough",
+      "description": "ASCII-only case conversion: 'café' -> 'CAFé' (é preserved verbatim, not mapped to É).",
+      "program": [
+        {"sql": "SELECT UPPER('café');", "expect": {"rows": [["CAFé"]]}}
+      ]
+    },
+    {
+      "name": "upper-null",
+      "program": [
+        {"sql": "SELECT UPPER(NULL);", "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "upper-integer-rejected",
+      "program": [
+        {"sql": "SELECT UPPER(42);", "expect": {"error": {"name": "VDBE_TYPE_MISMATCH", "fields": {"operation": "upper", "kind": "Integer"}}}}
+      ]
+    },
+    {
+      "name": "upper-real-rejected",
+      "program": [
+        {"sql": "SELECT UPPER(3.14);", "expect": {"error": {"name": "VDBE_TYPE_MISMATCH", "fields": {"operation": "upper", "kind": "Real"}}}}
+      ]
+    },
+    {
+      "name": "upper-case-insensitive-name",
+      "program": [
+        {"sql": "SELECT Upper('a'), upper('b'), UPPER('c');", "expect": {"rows": [["A", "B", "C"]]}}
+      ]
+    },
+    {
+      "name": "upper-star-rejected",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "SELECT UPPER(*) FROM t;",     "expect": {"error": {"name": "COMPILE_SCALAR_ARG_MISMATCH", "fields": {"function": "UPPER", "reason": "star-not-allowed"}}}}
+      ]
+    },
+    {
+      "name": "lower-basic-ascii",
+      "program": [
+        {"sql": "SELECT LOWER('HELLO');", "expect": {"rows": [["hello"]]}}
+      ]
+    },
+    {
+      "name": "lower-empty-string",
+      "program": [
+        {"sql": "SELECT LOWER('');", "expect": {"rows": [[""]]}}
+      ]
+    },
+    {
+      "name": "lower-mixed-case",
+      "program": [
+        {"sql": "SELECT LOWER('HeLLo WoRLd');", "expect": {"rows": [["hello world"]]}}
+      ]
+    },
+    {
+      "name": "lower-already-lowercase",
+      "program": [
+        {"sql": "SELECT LOWER('already');", "expect": {"rows": [["already"]]}}
+      ]
+    },
+    {
+      "name": "lower-digits-and-punctuation-untouched",
+      "program": [
+        {"sql": "SELECT LOWER('ABC123!@#');", "expect": {"rows": [["abc123!@#"]]}}
+      ]
+    },
+    {
+      "name": "lower-non-ascii-passthrough",
+      "description": "ASCII-only: 'CAFÉ' -> 'cafÉ' (É preserved).",
+      "program": [
+        {"sql": "SELECT LOWER('CAFÉ');", "expect": {"rows": [["cafÉ"]]}}
+      ]
+    },
+    {
+      "name": "lower-null",
+      "program": [
+        {"sql": "SELECT LOWER(NULL);", "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "lower-integer-rejected",
+      "program": [
+        {"sql": "SELECT LOWER(42);", "expect": {"error": {"name": "VDBE_TYPE_MISMATCH", "fields": {"operation": "lower", "kind": "Integer"}}}}
+      ]
+    },
+    {
+      "name": "lower-real-rejected",
+      "program": [
+        {"sql": "SELECT LOWER(3.14);", "expect": {"error": {"name": "VDBE_TYPE_MISMATCH", "fields": {"operation": "lower", "kind": "Real"}}}}
+      ]
+    },
+    {
+      "name": "lower-case-insensitive-name",
+      "program": [
+        {"sql": "SELECT Lower('A'), lower('B'), LOWER('C');", "expect": {"rows": [["a", "b", "c"]]}}
+      ]
+    },
+    {
+      "name": "lower-star-rejected",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "SELECT LOWER(*) FROM t;",     "expect": {"error": {"name": "COMPILE_SCALAR_ARG_MISMATCH", "fields": {"function": "LOWER", "reason": "star-not-allowed"}}}}
+      ]
+    },
+    {
+      "name": "upper-lower-round-trip",
+      "program": [
+        {"sql": "SELECT LOWER(UPPER('hello')), UPPER(LOWER('HELLO'));", "expect": {"rows": [["hello", "HELLO"]]}}
+      ]
+    },
+    {
+      "name": "upper-on-column",
+      "program": [
+        {"sql": "CREATE TABLE t (s TEXT);",        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('apple');", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('BoB');",   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('carl');",  "expect": {"rows": []}},
+        {"sql": "SELECT UPPER(s) FROM t;",         "expect": {"rows": [["APPLE"], ["BOB"], ["CARL"]]}}
+      ]
+    },
+    {
+      "name": "upper-in-where-case-insensitive-match",
+      "program": [
+        {"sql": "CREATE TABLE t (s TEXT);",                              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('apple');",                       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('BANANA');",                      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('Cherry');",                      "expect": {"rows": []}},
+        {"sql": "SELECT s FROM t WHERE UPPER(s) = 'BANANA';",            "expect": {"rows": [["BANANA"]]}}
+      ]
+    },
+    {
+      "name": "lower-in-order-by",
+      "program": [
+        {"sql": "CREATE TABLE t (s TEXT);",                              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('Charlie');",                     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('alice');",                       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('BOB');",                         "expect": {"rows": []}},
+        {"sql": "SELECT s FROM t ORDER BY LOWER(s);",                    "expect": {"rows": [["alice"], ["BOB"], ["Charlie"]]}}
+      ]
+    },
+    {
+      "name": "upper-inside-cast",
+      "program": [
+        {"sql": "SELECT UPPER(CAST(42 AS TEXT));", "expect": {"rows": [["42"]]}}
+      ]
+    },
+    {
+      "name": "length-of-upper",
+      "description": "UPPER is byte-length-preserving; LENGTH counts code points — for ASCII input, they are equal.",
+      "program": [
+        {"sql": "SELECT LENGTH(UPPER('hello'));", "expect": {"rows": [[5]]}}
+      ]
+    },
+    {
+      "name": "upper-preserves-utf8-length",
+      "description": "'café' is 5 bytes / 4 code points; UPPER('café') is 'CAFé' — still 5 bytes / 4 code points.",
+      "program": [
+        {"sql": "SELECT LENGTH(UPPER('café'));", "expect": {"rows": [[4]]}}
+      ]
+    },
+    {
+      "name": "upper-and-lower-composed-with-concat-via-cast",
+      "description": "Composing scalars through CAST boundary.",
+      "program": [
+        {"sql": "CREATE TABLE t (s TEXT);",                              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('Alice');",                       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('BOB');",                         "expect": {"rows": []}},
+        {"sql": "SELECT LOWER(s), UPPER(s) FROM t ORDER BY s;",          "expect": {"rows": [["alice", "ALICE"], ["bob", "BOB"]]}}
+      ]
+    }
+  ]
+}

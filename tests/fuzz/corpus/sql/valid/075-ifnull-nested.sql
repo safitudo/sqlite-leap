@@ -1,0 +1,1 @@
+SELECT IFNULL(IFNULL(NULL, NULL), 'fallback');

@@ -1,0 +1,136 @@
+{
+  "phase": "6a",
+  "description": "Phase 6a gate — LIMIT and optional OFFSET on SELECT FROM. Tests row-count capping, offset-then-limit semantics, LIMIT 0 corner, interaction with WHERE, and grammar-level parse errors (negative literal, OFFSET without LIMIT, LIMIT on FROM-less SELECT). In-memory backend only; the new feature is orthogonal to storage backend. All 1..3d fixtures must stay green.",
+  "cases": [
+    {
+      "name": "limit-basic",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (4);",   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",   "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t LIMIT 3;",    "expect": {"rows": [[1], [2], [3]]}}
+      ]
+    },
+    {
+      "name": "limit-zero",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",    "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t LIMIT 0;",     "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "limit-exceeds-available",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",    "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t LIMIT 10;",    "expect": {"rows": [[1], [2]]}}
+      ]
+    },
+    {
+      "name": "limit-with-offset",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (10);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (20);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (30);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (40);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (50);",             "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t LIMIT 2 OFFSET 2;",      "expect": {"rows": [[30], [40]]}}
+      ]
+    },
+    {
+      "name": "limit-with-offset-past-end",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",              "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t LIMIT 5 OFFSET 10;",     "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "limit-with-where",
+      "description": "LIMIT applies AFTER WHERE filtering (standard SQL semantics).",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (4);",                      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",                      "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x > 2 LIMIT 2;",           "expect": {"rows": [[3], [4]]}}
+      ]
+    },
+    {
+      "name": "limit-offset-with-where",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                           "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (4);",                             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",                             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (6);",                             "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x > 1 LIMIT 2 OFFSET 2;",         "expect": {"rows": [[4], [5]]}}
+      ]
+    },
+    {
+      "name": "limit-star-projection",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b TEXT);",  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 'one');",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 'two');",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3, 'three');",   "expect": {"rows": []}},
+        {"sql": "SELECT * FROM t LIMIT 2;",             "expect": {"rows": [[1, "one"], [2, "two"]]}}
+      ]
+    },
+    {
+      "name": "limit-empty-table",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",    "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t LIMIT 5;",       "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "parse-error-negative-limit",
+      "description": "LIMIT accepts only bare non-negative INTEGER_LITERAL; a MINUS at that position is a parse error.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",   "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t LIMIT -1;",     "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "MINUS", "expected": ["INTEGER_LITERAL"]}}}}
+      ]
+    },
+    {
+      "name": "parse-error-offset-without-limit",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",      "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t OFFSET 2;",        "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "KEYWORD_OFFSET"}}}}
+      ]
+    },
+    {
+      "name": "parse-error-limit-on-fromless-select",
+      "description": "FROM-less SELECT literal doesn't accept LIMIT; the grammar simply doesn't reach a LIMIT-eligible position.",
+      "program": [
+        {"sql": "SELECT 5 LIMIT 1;", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "KEYWORD_LIMIT"}}}}
+      ]
+    },
+    {
+      "name": "parse-error-limit-non-literal",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",       "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t LIMIT x;",          "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "IDENTIFIER", "expected": ["INTEGER_LITERAL"]}}}}
+      ]
+    },
+    {
+      "name": "limit-as-identifier-no-longer-works",
+      "description": "Reserving LIMIT as a keyword means it cannot be used as a column name. This is a spec-intentional break with Phase 2a — but Phase 2a never made LIMIT a column name in any test fixture, so no regression.",
+      "program": [
+        {"sql": "CREATE TABLE t (limit INTEGER);", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "KEYWORD_LIMIT"}}}}
+      ]
+    }
+  ]
+}

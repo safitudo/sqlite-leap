@@ -1,0 +1,121 @@
+{
+  "phase": "6bo",
+  "description": "Phase 6bo gate — three parser/compiler gaps from post-6bn random-corpus analysis: CROSS JOIN, ALL quantifier inside aggregate args, bare column references with GROUP BY.",
+  "cases": [
+    {
+      "name": "cross-join-basic",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE TABLE u (b INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO u VALUES (2);", "expect": {"rows": []}},
+        {"sql": "SELECT * FROM t CROSS JOIN u;", "expect": {"rows": [[1, 2]]}}
+      ]
+    },
+    {
+      "name": "cross-join-multi",
+      "description": "CROSS JOIN composes with comma-join equivalently.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE TABLE u (b INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE TABLE v (c INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO u VALUES (2);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO v VALUES (3);", "expect": {"rows": []}},
+        {"sql": "SELECT * FROM t CROSS JOIN u, v;", "expect": {"rows": [[1, 2, 3]]}}
+      ]
+    },
+    {
+      "name": "cross-join-product",
+      "description": "CROSS JOIN produces full cartesian product.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE TABLE u (b INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO u VALUES (10), (20);", "expect": {"rows": []}},
+        {"sql": "SELECT * FROM t CROSS JOIN u ORDER BY a, b;", "expect": {"rows": [[1, 10], [1, 20], [2, 10], [2, 20]]}}
+      ]
+    },
+    {
+      "name": "cross-join-with-alias",
+      "description": "Aliases on both sides of CROSS JOIN.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2);", "expect": {"rows": []}},
+        {"sql": "SELECT x.a, y.a FROM t AS x CROSS JOIN t AS y ORDER BY x.a, y.a;", "expect": {"rows": [[1, 1], [1, 2], [2, 1], [2, 2]]}}
+      ]
+    },
+    {
+      "name": "agg-all-sum",
+      "description": "SUM(ALL x) equivalent to SUM(x).",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2), (3);", "expect": {"rows": []}},
+        {"sql": "SELECT SUM(ALL a) FROM t;", "expect": {"rows": [[6]]}}
+      ]
+    },
+    {
+      "name": "agg-all-max",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5), (2), (8), (3);", "expect": {"rows": []}},
+        {"sql": "SELECT MAX(ALL a) FROM t;", "expect": {"rows": [[8]]}}
+      ]
+    },
+    {
+      "name": "agg-all-count",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (1), (2), (3);", "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(ALL a) FROM t;", "expect": {"rows": [[4]]}}
+      ]
+    },
+    {
+      "name": "agg-all-nested-unary",
+      "description": "ALL then unary + then expression, matching random corpus shape SUM(ALL (+ col2)).",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2), (3);", "expect": {"rows": []}},
+        {"sql": "SELECT SUM(ALL (+ a)) FROM t;", "expect": {"rows": [[6]]}}
+      ]
+    },
+    {
+      "name": "bare-column-group-by",
+      "description": "SQLite permits a bare column reference in SELECT when GROUP BY is present. To keep the value deterministic for cross-build equivalence, each group here has a single distinct col1 value, so bare-column emit is unambiguous.",
+      "program": [
+        {"sql": "CREATE TABLE t (col0 INTEGER, col1 INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10), (1, 10), (2, 30);", "expect": {"rows": []}},
+        {"sql": "SELECT col1 FROM t GROUP BY col0 ORDER BY col0;", "expect": {"rows": [[10], [30]]}}
+      ]
+    },
+    {
+      "name": "bare-column-group-by-with-agg",
+      "description": "Bare column + aggregate in same SELECT list alongside GROUP BY.",
+      "program": [
+        {"sql": "CREATE TABLE t (col0 INTEGER, col1 INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10), (1, 20), (2, 30);", "expect": {"rows": []}},
+        {"sql": "SELECT col0, COUNT(*) FROM t GROUP BY col0 ORDER BY col0;", "expect": {"rows": [[1, 2], [2, 1]]}}
+      ]
+    },
+    {
+      "name": "bare-column-having",
+      "description": "Bare column in HAVING with GROUP BY — same relaxation applies.",
+      "program": [
+        {"sql": "CREATE TABLE t (col0 INTEGER, col1 INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10), (1, 20), (2, 30);", "expect": {"rows": []}},
+        {"sql": "SELECT col0 FROM t GROUP BY col0 HAVING COUNT(*) > 1;", "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "implicit-alias-lhs-cross-join",
+      "description": "Regression #111: implicit table alias on LHS of CROSS JOIN. `FROM a cor0 CROSS JOIN b AS cor1` must be accepted — CROSS is a valid follow-set token for an implicit alias.",
+      "program": [
+        {"sql": "CREATE TABLE a (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (y INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (2);", "expect": {"rows": []}},
+        {"sql": "SELECT * FROM a cor0 CROSS JOIN b AS cor1;", "expect": {"rows": [[1, 2]]}}
+      ]
+    }
+  ]
+}

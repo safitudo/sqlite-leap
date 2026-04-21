@@ -1,0 +1,7 @@
+lane,target,value,units,timestamp
+cold-start,turso,0.010932708,seconds,2026-04-20T23:26:48Z
+parse-speed,turso,NA,pending-harness-fix,2026-04-20T23:26:48Z
+select-in-memory,turso,NA,pending-harness-fix,2026-04-20T23:26:48Z
+insert-throughput,turso,NA,pending-harness-fix,2026-04-20T23:26:48Z
+binary-size,turso,13486168,bytes,2026-04-20T23:26:43Z
+memory-footprint,turso,16744448,bytes,2026-04-20T23:26:50Z

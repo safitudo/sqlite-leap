@@ -1,0 +1,241 @@
+{
+  "phase": "9f",
+  "description": "Phase 9f gate — PRIMARY KEY auto-index + DROP INDEX. INTEGER PRIMARY KEY = rowid alias (no separate index). Non-INTEGER PRIMARY KEY = auto-index 'sqlite_autoindex_<table>_1' (NOT uniqueness-enforced in 9f; enforcement lands in 9g). DROP INDEX [IF EXISTS] <name>. 1 new VDBE opcode: DropIndex. New invariant 42. max_invariant=42. 5 new reserved keywords: DROP, PRIMARY, KEY, IF, EXISTS. Non-goals: multi-col PK, UNIQUE enforcement (9g), CREATE IF NOT EXISTS (deferred), DROP TABLE (v1 non-goal), FOREIGN KEY (non-goal). All prior phase fixtures must stay green.",
+  "cases": [
+    {
+      "name": "integer-primary-key-declaration-parses",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER PRIMARY KEY);", "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "integer-primary-key-insert-and-read",
+      "description": "INTEGER PRIMARY KEY is rowid alias. Inserted value becomes rowid. Reading the PK col returns the integer.",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT);",   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (42, 'alice');",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (7, 'bob');",                       "expect": {"rows": []}},
+        {"sql": "SELECT id, name FROM t ORDER BY id;",                    "expect": {"rows": [[7, "bob"], [42, "alice"]]}}
+      ]
+    },
+    {
+      "name": "integer-primary-key-equality-lookup",
+      "description": "WHERE id = <const> on INTEGER PRIMARY KEY should return the row matched by rowid.",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT);",   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 'a');",                         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 'b');",                         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3, 'c');",                         "expect": {"rows": []}},
+        {"sql": "SELECT name FROM t WHERE id = 2;",                       "expect": {"rows": [["b"]]}}
+      ]
+    },
+    {
+      "name": "integer-primary-key-no-match-returns-empty",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT);",   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 'a');",                         "expect": {"rows": []}},
+        {"sql": "SELECT name FROM t WHERE id = 999;",                     "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "integer-primary-key-range",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 'a');",                                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 'b');",                                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3, 'c');",                                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (4, 'd');",                                   "expect": {"rows": []}},
+        {"sql": "SELECT name FROM t WHERE id >= 2 AND id <= 3 ORDER BY id;",        "expect": {"rows": [["b"], ["c"]]}}
+      ]
+    },
+    {
+      "name": "integer-primary-key-table-constraint-form",
+      "description": "PRIMARY KEY declared as table-level constraint rather than column-level.",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER, name TEXT, PRIMARY KEY (id));",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5, 'e');",                                "expect": {"rows": []}},
+        {"sql": "SELECT name FROM t WHERE id = 5;",                              "expect": {"rows": [["e"]]}}
+      ]
+    },
+    {
+      "name": "text-primary-key-creates-auto-index",
+      "description": "Non-INTEGER PRIMARY KEY should be queryable via equality — implicit auto-index used by planner.",
+      "program": [
+        {"sql": "CREATE TABLE t (name TEXT PRIMARY KEY, age INTEGER);",   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('alice', 30);",                     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('bob', 25);",                       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('carol', 35);",                     "expect": {"rows": []}},
+        {"sql": "SELECT age FROM t WHERE name = 'bob';",                   "expect": {"rows": [[25]]}}
+      ]
+    },
+    {
+      "name": "text-primary-key-range-query",
+      "program": [
+        {"sql": "CREATE TABLE t (name TEXT PRIMARY KEY, age INTEGER);",                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('alice', 30);",                                     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('bob', 25);",                                       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('carol', 35);",                                     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('dave', 40);",                                      "expect": {"rows": []}},
+        {"sql": "SELECT name FROM t WHERE name >= 'b' AND name < 'd' ORDER BY name;",      "expect": {"rows": [["bob"], ["carol"]]}}
+      ]
+    },
+    {
+      "name": "pk-column-not-first-column",
+      "description": "PRIMARY KEY on a non-first column.",
+      "program": [
+        {"sql": "CREATE TABLE t (name TEXT, id INTEGER PRIMARY KEY);",   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('alice', 7);",                     "expect": {"rows": []}},
+        {"sql": "SELECT name FROM t WHERE id = 7;",                       "expect": {"rows": [["alice"]]}}
+      ]
+    },
+    {
+      "name": "multiple-primary-keys-same-table-errors",
+      "description": "Declaring two PRIMARY KEYs on one table raises COMPILE_PRIMARY_KEY_CONFLICT.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER PRIMARY KEY, b INTEGER PRIMARY KEY);", "expect": {"error": {"name": "COMPILE_PRIMARY_KEY_CONFLICT", "fields": {"table": "t"}}}}
+      ]
+    },
+    {
+      "name": "drop-index-removes-index",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",          "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",       "expect": {"rows": []}},
+        {"sql": "DROP INDEX idx_x;",                  "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 1;",       "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "drop-index-then-recreate",
+      "description": "After DROP INDEX, CREATE INDEX with the same name succeeds.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",          "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",       "expect": {"rows": []}},
+        {"sql": "DROP INDEX idx_x;",                  "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",          "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 2;",       "expect": {"rows": [[2]]}}
+      ]
+    },
+    {
+      "name": "drop-index-unknown-without-if-exists-errors",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",       "expect": {"rows": []}},
+        {"sql": "DROP INDEX nonexistent;",            "expect": {"error": {"name": "COMPILE_UNKNOWN_INDEX", "fields": {"name": "nonexistent"}}}}
+      ]
+    },
+    {
+      "name": "drop-index-if-exists-unknown-noop",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                "expect": {"rows": []}},
+        {"sql": "DROP INDEX IF EXISTS nonexistent;",           "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "drop-index-if-exists-existing-works",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",                   "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",                "expect": {"rows": []}},
+        {"sql": "DROP INDEX IF EXISTS idx_x;",                 "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 5;",                "expect": {"rows": [[5]]}}
+      ]
+    },
+    {
+      "name": "drop-auto-index-refused",
+      "description": "DROP INDEX on an auto-generated sqlite_autoindex_* name MUST error.",
+      "program": [
+        {"sql": "CREATE TABLE t (name TEXT PRIMARY KEY);",           "expect": {"rows": []}},
+        {"sql": "DROP INDEX sqlite_autoindex_t_1;",                   "expect": {"error": {"name": "COMPILE_CANNOT_DROP_AUTO_INDEX", "fields": {"name": "sqlite_autoindex_t_1"}}}}
+      ]
+    },
+    {
+      "name": "drop-index-preserves-other-indexes",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);",   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 100);",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 200);",            "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_a ON t (a);",              "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_b ON t (b);",              "expect": {"rows": []}},
+        {"sql": "DROP INDEX idx_a;",                         "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t WHERE b = 100;",            "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "drop-index-dml-still-works-on-table",
+      "description": "After DROP INDEX, DML on the parent table continues to work.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",          "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",       "expect": {"rows": []}},
+        {"sql": "DROP INDEX idx_x;",                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",          "expect": {"rows": []}},
+        {"sql": "UPDATE t SET x = 99 WHERE x = 1;",   "expect": {"rows": []}},
+        {"sql": "DELETE FROM t WHERE x = 2;",         "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t ORDER BY x;",        "expect": {"rows": [[99]]}}
+      ]
+    },
+    {
+      "name": "integer-pk-insert-null-gets-auto-rowid",
+      "description": "INSERT with NULL for INTEGER PRIMARY KEY assigns auto rowid (standard SQLite semantics).",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (name) VALUES ('alice');",               "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (name) VALUES ('bob');",                 "expect": {"rows": []}},
+        {"sql": "SELECT name FROM t ORDER BY id;",                      "expect": {"rows": [["alice"], ["bob"]]}}
+      ]
+    },
+    {
+      "name": "integer-pk-explicit-rowid-lookup",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER PRIMARY KEY, x INTEGER);",  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (100, 1);",                        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (200, 2);",                        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (300, 3);",                        "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE id = 200;",                       "expect": {"rows": [[2]]}}
+      ]
+    },
+    {
+      "name": "drop-index-empty-name-errors",
+      "description": "DROP INDEX with empty or missing name raises a parse error.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "DROP INDEX;",                  "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN"}}}
+      ]
+    },
+    {
+      "name": "drop-keyword-reserved",
+      "description": "DROP is now a reserved keyword — cannot be used as an identifier in CREATE TABLE column name.",
+      "program": [
+        {"sql": "CREATE TABLE t (drop INTEGER);", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN"}}}
+      ]
+    },
+    {
+      "name": "primary-key-reserved",
+      "program": [
+        {"sql": "CREATE TABLE t (primary INTEGER);", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN"}}}
+      ]
+    },
+    {
+      "name": "text-pk-range-and-order-by",
+      "program": [
+        {"sql": "CREATE TABLE t (name TEXT PRIMARY KEY, v INTEGER);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('c', 3);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('a', 1);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('b', 2);",                          "expect": {"rows": []}},
+        {"sql": "SELECT v FROM t ORDER BY name;",                          "expect": {"rows": [[1], [2], [3]]}}
+      ]
+    },
+    {
+      "name": "no-pk-still-works",
+      "description": "Regression gate — tables without PRIMARY KEY must still behave as before.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER, y INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);",           "expect": {"rows": []}},
+        {"sql": "SELECT * FROM t;",                        "expect": {"rows": [[1, 10]]}}
+      ]
+    }
+  ]
+}

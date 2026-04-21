@@ -1,0 +1,230 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$id": "https://sqlite-leap/schema/ast.schema.json",
+  "title": "AST",
+  "description": "Abstract syntax tree for a single SQL statement. Phase 2c-1 unifies the two Phase 2a SELECT kinds into a single `Select` kind with expression-based projections. Phase 2c-2 adds optional WHERE clause and AND/OR/NOT operators. Phase 6e replaces Select.table with Select.from (FromSource), adds QualifiedColumn expression, and introduces JoinKind. Phase 6f adds optional `distinct` flag on Select. Phase 6g adds `RealLiteral` expression alternative (IEEE-754 double) and extends ColumnType with REAL. See spec/sql-grammar.spec.md.",
+  "definitions": {
+    "BinOp": {
+      "type": "string",
+      "enum": ["+", "-", "*", "/", "=", "!=", "<", "<=", ">", ">=", "AND", "OR"]
+    },
+    "UnaryOp": {
+      "type": "string",
+      "enum": ["-", "NOT"]
+    },
+    "Literal": {
+      "oneOf": [
+        {"type": "object", "additionalProperties": false, "required": ["kind", "value"], "properties": {"kind": {"const": "IntegerLiteral"}, "value": {"type": "integer", "minimum": -9223372036854775808, "maximum": 9223372036854775807}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "value"], "properties": {"kind": {"const": "RealLiteral"},    "value": {"type": "number"}},
+         "description": "Phase 6g: IEEE-754 double-precision literal produced from FLOAT_LITERAL token (or, via signed-literal, from MINUS followed by FLOAT_LITERAL)."},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "value"], "properties": {"kind": {"const": "StringLiteral"},  "value": {"type": "string"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind"],           "properties": {"kind": {"const": "NullLiteral"}}}
+      ]
+    },
+    "AggregateKind": {"type": "string", "enum": ["CountStar", "Count", "Sum", "Min", "Max"]},
+    "AggregateArg": {
+      "oneOf": [
+        {"type": "object", "additionalProperties": false, "required": ["kind"], "properties": {"kind": {"const": "Star"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "expr"], "properties": {"kind": {"const": "Expr"}, "expr": {"$ref": "#/definitions/Expression"}}}
+      ]
+    },
+    "Expression": {
+      "oneOf": [
+        {"$ref": "#/definitions/Literal"},
+        {
+          "type": "object", "additionalProperties": false, "required": ["kind", "name"],
+          "properties": {
+            "kind": {"const": "ColumnRef"},
+            "name": {"type": "string", "minLength": 1}
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["kind", "op", "left", "right"],
+          "properties": {
+            "kind":  {"const": "BinaryOp"},
+            "op":    {"$ref": "#/definitions/BinOp"},
+            "left":  {"$ref": "#/definitions/Expression"},
+            "right": {"$ref": "#/definitions/Expression"}
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["kind", "op", "operand"],
+          "properties": {
+            "kind":    {"const": "UnaryOp"},
+            "op":      {"$ref": "#/definitions/UnaryOp"},
+            "operand": {"$ref": "#/definitions/Expression"}
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["kind", "agg", "arg"],
+          "properties": {
+            "kind": {"const": "AggregateCall"},
+            "agg":  {"$ref": "#/definitions/AggregateKind"},
+            "arg":  {"$ref": "#/definitions/AggregateArg"}
+          },
+          "description": "Phase 6c: aggregate function call. The parser emits a generic FunctionCall shape that the compiler lowers into this AST node; generators MAY collapse into a single parser-emitted form (harness only inspects execution)."
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["kind", "table", "column"],
+          "properties": {
+            "kind":   {"const": "QualifiedColumn"},
+            "table":  {"type": "string", "minLength": 1},
+            "column": {"type": "string", "minLength": 1}
+          },
+          "description": "Phase 6e: `<table>.<column>` qualified reference. Bare ColumnRef still allowed in joined SELECTs when the name is unambiguous across joined tables; ambiguity surfaces at compile time as COMPILE_AMBIGUOUS_COLUMN."
+        }
+      ]
+    },
+    "JoinKind": {"type": "string", "enum": ["Inner", "Left"]},
+    "FromSource": {
+      "oneOf": [
+        {
+          "type": "object", "additionalProperties": false, "required": ["kind", "name"],
+          "properties": {
+            "kind": {"const": "SingleTable"},
+            "name": {"type": "string", "minLength": 1}
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["kind", "left", "join_kind", "right_table", "on"],
+          "properties": {
+            "kind":         {"const": "Joined"},
+            "left":         {"$ref": "#/definitions/FromSource"},
+            "join_kind":    {"$ref": "#/definitions/JoinKind"},
+            "right_table":  {"type": "string", "minLength": 1},
+            "on":           {"$ref": "#/definitions/Expression"}
+          },
+          "description": "Phase 6e: left-deep join tree. In 6e scope `left` is always a SingleTable (two-table joins only); future phases may chain further."
+        }
+      ]
+    },
+    "ColumnType": {"type": "string", "enum": ["INTEGER", "TEXT", "REAL"], "description": "Phase 6g adds REAL. Source spellings REAL / FLOAT / DOUBLE all canonicalise to REAL at the AST level; the original spelling is preserved separately for sqlite_schema round-trip."},
+    "ColumnDef": {
+      "type": "object", "additionalProperties": false, "required": ["name", "type"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "type": {"$ref": "#/definitions/ColumnType"}
+      }
+    },
+    "Projection": {
+      "oneOf": [
+        {"type": "object", "additionalProperties": false, "required": ["kind"],                "properties": {"kind": {"const": "Star"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "expressions"], "properties": {"kind": {"const": "Expressions"}, "expressions": {"type": "array", "minItems": 1, "items": {"$ref": "#/definitions/Expression"}}}}
+      ]
+    },
+    "SortDirection": {"type": "string", "enum": ["Asc", "Desc"]},
+    "OrderByTerm": {
+      "type": "object", "additionalProperties": false, "required": ["expr", "direction"],
+      "properties": {
+        "expr":      {"$ref": "#/definitions/Expression"},
+        "direction": {"$ref": "#/definitions/SortDirection"}
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "type": "object", "additionalProperties": false, "required": ["kind", "table", "columns"],
+      "properties": {
+        "kind":    {"const": "CreateTable"},
+        "table":   {"type": "string", "minLength": 1},
+        "columns": {"type": "array", "minItems": 1, "items": {"$ref": "#/definitions/ColumnDef"}}
+      }
+    },
+    {
+      "type": "object", "additionalProperties": false, "required": ["kind", "table", "column_names", "values"],
+      "properties": {
+        "kind":  {"const": "Insert"},
+        "table": {"type": "string", "minLength": 1},
+        "column_names": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}
+          ],
+          "description": "null means 'no column list supplied; positional insert against all table columns'"
+        },
+        "values": {
+          "type": "array", "minItems": 1,
+          "items": {"$ref": "#/definitions/Literal"},
+          "description": "In Phase 2c-1, INSERT VALUES still takes only Literals. Expressions in INSERT are deferred."
+        }
+      }
+    },
+    {
+      "type": "object", "additionalProperties": false, "required": ["kind", "projection", "from", "where", "group_by", "having", "order_by", "limit", "offset", "distinct"],
+      "properties": {
+        "kind":       {"const": "Select"},
+        "distinct": {
+          "type": "boolean",
+          "description": "Phase 6f: true iff `KEYWORD_DISTINCT` appeared immediately after `KEYWORD_SELECT`. Defaults to false. Enables dedup of the projected rowset before ORDER BY / LIMIT / OFFSET apply."
+        },
+        "projection": {"$ref": "#/definitions/Projection"},
+        "from": {
+          "oneOf": [{"type": "null"}, {"$ref": "#/definitions/FromSource"}],
+          "description": "Phase 6e: FROM clause. null = no FROM (Phase 1 literal-form SELECT). SingleTable = pre-6e single-table SELECT. Joined = Phase 6e JOIN (INNER or LEFT)."
+        },
+        "where": {
+          "oneOf": [{"type": "null"}, {"$ref": "#/definitions/Expression"}],
+          "description": "Phase 2c-2: optional WHERE expression. null when the statement has no WHERE clause. MUST be null when from is null (WHERE requires FROM per the grammar)."
+        },
+        "group_by": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "array", "minItems": 1, "items": {"$ref": "#/definitions/Expression"}}
+          ],
+          "description": "Phase 6d: optional GROUP BY key list. null means 'no grouping'. A non-null value is a non-empty ordered list of key expressions; empty-list is never a valid AST value. MUST be null when from is null."
+        },
+        "having": {
+          "oneOf": [{"type": "null"}, {"$ref": "#/definitions/Expression"}],
+          "description": "Phase 6d: optional HAVING predicate. null means 'no having'. Semantically requires group_by to also be non-null; a non-null having alongside a null group_by is a compile-time error (COMPILE_HAVING_WITHOUT_GROUP_BY)."
+        },
+        "order_by": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "array", "minItems": 1, "items": {"$ref": "#/definitions/OrderByTerm"}}
+          ],
+          "description": "Phase 6b: optional ORDER BY list. null means 'no ordering; emit rows in insertion order'. A non-null value is a non-empty ordered list of (expr, direction) terms; empty-list is never a valid AST value. MUST be null when from is null (ORDER BY requires FROM per the grammar)."
+        },
+        "limit": {
+          "oneOf": [{"type": "null"}, {"type": "integer", "minimum": 0}],
+          "description": "Phase 6a: optional LIMIT. null means 'no limit'. A non-null value caps the emitted row count at this many rows. MUST be null when from is null (LIMIT requires FROM per the grammar)."
+        },
+        "offset": {
+          "oneOf": [{"type": "null"}, {"type": "integer", "minimum": 0}],
+          "description": "Phase 6a: optional OFFSET. null means 'no offset'. A non-null value skips this many rows before emitting. MUST be null when limit is null (OFFSET only with LIMIT, per the grammar)."
+        }
+      }
+    },
+    {
+      "type": "object", "additionalProperties": false, "required": ["kind", "table", "assignments", "where"],
+      "properties": {
+        "kind":  {"const": "Update"},
+        "table": {"type": "string", "minLength": 1},
+        "assignments": {
+          "type": "array", "minItems": 1,
+          "items": {
+            "type": "object", "additionalProperties": false, "required": ["column", "value"],
+            "properties": {
+              "column": {"type": "string", "minLength": 1},
+              "value":  {"$ref": "#/definitions/Expression"}
+            }
+          }
+        },
+        "where": {
+          "oneOf": [{"type": "null"}, {"$ref": "#/definitions/Expression"}],
+          "description": "Phase 2c-3: optional WHERE expression. null means 'update every row'."
+        }
+      }
+    },
+    {
+      "type": "object", "additionalProperties": false, "required": ["kind", "table", "where"],
+      "properties": {
+        "kind":  {"const": "Delete"},
+        "table": {"type": "string", "minLength": 1},
+        "where": {
+          "oneOf": [{"type": "null"}, {"$ref": "#/definitions/Expression"}],
+          "description": "Phase 2c-3: optional WHERE expression. null means 'delete every row'."
+        }
+      }
+    }
+  ]
+}

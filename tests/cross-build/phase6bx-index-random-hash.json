@@ -1,0 +1,43 @@
+{
+  "phase": "6bx",
+  "description": "Phase 6bx gate — sqllogictest rendering is driven by the typechar declared in `typestring`, NOT by the runtime type of the cell. Mainline sqllogictest coerces TEXT values to integer (atoi prefix-parse; non-numeric prefix → 0) for `I`-typed columns, and to float (atof; non-numeric → 0.000) for `R`-typed columns. This rule was implicit in our spec pre-6bx and the runner was passing TEXT through as-is, causing 22 files in index/random/* (corpus v2) to produce got-hash `acd660ea...` / `dca4e74b...` while mainline expected `b833e3a3...` (10× `0\\n`). Engine semantics for the corpus queries are themselves correct — unary `+` on a TEXT value yields the same TEXT value at the engine layer (these cases below verify that). The coercion lives in the runner's `render_value`; this fixture pins the engine-level SQL behavior that feeds into it. Also pins the spec's § `Expected result format` rules for typechar-driven rendering (2026-04-20).",
+  "cases": [
+    {
+      "name": "unary-plus-on-text-preserves-text",
+      "description": "Engine returns TEXT as-is when unary `+` is applied to a TEXT column. sqllogictest runner is responsible for the I/R coercion on the expected-output side.",
+      "program": [
+        {"sql": "CREATE TABLE t(c TEXT);"},
+        {"sql": "INSERT INTO t VALUES('apdbu'),('fuqeu'),('yrrzx');"},
+        {"sql": "SELECT +c FROM t ORDER BY c;", "expect": {"rows": [["apdbu"], ["fuqeu"], ["yrrzx"]]}}
+      ]
+    },
+    {
+      "name": "text-in-integer-column-not-coerced-by-engine",
+      "description": "When a column is declared INTEGER but holds a TEXT value (SQLite type affinity is a hint, not a constraint), the engine preserves TEXT. The runner's I-rendering does the coercion.",
+      "program": [
+        {"sql": "CREATE TABLE t(c INTEGER);"},
+        {"sql": "INSERT INTO t VALUES('apdbu'),('42'),('7abc');"},
+        {"sql": "SELECT c FROM t;", "expect": {"rows": [["apdbu"], [42], ["7abc"]]}}
+      ]
+    },
+    {
+      "name": "is-not-null-passes-through-text-rows",
+      "description": "Mirrors the corpus query shape `SELECT col2 FROM t WHERE col3 IS NOT NULL` where col2 is TEXT. Engine returns the TEXT values; runner's type-driven rendering turns them into `0` under `query I` and into the text itself under `query T`.",
+      "program": [
+        {"sql": "CREATE TABLE tab0(pk INTEGER PRIMARY KEY, col2 TEXT, col3 INTEGER);"},
+        {"sql": "INSERT INTO tab0 VALUES(0, 'apdbu', 431);"},
+        {"sql": "INSERT INTO tab0 VALUES(1, 'fuqeu', 514);"},
+        {"sql": "SELECT col2 FROM tab0 WHERE col3 IS NOT NULL ORDER BY col2;", "expect": {"rows": [["apdbu"], ["fuqeu"]]}}
+      ]
+    },
+    {
+      "name": "mixed-col-select-text-and-integer",
+      "description": "Corpus shape: `SELECT col5 AS col2, 13 AS col0, col3 FROM tab0` — first column TEXT, second/third INTEGER. Engine returns values in their native types; `query III` renders first col as coerced-to-0 via atoi.",
+      "program": [
+        {"sql": "CREATE TABLE tab0(pk INTEGER PRIMARY KEY, col3 INTEGER, col5 TEXT);"},
+        {"sql": "INSERT INTO tab0 VALUES(0, 316, 'sqvis');"},
+        {"sql": "SELECT col5, 13, col3 FROM tab0;", "expect": {"rows": [["sqvis", 13, 316]]}}
+      ]
+    }
+  ]
+}

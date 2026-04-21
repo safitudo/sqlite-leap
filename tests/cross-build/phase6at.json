@@ -1,0 +1,72 @@
+{
+  "phase": "6at",
+  "description": "Phase 6at gate — CHECK constraints. Column-level and table-level CHECK expressions evaluated on INSERT and UPDATE.",
+  "cases": [
+    {
+      "name": "check-column-level-accepts-valid",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER CHECK (a > 0));", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);", "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t;", "expect": {"rows": [[5]]}}
+      ]
+    },
+    {
+      "name": "check-column-level-rejects-invalid",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER CHECK (a > 0));", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (-1);", "expect": {"error": "RUNTIME_CHECK_CONSTRAINT_FAILED"}}
+      ]
+    },
+    {
+      "name": "check-table-level-multi-col",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER, CHECK (a < b));", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5, 5);", "expect": {"error": "RUNTIME_CHECK_CONSTRAINT_FAILED"}}
+      ]
+    },
+    {
+      "name": "check-rejects-update",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER CHECK (a > 0));", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);", "expect": {"rows": []}},
+        {"sql": "UPDATE t SET a = -1;", "expect": {"error": "RUNTIME_CHECK_CONSTRAINT_FAILED"}}
+      ]
+    },
+    {
+      "name": "check-null-passes",
+      "description": "CHECK passes when expression evaluates to NULL (SQLite semantics: fails only on strict FALSE).",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER CHECK (a > 0));", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL);", "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t;", "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "check-with-and-operator",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER CHECK (a > 0 AND a < 100));", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (50);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (200);", "expect": {"error": "RUNTIME_CHECK_CONSTRAINT_FAILED"}}
+      ]
+    },
+    {
+      "name": "check-multiple-all-must-pass",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER CHECK (a > 0) CHECK (a < 100));", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (50);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (-1);", "expect": {"error": "RUNTIME_CHECK_CONSTRAINT_FAILED"}},
+        {"sql": "INSERT INTO t VALUES (200);", "expect": {"error": "RUNTIME_CHECK_CONSTRAINT_FAILED"}}
+      ]
+    },
+    {
+      "name": "check-column-level-refs-other-column",
+      "description": "A column-level CHECK may reference any column of the row.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER CHECK (b > a));", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (10, 1);", "expect": {"error": "RUNTIME_CHECK_CONSTRAINT_FAILED"}}
+      ]
+    }
+  ]
+}

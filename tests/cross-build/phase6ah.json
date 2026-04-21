@@ -1,0 +1,83 @@
+{
+  "phase": "6ah",
+  "description": "Phase 6ah gate — IN (subquery) predicate. Membership test against the result set of an uncorrelated SELECT.",
+  "cases": [
+    {
+      "name": "in-subquery-basic",
+      "program": [
+        {"sql": "CREATE TABLE t1 (id INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE TABLE t2 (id INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t1 VALUES (1), (2), (3);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t2 VALUES (2), (3);", "expect": {"rows": []}},
+        {"sql": "SELECT id FROM t1 WHERE id IN (SELECT id FROM t2) ORDER BY id;", "expect": {"rows": [[2], [3]]}}
+      ]
+    },
+    {
+      "name": "not-in-subquery",
+      "program": [
+        {"sql": "CREATE TABLE t1 (id INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE TABLE t2 (id INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t1 VALUES (1), (2), (3);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t2 VALUES (2), (3);", "expect": {"rows": []}},
+        {"sql": "SELECT id FROM t1 WHERE id NOT IN (SELECT id FROM t2);", "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "in-subquery-empty-result",
+      "program": [
+        {"sql": "CREATE TABLE t1 (id INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE TABLE t2 (id INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t1 VALUES (1), (2);", "expect": {"rows": []}},
+        {"sql": "SELECT id FROM t1 WHERE id IN (SELECT id FROM t2);", "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "in-subquery-with-null",
+      "description": "NULL in subquery result poisons NOT IN (3VL) but not IN.",
+      "program": [
+        {"sql": "CREATE TABLE t1 (id INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE TABLE t2 (id INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t1 VALUES (1), (2);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t2 VALUES (NULL), (2);", "expect": {"rows": []}},
+        {"sql": "SELECT id FROM t1 WHERE id IN (SELECT id FROM t2);", "expect": {"rows": [[2]]}},
+        {"sql": "SELECT id FROM t1 WHERE id NOT IN (SELECT id FROM t2);", "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "in-subquery-with-where",
+      "program": [
+        {"sql": "CREATE TABLE t1 (id INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE TABLE t2 (id INTEGER, active INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t1 VALUES (1), (2), (3);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t2 VALUES (1, 0), (2, 1), (3, 1);", "expect": {"rows": []}},
+        {"sql": "SELECT id FROM t1 WHERE id IN (SELECT id FROM t2 WHERE active = 1) ORDER BY id;", "expect": {"rows": [[2], [3]]}}
+      ]
+    },
+    {
+      "name": "in-subquery-count",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER, g INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 1), (2, 1), (3, 2), (4, 2), (5, 3);", "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(*) FROM t WHERE id IN (SELECT id FROM t WHERE g = 1);", "expect": {"rows": [[2]]}}
+      ]
+    },
+    {
+      "name": "in-subquery-multi-row",
+      "program": [
+        {"sql": "CREATE TABLE t1 (v INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE TABLE t2 (v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t1 VALUES (10), (20), (30), (40);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t2 VALUES (10), (30);", "expect": {"rows": []}},
+        {"sql": "SELECT v FROM t1 WHERE v IN (SELECT v FROM t2) ORDER BY v;", "expect": {"rows": [[10], [30]]}}
+      ]
+    },
+    {
+      "name": "in-subquery-must-return-single-column",
+      "program": [
+        {"sql": "CREATE TABLE t1 (id INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE TABLE t2 (a INTEGER, b INTEGER);", "expect": {"rows": []}},
+        {"sql": "SELECT id FROM t1 WHERE id IN (SELECT a, b FROM t2);", "expect": {"error": "COMPILE_SUBQUERY_WRONG_ARITY"}}
+      ]
+    }
+  ]
+}

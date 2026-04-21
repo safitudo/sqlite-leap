@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>sqlite-leap WASM harness</title>
+<style>
+  html, body { background: #111; color: #eee; font: 14px/1.4 -apple-system, sans-serif; margin: 0; padding: 2em; }
+  h1 { font-size: 1.3em; margin: 0 0 0.2em; }
+  h1 small { color: #888; font-weight: normal; font-size: 0.8em; }
+  .row { display: flex; gap: 1em; margin-top: 1em; }
+  textarea { flex: 1; background: #000; color: #0f0; font-family: ui-monospace, Menlo, monospace; border: 1px solid #333; padding: 0.5em; min-height: 6em; }
+  button { background: #2a6; color: #fff; border: 0; padding: 0.5em 1em; cursor: pointer; font: inherit; }
+  button:hover { background: #3b7; }
+  button:disabled { background: #444; cursor: not-allowed; }
+  pre { background: #000; padding: 1em; overflow-x: auto; border: 1px solid #333; }
+  pre.ok { border-left: 4px solid #2a6; }
+  pre.err { border-left: 4px solid #c44; color: #f99; }
+  .meta { color: #888; font-size: 0.9em; }
+</style>
+</head>
+<body>
+<h1>sqlite-leap <small>&mdash; WASM harness</small></h1>
+<p class="meta">Loads <code>../../../src-wasm/sqlite_leap.wasm</code>. Serve from repo root with <code>python3 -m http.server 8000</code> then open <code>http://localhost:8000/generators/wasm/web/</code>.</p>
+<div id="status" class="meta">loading&hellip;</div>
+
+<div class="row">
+  <textarea id="sql">SELECT 1;</textarea>
+</div>
+<div class="row">
+  <button id="run" disabled>run</button>
+  <button id="smoke" disabled>run smoke suite</button>
+</div>
+<div class="row"><pre id="out"></pre></div>
+
+<script type="module" src="./app.js"></script>
+</body>
+</html>

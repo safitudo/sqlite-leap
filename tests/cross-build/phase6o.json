@@ -1,0 +1,203 @@
+{
+  "phase": "6o",
+  "description": "Phase 6o gate — compound SELECT UNION (with dedup). Adds the no-ALL variant to the compound-op grammar. Row equality uses the cross-type total order from 6b/6g (NULL==NULL, within-type equality, cross-type unequal). Sort-dedup machinery reuses DISTINCT infrastructure. All phase1..6n fixtures must stay green.",
+  "cases": [
+    {
+      "name": "union-two-literals-dedup",
+      "program": [
+        {"sql": "SELECT 1 UNION SELECT 1;", "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "union-two-literals-distinct",
+      "program": [
+        {"sql": "SELECT 1 UNION SELECT 2;", "expect": {"rows": [[1], [2]]}}
+      ]
+    },
+    {
+      "name": "union-drops-duplicates-across-cores",
+      "program": [
+        {"sql": "CREATE TABLE a (x INTEGER);",                  "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (x INTEGER);",                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (2);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (2);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (3);",                    "expect": {"rows": []}},
+        {"sql": "SELECT x FROM a UNION SELECT x FROM b ORDER BY x;", "expect": {"rows": [[1], [2], [3]]}}
+      ]
+    },
+    {
+      "name": "union-drops-duplicates-within-core",
+      "program": [
+        {"sql": "CREATE TABLE a (x INTEGER);",                  "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (x INTEGER);",                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (2);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (2);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (3);",                    "expect": {"rows": []}},
+        {"sql": "SELECT x FROM a UNION SELECT x FROM b ORDER BY x;", "expect": {"rows": [[1], [2], [3]]}}
+      ]
+    },
+    {
+      "name": "union-multi-column-row-equality",
+      "program": [
+        {"sql": "CREATE TABLE a (id INTEGER, name TEXT);",      "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (id INTEGER, name TEXT);",      "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1, 'alice');",           "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (2, 'bob');",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (2, 'bob');",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (3, 'carol');",           "expect": {"rows": []}},
+        {"sql": "SELECT id, name FROM a UNION SELECT id, name FROM b ORDER BY id;", "expect": {"rows": [[1, "alice"], [2, "bob"], [3, "carol"]]}}
+      ]
+    },
+    {
+      "name": "union-multi-column-same-id-different-name-kept",
+      "description": "Row equality is on ALL columns; (2,'bob') != (2,'bobby').",
+      "program": [
+        {"sql": "CREATE TABLE a (id INTEGER, name TEXT);",      "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (id INTEGER, name TEXT);",      "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (2, 'bob');",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (2, 'bobby');",           "expect": {"rows": []}},
+        {"sql": "SELECT id, name FROM a UNION SELECT id, name FROM b ORDER BY name;", "expect": {"rows": [[2, "bob"], [2, "bobby"]]}}
+      ]
+    },
+    {
+      "name": "union-null-equals-null-in-dedup",
+      "description": "UNION dedup uses NULL==NULL (like DISTINCT), not 3VL.",
+      "program": [
+        {"sql": "CREATE TABLE a (x INTEGER);",                  "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (x INTEGER);",                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (NULL);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (NULL);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (NULL);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (5);",                    "expect": {"rows": []}},
+        {"sql": "SELECT x FROM a UNION SELECT x FROM b ORDER BY x;", "expect": {"rows": [[null], [5]]}}
+      ]
+    },
+    {
+      "name": "union-three-cores-all-dedup",
+      "program": [
+        {"sql": "SELECT 1 UNION SELECT 2 UNION SELECT 1 ORDER BY 1;", "expect": {"rows": [[1], [2]]}}
+      ]
+    },
+    {
+      "name": "union-with-where",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (4);",                    "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x < 3 UNION SELECT x FROM t WHERE x > 2 ORDER BY x;", "expect": {"rows": [[1], [2], [3], [4]]}}
+      ]
+    },
+    {
+      "name": "union-with-limit",
+      "program": [
+        {"sql": "CREATE TABLE a (x INTEGER);",                  "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (x INTEGER);",                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (2);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (3);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (2);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (3);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (4);",                    "expect": {"rows": []}},
+        {"sql": "SELECT x FROM a UNION SELECT x FROM b ORDER BY x LIMIT 2;", "expect": {"rows": [[1], [2]]}}
+      ]
+    },
+    {
+      "name": "union-empty-both-cores",
+      "program": [
+        {"sql": "CREATE TABLE a (x INTEGER);",                  "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (x INTEGER);",                  "expect": {"rows": []}},
+        {"sql": "SELECT x FROM a UNION SELECT x FROM b;",       "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "union-all-vs-union-side-by-side",
+      "description": "Same inputs; UNION ALL keeps duplicates, UNION dedups.",
+      "program": [
+        {"sql": "CREATE TABLE a (x INTEGER);",                  "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (x INTEGER);",                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (1);",                    "expect": {"rows": []}},
+        {"sql": "SELECT x FROM a UNION ALL SELECT x FROM b;",   "expect": {"rows": [[1], [1]]}},
+        {"sql": "SELECT x FROM a UNION SELECT x FROM b;",       "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "union-arity-mismatch",
+      "program": [
+        {"sql": "CREATE TABLE a (x INTEGER);",                  "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (x INTEGER, y INTEGER);",       "expect": {"rows": []}},
+        {"sql": "SELECT x FROM a UNION SELECT x, y FROM b;",    "expect": {"error": {"name": "COMPILE_COMPOUND_ARITY_MISMATCH", "fields": {"expected": 1, "got": 2, "at_core": 2}}}}
+      ]
+    },
+    {
+      "name": "union-with-cast",
+      "program": [
+        {"sql": "SELECT CAST(1 AS REAL) UNION SELECT CAST(1.0 AS REAL) ORDER BY 1;", "expect": {"rows": [[1.0]]}}
+      ]
+    },
+    {
+      "name": "union-mixed-numeric-dedup-cross-type",
+      "description": "Integer 1 and Real 1.0 dedup as equal (cross-type numeric equality per 6g).",
+      "program": [
+        {"sql": "CREATE TABLE a (x INTEGER);",                  "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (x REAL);",                     "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (1.0);",                  "expect": {"rows": []}},
+        {"sql": "SELECT x FROM a UNION SELECT x FROM b;",       "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "union-with-order-by-desc",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                    "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x < 3 UNION SELECT x FROM t WHERE x > 1 ORDER BY x DESC;", "expect": {"rows": [[3], [2], [1]]}}
+      ]
+    },
+    {
+      "name": "union-with-distinct-and-dedup",
+      "description": "DISTINCT on per-core + UNION on compound — distinct rows across the whole compound.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                    "expect": {"rows": []}},
+        {"sql": "SELECT DISTINCT x FROM t UNION SELECT DISTINCT x FROM t ORDER BY x;", "expect": {"rows": [[1], [2]]}}
+      ]
+    },
+    {
+      "name": "union-with-text-dedup",
+      "program": [
+        {"sql": "CREATE TABLE a (s TEXT);",                     "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (s TEXT);",                     "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES ('apple');",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES ('banana');",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES ('banana');",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES ('cherry');",             "expect": {"rows": []}},
+        {"sql": "SELECT s FROM a UNION SELECT s FROM b ORDER BY s;", "expect": {"rows": [["apple"], ["banana"], ["cherry"]]}}
+      ]
+    },
+    {
+      "name": "union-three-cores-different-overlaps",
+      "program": [
+        {"sql": "SELECT 1 UNION SELECT 2 UNION SELECT 2 UNION SELECT 3 ORDER BY 1;", "expect": {"rows": [[1], [2], [3]]}}
+      ]
+    },
+    {
+      "name": "union-of-subqueries",
+      "description": "Each core can contain scalar subqueries.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (10);",                   "expect": {"rows": []}},
+        {"sql": "SELECT (SELECT x FROM t) UNION SELECT (SELECT x FROM t);", "expect": {"rows": [[10]]}}
+      ]
+    }
+  ]
+}

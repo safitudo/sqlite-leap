@@ -1,0 +1,55 @@
+# Smoke: CREATE INDEX, index-backed equality, range, ORDER BY, UNIQUE rejection.
+
+statement ok
+CREATE TABLE users (id INTEGER, name TEXT, email TEXT)
+
+statement ok
+INSERT INTO users VALUES (1, 'alice', 'a@x')
+
+statement ok
+INSERT INTO users VALUES (2, 'bob',   'b@x')
+
+statement ok
+INSERT INTO users VALUES (3, 'carol', 'c@x')
+
+statement ok
+CREATE INDEX idx_name ON users(name)
+
+# Equality lookup through the index
+query IT nosort
+SELECT id, name FROM users WHERE name = 'bob'
+----
+2
+bob
+
+# Range lookup through the index
+query T nosort
+SELECT name FROM users WHERE name >= 'b' AND name < 'd' ORDER BY name
+----
+bob
+carol
+
+# DROP INDEX restores full-scan plan (same rows, ordering may differ)
+statement ok
+DROP INDEX idx_name
+
+query I rowsort
+SELECT id FROM users WHERE name = 'bob'
+----
+2
+
+# UNIQUE enforcement
+statement ok
+CREATE UNIQUE INDEX idx_email ON users(email)
+
+statement error
+INSERT INTO users VALUES (4, 'alice2', 'a@x')
+
+# Insert with a unique email succeeds
+statement ok
+INSERT INTO users VALUES (4, 'dave', 'd@x')
+
+query I nosort
+SELECT COUNT(*) FROM users
+----
+4

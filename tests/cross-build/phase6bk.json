@@ -1,0 +1,62 @@
+{
+  "phase": "6bk",
+  "description": "Phase 6bk gate — minimal WINDOW function support: ROW_NUMBER() OVER (PARTITION BY ... ORDER BY ...).",
+  "cases": [
+    {
+      "name": "row-number-order-by-only",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (30), (10), (20);", "expect": {"rows": []}},
+        {"sql": "SELECT x, ROW_NUMBER() OVER (ORDER BY x) FROM t ORDER BY x;", "expect": {"rows": [[10, 1], [20, 2], [30, 3]]}}
+      ]
+    },
+    {
+      "name": "row-number-order-by-desc",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2), (3);", "expect": {"rows": []}},
+        {"sql": "SELECT x, ROW_NUMBER() OVER (ORDER BY x DESC) FROM t ORDER BY x;", "expect": {"rows": [[1, 3], [2, 2], [3, 1]]}}
+      ]
+    },
+    {
+      "name": "row-number-partition-by",
+      "program": [
+        {"sql": "CREATE TABLE t (g TEXT, v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('a', 10), ('a', 20), ('b', 5), ('b', 15), ('b', 25);", "expect": {"rows": []}},
+        {"sql": "SELECT g, v, ROW_NUMBER() OVER (PARTITION BY g ORDER BY v) FROM t ORDER BY g, v;", "expect": {"rows": [["a", 10, 1], ["a", 20, 2], ["b", 5, 1], ["b", 15, 2], ["b", 25, 3]]}}
+      ]
+    },
+    {
+      "name": "row-number-no-over-fails",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);", "expect": {"rows": []}},
+        {"sql": "SELECT ROW_NUMBER() FROM t;", "expect": {"error": "COMPILE_WINDOW_FUNCTION_WITHOUT_OVER"}}
+      ]
+    },
+    {
+      "name": "row-number-rank-unsupported-in-v1",
+      "description": "Only ROW_NUMBER is supported in v1; other window functions raise compile error.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2);", "expect": {"rows": []}},
+        {"sql": "SELECT RANK() OVER (ORDER BY x) FROM t;", "expect": {"error": "COMPILE_UNSUPPORTED_WINDOW_FUNCTION"}}
+      ]
+    },
+    {
+      "name": "row-number-empty-table",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "SELECT x, ROW_NUMBER() OVER (ORDER BY x) FROM t;", "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "row-number-multi-col-order",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 2), (1, 1), (2, 1);", "expect": {"rows": []}},
+        {"sql": "SELECT a, b, ROW_NUMBER() OVER (ORDER BY a, b) FROM t ORDER BY a, b;", "expect": {"rows": [[1, 1, 1], [1, 2, 2], [2, 1, 3]]}}
+      ]
+    }
+  ]
+}

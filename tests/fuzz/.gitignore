@@ -1,0 +1,24 @@
+# Fuzzer work dirs
+afl-out/
+afl-in/
+target/fuzz/
+**/target/
+corpus-merged/
+crashes/
+hangs/
+queue/
+
+# cargo-fuzz artefacts
+fuzz/target/
+fuzz/corpus/
+fuzz/artifacts/
+
+# Generated DB files that exceed the small-seed budget (>128KB)
+file-format/seeds/*.db-journal
+file-format/seeds/*.db-wal
+file-format/seeds/*.db-shm
+file-format/generated/
+
+# Campaign logs
+*.campaign.log
+findings/

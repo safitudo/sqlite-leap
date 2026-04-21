@@ -1,0 +1,78 @@
+{
+  "phase": "6cc-ambiguous-alias",
+  "description": "Phase 6cc — ambiguous-alias tiebreak. When >1 projection aliases share a name AND that name also matches a base column of the enclosing FROM, the base column wins and the query must compile. Pure-shadow duplicates (no matching base column) still raise COMPILE_AMBIGUOUS_ALIAS. Matches mainline SQLite semantics; unblocks random/groupby/slt_good_{8..12}.",
+  "cases": [
+    {
+      "name": "dup-alias-name-matches-base-col-group-by",
+      "description": "`SELECT col0 * col2 AS col0, col0 AS col0 ... GROUP BY col0, col2` — two projections aliased `col0` AND a base column `col0` exists. Mainline resolves GROUP BY `col0` to the base column. Canonical failing query from random/groupby/slt_good_8.test:55560.",
+      "program": [
+        {"sql": "CREATE TABLE tab1 (col0 INTEGER, col1 INTEGER, col2 INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO tab1 VALUES (28,1,45), (22,2,8), (82,3,71);", "expect": {"rows": []}},
+        {"sql": "SELECT col0 * col2 AS col0, col0 AS col0 FROM tab1 AS cor0 GROUP BY col0, col2 ORDER BY col0;", "expect": {"rows": [[176, 22], [1260, 28], [5822, 82]]}}
+      ]
+    },
+    {
+      "name": "dup-alias-name-matches-base-col-simple",
+      "description": "Simpler form — `SELECT + col0 AS col0, col0 AS col0 ... GROUP BY col0`. Alias count 2, name matches base column `col0`. Base column wins the GROUP BY tiebreak.",
+      "program": [
+        {"sql": "CREATE TABLE tab1 (col0 INTEGER, col1 INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO tab1 VALUES (22,1), (28,2), (82,3);", "expect": {"rows": []}},
+        {"sql": "SELECT + col0 AS col0, col0 AS col0 FROM tab1 GROUP BY col0 ORDER BY col0;", "expect": {"rows": [[22, 22], [28, 28], [82, 82]]}}
+      ]
+    },
+    {
+      "name": "dup-alias-different-base-col-in-group-by",
+      "description": "Alias name = col0 (matches base col). Projection aliases shadow differently. GROUP BY col0 still resolves to base column, not to either alias.",
+      "program": [
+        {"sql": "CREATE TABLE t (col0 INTEGER, col1 INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1,10), (2,20), (3,10), (4,20);", "expect": {"rows": []}},
+        {"sql": "SELECT col1 AS col0, col0 + 100 AS col0 FROM t GROUP BY col0 ORDER BY col0;", "expect": {"rows": [[10, 101], [20, 102], [10, 103], [20, 104]]}, "_note": "each row is its own group (col0 distinct), ORDER BY col0 picks base col -> 1,2,3,4 sort"}
+      ]
+    },
+    {
+      "name": "dup-alias-in-order-by-matches-base-col",
+      "description": "ORDER BY variant of the same rule — duplicate aliases with a base-column collision resolve ORDER BY to the base column.",
+      "program": [
+        {"sql": "CREATE TABLE t (col0 INTEGER, col1 INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3,30), (1,10), (2,20);", "expect": {"rows": []}},
+        {"sql": "SELECT col0 AS col0, col1 * -1 AS col0 FROM t ORDER BY col0;", "expect": {"rows": [[1, -10], [2, -20], [3, -30]]}}
+      ]
+    },
+    {
+      "name": "dup-alias-in-having-matches-base-col",
+      "description": "HAVING variant — bare `col0` in HAVING with a duplicate alias whose name collides with base column. Base column wins the tiebreak so the HAVING filter uses the underlying value.",
+      "program": [
+        {"sql": "CREATE TABLE t (col0 INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (10), (20), (30);", "expect": {"rows": []}},
+        {"sql": "SELECT col0 + 100 AS col0, col0 * -1 AS col0 FROM t GROUP BY col0 HAVING col0 > 15 ORDER BY col0;", "expect": {"rows": [[120, -20], [130, -30]]}}
+      ]
+    },
+    {
+      "name": "dup-alias-pure-shadow-still-errors",
+      "description": "Regression guard — when NO base column matches the alias name AND the alias is duplicated AND a post-projection clause references it, AMBIGUOUS_ALIAS must still be raised. This is the pre-existing 6aj fixture semantic, unchanged.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);", "expect": {"rows": []}},
+        {"sql": "SELECT a AS x, b AS x FROM t ORDER BY x;", "expect": {"error": "COMPILE_AMBIGUOUS_ALIAS"}}
+      ]
+    },
+    {
+      "name": "single-alias-name-matches-base-col-order-by-unchanged",
+      "description": "Regression guard — single alias whose name shadows a base column still resolves the alias in ORDER BY (pre-6cc 6aj behavior untouched, alias count==1 path unchanged).",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 30), (2, 20), (3, 10);", "expect": {"rows": []}},
+        {"sql": "SELECT b AS a FROM t ORDER BY a;", "expect": {"rows": [[10], [20], [30]]}}
+      ]
+    },
+    {
+      "name": "dup-alias-qualified-col-never-ambiguous",
+      "description": "Qualified column `cor0.col0` is never treated as an alias, so duplicate aliases called `col0` do not poison qualified references in GROUP BY.",
+      "program": [
+        {"sql": "CREATE TABLE tab1 (col0 INTEGER, col1 INTEGER, col2 INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO tab1 VALUES (28,1,45), (22,2,8);", "expect": {"rows": []}},
+        {"sql": "SELECT col0 * col2 AS col0, col0 AS col0 FROM tab1 AS cor0 GROUP BY cor0.col0, cor0.col2 ORDER BY cor0.col0;", "expect": {"rows": [[176, 22], [1260, 28]]}}
+      ]
+    }
+  ]
+}

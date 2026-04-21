@@ -1,0 +1,74 @@
+{
+  "phase": "6al",
+  "description": "Phase 6al gate — DEFAULT <expr> in CREATE TABLE column + INSERT DEFAULT VALUES form. No new opcodes. max_invariant=43 unchanged.",
+  "cases": [
+    {
+      "name": "default-integer-literal",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER DEFAULT 42, b INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (b) VALUES (10);",                    "expect": {"rows": []}},
+        {"sql": "SELECT a, b FROM t;",                               "expect": {"rows": [[42, 10]]}}
+      ]
+    },
+    {
+      "name": "default-text-literal",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b TEXT DEFAULT 'hello');", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (a) VALUES (1);",                       "expect": {"rows": []}},
+        {"sql": "SELECT a, b FROM t;",                                  "expect": {"rows": [[1, "hello"]]}}
+      ]
+    },
+    {
+      "name": "default-null-explicit",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER DEFAULT NULL, b INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (b) VALUES (1);",                       "expect": {"rows": []}},
+        {"sql": "SELECT a, b FROM t;",                                  "expect": {"rows": [[null, 1]]}}
+      ]
+    },
+    {
+      "name": "default-signed-negative",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER DEFAULT -1, b INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (b) VALUES (5);",                      "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t;",                                   "expect": {"rows": [[-1]]}}
+      ]
+    },
+    {
+      "name": "default-explicit-value-overrides",
+      "description": "When INSERT provides the column, DEFAULT is ignored.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER DEFAULT 42, b INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (a, b) VALUES (100, 10);",            "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t;",                                  "expect": {"rows": [[100]]}}
+      ]
+    },
+    {
+      "name": "default-values-form",
+      "description": "INSERT INTO t DEFAULT VALUES uses defaults for every column.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER DEFAULT 1, b INTEGER DEFAULT 2);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t DEFAULT VALUES;",                              "expect": {"rows": []}},
+        {"sql": "SELECT a, b FROM t;",                                        "expect": {"rows": [[1, 2]]}}
+      ]
+    },
+    {
+      "name": "default-omitted-no-default-is-null",
+      "description": "Column with no DEFAULT, omitted from INSERT, receives NULL.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (a) VALUES (1);",                      "expect": {"rows": []}},
+        {"sql": "SELECT a, b FROM t;",                                "expect": {"rows": [[1, null]]}}
+      ]
+    },
+    {
+      "name": "default-expression-parenthesized-constant",
+      "description": "DEFAULT (expr) with a constant expression.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER DEFAULT (1 + 2), b INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (b) VALUES (10);",                         "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t;",                                       "expect": {"rows": [[3]]}}
+      ]
+    }
+  ]
+}

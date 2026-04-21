@@ -1,0 +1,209 @@
+{
+  "phase": "6l",
+  "description": "Phase 6l gate — TRIM, LTRIM, RTRIM. ASCII-only whitespace stripping (0x20 space, 0x09 tab, 0x0A LF, 0x0D CR). Null passes through. Non-Text values raise VDBE_TYPE_MISMATCH. All phase1..6k fixtures must stay green.",
+  "cases": [
+    {
+      "name": "trim-basic-both-ends",
+      "program": [
+        {"sql": "SELECT TRIM('  hello  ');", "expect": {"rows": [["hello"]]}}
+      ]
+    },
+    {
+      "name": "trim-no-whitespace",
+      "program": [
+        {"sql": "SELECT TRIM('hello');", "expect": {"rows": [["hello"]]}}
+      ]
+    },
+    {
+      "name": "trim-all-whitespace",
+      "program": [
+        {"sql": "SELECT TRIM('     ');", "expect": {"rows": [[""]]}}
+      ]
+    },
+    {
+      "name": "trim-empty-string",
+      "program": [
+        {"sql": "SELECT TRIM('');", "expect": {"rows": [[""]]}}
+      ]
+    },
+    {
+      "name": "trim-preserves-interior-whitespace",
+      "program": [
+        {"sql": "SELECT TRIM('  hello world  ');", "expect": {"rows": [["hello world"]]}}
+      ]
+    },
+    {
+      "name": "trim-leading-only-whitespace",
+      "program": [
+        {"sql": "SELECT TRIM('   hello');", "expect": {"rows": [["hello"]]}}
+      ]
+    },
+    {
+      "name": "trim-trailing-only-whitespace",
+      "program": [
+        {"sql": "SELECT TRIM('hello   ');", "expect": {"rows": [["hello"]]}}
+      ]
+    },
+    {
+      "name": "trim-null",
+      "program": [
+        {"sql": "SELECT TRIM(NULL);", "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "trim-integer-rejected",
+      "program": [
+        {"sql": "SELECT TRIM(42);", "expect": {"error": {"name": "VDBE_TYPE_MISMATCH", "fields": {"operation": "trim", "kind": "Integer"}}}}
+      ]
+    },
+    {
+      "name": "trim-real-rejected",
+      "program": [
+        {"sql": "SELECT TRIM(3.14);", "expect": {"error": {"name": "VDBE_TYPE_MISMATCH", "fields": {"operation": "trim", "kind": "Real"}}}}
+      ]
+    },
+    {
+      "name": "trim-case-insensitive-name",
+      "program": [
+        {"sql": "SELECT Trim(' a '), trim(' b '), TRIM(' c ');", "expect": {"rows": [["a", "b", "c"]]}}
+      ]
+    },
+    {
+      "name": "ltrim-leading-only",
+      "program": [
+        {"sql": "SELECT LTRIM('  hello  ');", "expect": {"rows": [["hello  "]]}}
+      ]
+    },
+    {
+      "name": "ltrim-no-leading-whitespace",
+      "program": [
+        {"sql": "SELECT LTRIM('hello  ');", "expect": {"rows": [["hello  "]]}}
+      ]
+    },
+    {
+      "name": "ltrim-all-whitespace",
+      "program": [
+        {"sql": "SELECT LTRIM('     ');", "expect": {"rows": [[""]]}}
+      ]
+    },
+    {
+      "name": "ltrim-null",
+      "program": [
+        {"sql": "SELECT LTRIM(NULL);", "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "ltrim-integer-rejected",
+      "program": [
+        {"sql": "SELECT LTRIM(42);", "expect": {"error": {"name": "VDBE_TYPE_MISMATCH", "fields": {"operation": "ltrim", "kind": "Integer"}}}}
+      ]
+    },
+    {
+      "name": "rtrim-trailing-only",
+      "program": [
+        {"sql": "SELECT RTRIM('  hello  ');", "expect": {"rows": [["  hello"]]}}
+      ]
+    },
+    {
+      "name": "rtrim-no-trailing-whitespace",
+      "program": [
+        {"sql": "SELECT RTRIM('  hello');", "expect": {"rows": [["  hello"]]}}
+      ]
+    },
+    {
+      "name": "rtrim-all-whitespace",
+      "program": [
+        {"sql": "SELECT RTRIM('     ');", "expect": {"rows": [[""]]}}
+      ]
+    },
+    {
+      "name": "rtrim-null",
+      "program": [
+        {"sql": "SELECT RTRIM(NULL);", "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "rtrim-real-rejected",
+      "program": [
+        {"sql": "SELECT RTRIM(3.14);", "expect": {"error": {"name": "VDBE_TYPE_MISMATCH", "fields": {"operation": "rtrim", "kind": "Real"}}}}
+      ]
+    },
+    {
+      "name": "trim-tab-character",
+      "description": "TAB (0x09) is in the trim set.",
+      "program": [
+        {"sql": "SELECT TRIM('\thello\t');", "expect": {"rows": [["hello"]]}}
+      ]
+    },
+    {
+      "name": "trim-newline-character",
+      "description": "LF (0x0A) is in the trim set.",
+      "program": [
+        {"sql": "SELECT TRIM('\nhello\n');", "expect": {"rows": [["hello"]]}}
+      ]
+    },
+    {
+      "name": "trim-mixed-whitespace",
+      "description": "Mix of space, tab, LF, CR all trimmed.",
+      "program": [
+        {"sql": "SELECT TRIM(' \t\n\rhello \t\n\r');", "expect": {"rows": [["hello"]]}}
+      ]
+    },
+    {
+      "name": "trim-non-ascii-preserved",
+      "description": "UTF-8 bytes (0x80..0xFF) never in trim set — non-whitespace UTF-8 at boundary is preserved.",
+      "program": [
+        {"sql": "SELECT TRIM(' café ');", "expect": {"rows": [["café"]]}}
+      ]
+    },
+    {
+      "name": "trim-star-rejected",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "SELECT TRIM(*) FROM t;",      "expect": {"error": {"name": "COMPILE_SCALAR_ARG_MISMATCH", "fields": {"function": "TRIM", "reason": "star-not-allowed"}}}}
+      ]
+    },
+    {
+      "name": "ltrim-star-rejected",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "SELECT LTRIM(*) FROM t;",     "expect": {"error": {"name": "COMPILE_SCALAR_ARG_MISMATCH", "fields": {"function": "LTRIM", "reason": "star-not-allowed"}}}}
+      ]
+    },
+    {
+      "name": "rtrim-star-rejected",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "SELECT RTRIM(*) FROM t;",     "expect": {"error": {"name": "COMPILE_SCALAR_ARG_MISMATCH", "fields": {"function": "RTRIM", "reason": "star-not-allowed"}}}}
+      ]
+    },
+    {
+      "name": "trim-on-column",
+      "program": [
+        {"sql": "CREATE TABLE t (s TEXT);",         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('  a  ');",  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (' bb ');",   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('ccc');",    "expect": {"rows": []}},
+        {"sql": "SELECT TRIM(s) FROM t;",           "expect": {"rows": [["a"], ["bb"], ["ccc"]]}}
+      ]
+    },
+    {
+      "name": "trim-composed-with-upper",
+      "program": [
+        {"sql": "SELECT UPPER(TRIM('  hello  '));", "expect": {"rows": [["HELLO"]]}}
+      ]
+    },
+    {
+      "name": "length-of-trim",
+      "program": [
+        {"sql": "SELECT LENGTH(TRIM('  hello  '));", "expect": {"rows": [[5]]}}
+      ]
+    },
+    {
+      "name": "trim-equivalent-to-ltrim-then-rtrim",
+      "program": [
+        {"sql": "SELECT TRIM('  hi  '), RTRIM(LTRIM('  hi  '));", "expect": {"rows": [["hi", "hi"]]}}
+      ]
+    }
+  ]
+}

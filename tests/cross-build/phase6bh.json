@@ -1,0 +1,80 @@
+{
+  "phase": "6bh",
+  "description": "Phase 6bh gate — UPSERT: INSERT ... ON CONFLICT(col) DO UPDATE SET / DO NOTHING. Successor to OR REPLACE/IGNORE with explicit conflict target and update expression.",
+  "cases": [
+    {
+      "name": "upsert-do-nothing-like-ignore",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER PRIMARY KEY, v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 999) ON CONFLICT(id) DO NOTHING;", "expect": {"rows": []}},
+        {"sql": "SELECT id, v FROM t;", "expect": {"rows": [[1, 10]]}}
+      ]
+    },
+    {
+      "name": "upsert-do-update-set-literal",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER PRIMARY KEY, v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 999) ON CONFLICT(id) DO UPDATE SET v = 888;", "expect": {"rows": []}},
+        {"sql": "SELECT id, v FROM t;", "expect": {"rows": [[1, 888]]}}
+      ]
+    },
+    {
+      "name": "upsert-do-update-set-excluded",
+      "description": "The special `excluded` table refers to the would-be-inserted row.",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER PRIMARY KEY, v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 999) ON CONFLICT(id) DO UPDATE SET v = excluded.v;", "expect": {"rows": []}},
+        {"sql": "SELECT id, v FROM t;", "expect": {"rows": [[1, 999]]}}
+      ]
+    },
+    {
+      "name": "upsert-do-update-set-expr-old-plus-new",
+      "description": "UPDATE SET can reference both existing and excluded values.",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER PRIMARY KEY, v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 5) ON CONFLICT(id) DO UPDATE SET v = v + excluded.v;", "expect": {"rows": []}},
+        {"sql": "SELECT id, v FROM t;", "expect": {"rows": [[1, 15]]}}
+      ]
+    },
+    {
+      "name": "upsert-no-conflict-inserts-normally",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER PRIMARY KEY, v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10) ON CONFLICT(id) DO UPDATE SET v = 999;", "expect": {"rows": []}},
+        {"sql": "SELECT id, v FROM t;", "expect": {"rows": [[1, 10]]}}
+      ]
+    },
+    {
+      "name": "upsert-where-clause-on-update",
+      "description": "UPDATE branch can have its own WHERE that filters whether the update fires.",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER PRIMARY KEY, v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 5) ON CONFLICT(id) DO UPDATE SET v = excluded.v WHERE v > 100;", "expect": {"rows": []}},
+        {"sql": "SELECT id, v FROM t;", "expect": {"rows": [[1, 10]]}}
+      ]
+    },
+    {
+      "name": "upsert-on-unique-index",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER PRIMARY KEY, email TEXT, cnt INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE UNIQUE INDEX idx_email ON t (email);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 'a@x', 1);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 'a@x', 1) ON CONFLICT(email) DO UPDATE SET cnt = cnt + 1;", "expect": {"rows": []}},
+        {"sql": "SELECT id, email, cnt FROM t ORDER BY id;", "expect": {"rows": [[1, "a@x", 2]]}}
+      ]
+    },
+    {
+      "name": "upsert-conflict-target-missing-index",
+      "description": "ON CONFLICT(col) where col isn't a PK or unique-indexed column → COMPILE_NO_CONFLICT_TARGET.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10) ON CONFLICT(a) DO NOTHING;", "expect": {"error": "COMPILE_NO_CONFLICT_TARGET"}}
+      ]
+    }
+  ]
+}

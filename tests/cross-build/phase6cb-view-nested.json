@@ -1,0 +1,45 @@
+{
+  "phase": "6cb",
+  "description": "Phase 6cb — VIEW + derived-table parity cluster. The C parser was rejecting LPAREN SELECT in FROM position (6bq non-goal carved out for later), while the Rust parser lowered it to a synthetic CTE. The 15 files in tests/sqllogictest/upstream/test/index/view/ all use the `SELECT ... FROM (SELECT ... FROM T WHERE ...) AS alias` shape to compare a bare subquery's rows against the corresponding view — so the whole cluster failed on C even though the engine-level VIEW rewrite in compiler.c was fine. This fixture pins the derived-table-through-view shape plus two nearby edges (nested view references a view; derived table immediately next to a view reference) that the unlock surfaced during bring-up.",
+  "cases": [
+    {
+      "name": "view-equivalent-derived-table",
+      "description": "The canonical shape from index/view/10/slt_good_1.test line 182: the query compares a bare `SELECT pk FROM ( SELECT ... ) AS alias` against a view with identical body. Before the fix, the C parser raised PARSE_UNEXPECTED_TOKEN at the inner SELECT token.",
+      "program": [
+        {"sql": "CREATE TABLE tab0 (pk INTEGER PRIMARY KEY, col0 INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO tab0 VALUES (0, 49), (1, 50), (2, 49), (3, 51);", "expect": {"rows": []}},
+        {"sql": "SELECT pk FROM ( SELECT pk, col0 FROM tab0 WHERE col0 = 49 ) AS tab0_153 ORDER BY pk;", "expect": {"rows": [[0], [2]]}}
+      ]
+    },
+    {
+      "name": "nested-view-select-star",
+      "description": "view_3 references view_1; outer query SELECT *s from view_3. Confirms the engine-level view rewrite already handled this nesting (depth cap is 16) — it's the sibling case to the derived-table unlock.",
+      "program": [
+        {"sql": "CREATE TABLE tab0 (pk INTEGER PRIMARY KEY, col0 INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO tab0 VALUES (0, 49), (1, 50), (2, 49);", "expect": {"rows": []}},
+        {"sql": "CREATE VIEW view_1 AS SELECT pk, col0 FROM tab0 WHERE col0 = 49;", "expect": {"rows": []}},
+        {"sql": "CREATE VIEW view_3 AS SELECT pk FROM view_1;", "expect": {"rows": []}},
+        {"sql": "SELECT * FROM view_3 ORDER BY pk;", "expect": {"rows": [[0], [2]]}}
+      ]
+    },
+    {
+      "name": "derived-table-alongside-view-in-union",
+      "description": "UNION of `SELECT ... FROM (subquery) AS alias` and `SELECT ... FROM view`. The outer UNION should not have to care that one side is a derived table and the other is a view — the two projections line up identically once both sides materialise.",
+      "program": [
+        {"sql": "CREATE TABLE tab0 (pk INTEGER PRIMARY KEY, col0 INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO tab0 VALUES (0, 49), (1, 50);", "expect": {"rows": []}},
+        {"sql": "CREATE VIEW v1 AS SELECT pk, col0 FROM tab0 WHERE col0 = 49;", "expect": {"rows": []}},
+        {"sql": "SELECT pk, col0 FROM ( SELECT pk, col0 FROM tab0 WHERE col0 = 49 ) AS sub UNION SELECT pk, col0 FROM v1;", "expect": {"rows": [[0, 49]]}}
+      ]
+    },
+    {
+      "name": "derived-table-with-outer-where",
+      "description": "Outer WHERE filters the derived table's projection by alias-qualified column. Confirms that the synthetic CTE name exposed as the user's alias still participates in outer-scope qualifier resolution.",
+      "program": [
+        {"sql": "CREATE TABLE tab0 (pk INTEGER PRIMARY KEY, col0 INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO tab0 VALUES (0, 10), (1, 20), (2, 30);", "expect": {"rows": []}},
+        {"sql": "SELECT sub.pk FROM ( SELECT pk, col0 FROM tab0 ) AS sub WHERE sub.col0 > 15 ORDER BY sub.pk;", "expect": {"rows": [[1], [2]]}}
+      ]
+    }
+  ]
+}

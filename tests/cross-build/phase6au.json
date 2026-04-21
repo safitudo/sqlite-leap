@@ -1,0 +1,64 @@
+{
+  "phase": "6au",
+  "description": "Phase 6au gate — multi-column table-level PRIMARY KEY. Composite PK enforces tuple uniqueness and creates an auto-index.",
+  "cases": [
+    {
+      "name": "composite-pk-accepts-unique-tuples",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER, PRIMARY KEY (a, b));", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 20);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 10);", "expect": {"rows": []}},
+        {"sql": "SELECT a, b FROM t ORDER BY a, b;", "expect": {"rows": [[1, 10], [1, 20], [2, 10]]}}
+      ]
+    },
+    {
+      "name": "composite-pk-rejects-duplicate-tuple",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER, PRIMARY KEY (a, b));", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);", "expect": {"error": "RUNTIME_UNIQUE_VIOLATION"}}
+      ]
+    },
+    {
+      "name": "composite-pk-single-member-duplicate-ok",
+      "description": "Duplicate of a single PK member is allowed as long as the tuple differs.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER, PRIMARY KEY (a, b));", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 20);", "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(*) FROM t;", "expect": {"rows": [[2]]}}
+      ]
+    },
+    {
+      "name": "composite-pk-null-member-rejected",
+      "description": "NULL in any PK column raises NOT_NULL_VIOLATION (composite PK columns are implicitly NOT NULL).",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER, PRIMARY KEY (a, b));", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL, 10);", "expect": {"error": "RUNTIME_NOT_NULL_VIOLATION"}}
+      ]
+    },
+    {
+      "name": "composite-pk-three-cols",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER, c INTEGER, PRIMARY KEY (a, b, c));", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 2, 3);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 2, 4);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 2, 3);", "expect": {"error": "RUNTIME_UNIQUE_VIOLATION"}}
+      ]
+    },
+    {
+      "name": "composite-pk-multiple-pk-clauses-rejected",
+      "description": "Combining column-level PK with table-level PK is a compile error.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER PRIMARY KEY, b INTEGER, PRIMARY KEY (a, b));", "expect": {"error": "COMPILE_MULTIPLE_PRIMARY_KEYS"}}
+      ]
+    },
+    {
+      "name": "composite-pk-unknown-col-rejected",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER, PRIMARY KEY (a, zzz));", "expect": {"error": "COMPILE_UNKNOWN_COLUMN"}}
+      ]
+    }
+  ]
+}

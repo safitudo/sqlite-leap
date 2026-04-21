@@ -1,0 +1,217 @@
+{
+  "phase": "9a",
+  "description": "Phase 9a gate — CREATE INDEX statement + empty-index storage scaffold. Grammar: `CREATE [UNIQUE] INDEX <name> ON <table> (<col>, ...)`. Two new reserved keywords: INDEX, UNIQUE. One new VDBE opcode: `CreateIndex { name, table, columns, unique }`. One new file-format surface: empty index-leaf page (type 0x0a, cell_count=0). sqlite_schema now accepts type='index' rows. NO backfill of existing table rows (→9b), NO DML maintenance (→9c), NO query planner usage (→9d), NO UNIQUE enforcement (→9g), NO DROP INDEX (→9f). New errors: STORAGE_INDEX_EXISTS, COMPILE_DUPLICATE_INDEX_COLUMN. max_invariant=28 unchanged. All phase1..6t fixtures must stay green.",
+  "cases": [
+    {
+      "name": "create-index-basic-on-integer-column",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",       "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",       "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "create-index-basic-on-text-column",
+      "program": [
+        {"sql": "CREATE TABLE t (name TEXT);",          "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_name ON t (name);",   "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "create-unique-index-syntactically-accepted",
+      "description": "UNIQUE is accepted syntactically in 9a. Enforcement is deferred to 9g — two INSERTs of the same value do NOT error in 9a (index is empty and stale; UNIQUE unenforced).",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                  "expect": {"rows": []}},
+        {"sql": "CREATE UNIQUE INDEX idx_x ON t (x);",           "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "create-index-multi-column",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b TEXT, c INTEGER);",  "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_abc ON t (a, b, c);",             "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "create-index-case-insensitive-keywords",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",            "expect": {"rows": []}},
+        {"sql": "create index idx_a on t (x);",            "expect": {"rows": []}},
+        {"sql": "Create Unique Index idx_b On t (x);",     "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "create-index-name-case-preserved",
+      "description": "Index name is case-preserved as parsed; a subsequent CREATE INDEX with the SAME NAME regardless of case still collides (case-insensitive name-collision test in a separate fixture).",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",            "expect": {"rows": []}},
+        {"sql": "CREATE INDEX FooBar ON t (x);",           "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "create-index-unknown-table",
+      "program": [
+        {"sql": "CREATE INDEX idx ON nonexistent_table (x);", "expect": {"error": {"name": "COMPILE_UNKNOWN_TABLE", "fields": {"table": "nonexistent_table"}}}}
+      ]
+    },
+    {
+      "name": "create-index-unknown-column",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                  "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx ON t (nonexistent_col);",     "expect": {"error": {"name": "COMPILE_UNKNOWN_COLUMN", "fields": {"table": "t", "column": "nonexistent_col"}}}}
+      ]
+    },
+    {
+      "name": "create-index-duplicate-column",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER, y INTEGER);",           "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx ON t (x, x);",                     "expect": {"error": {"name": "COMPILE_DUPLICATE_INDEX_COLUMN", "fields": {"index": "idx", "column": "x"}}}}
+      ]
+    },
+    {
+      "name": "create-index-duplicate-column-middle-of-list",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER, y INTEGER, z INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx ON t (x, y, x);",                   "expect": {"error": {"name": "COMPILE_DUPLICATE_INDEX_COLUMN", "fields": {"index": "idx", "column": "x"}}}}
+      ]
+    },
+    {
+      "name": "create-index-duplicate-name",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER, y INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx ON t (x);",              "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx ON t (y);",              "expect": {"error": {"name": "STORAGE_INDEX_EXISTS", "fields": {"name": "idx"}}}}
+      ]
+    },
+    {
+      "name": "create-index-name-collides-with-table",
+      "description": "Index names share the same namespace as table names in sqlite_schema.",
+      "program": [
+        {"sql": "CREATE TABLE foo (x INTEGER);",  "expect": {"rows": []}},
+        {"sql": "CREATE INDEX foo ON foo (x);",    "expect": {"error": {"name": "STORAGE_INDEX_EXISTS", "fields": {"name": "foo"}}}}
+      ]
+    },
+    {
+      "name": "create-table-name-collides-with-index",
+      "description": "Symmetric: creating a table with the same name as an existing index fails with the existing STORAGE_TABLE_EXISTS error (names share the same sqlite_schema namespace).",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",     "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx ON t (x);",       "expect": {"rows": []}},
+        {"sql": "CREATE TABLE idx (y INTEGER);",    "expect": {"error": {"name": "STORAGE_TABLE_EXISTS", "fields": {"table": "idx"}}}}
+      ]
+    },
+    {
+      "name": "create-index-zero-columns-parse-error",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",     "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx ON t ();",        "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "RPAREN"}}}}
+      ]
+    },
+    {
+      "name": "create-index-missing-on",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",     "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx t (x);",          "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "IDENTIFIER"}}}}
+      ]
+    },
+    {
+      "name": "create-index-missing-lparen",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",     "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx ON t x;",         "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "IDENTIFIER"}}}}
+      ]
+    },
+    {
+      "name": "create-index-missing-rparen",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",     "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx ON t (x;",        "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "SEMICOLON"}}}}
+      ]
+    },
+    {
+      "name": "create-index-trailing-comma-rejected",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER, y INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx ON t (x, y,);",          "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "RPAREN"}}}}
+      ]
+    },
+    {
+      "name": "index-keyword-as-column-name-rejected",
+      "program": [
+        {"sql": "CREATE TABLE t (index INTEGER);", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "KEYWORD_INDEX"}}}}
+      ]
+    },
+    {
+      "name": "unique-keyword-as-column-name-rejected",
+      "program": [
+        {"sql": "CREATE TABLE t (unique INTEGER);", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "KEYWORD_UNIQUE"}}}}
+      ]
+    },
+    {
+      "name": "index-keyword-as-table-name-rejected",
+      "program": [
+        {"sql": "CREATE TABLE index (x INTEGER);", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "KEYWORD_INDEX"}}}}
+      ]
+    },
+    {
+      "name": "index-keyword-as-index-name-rejected",
+      "description": "`CREATE INDEX index ON t(x)` is a parse error because the second token must be an IDENTIFIER, not the reserved keyword INDEX itself.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",  "expect": {"rows": []}},
+        {"sql": "CREATE INDEX index ON t (x);", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "KEYWORD_INDEX"}}}}
+      ]
+    },
+    {
+      "name": "create-index-then-inserts-still-work",
+      "description": "Phase 9a does NOT maintain indexes on INSERT (deferred to 9c). Table INSERTs after CREATE INDEX still succeed and are visible via plain SELECT (which doesn't use the index, so staleness is invisible).",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",      "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",         "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t ORDER BY x;",       "expect": {"rows": [[1], [2], [3]]}}
+      ]
+    },
+    {
+      "name": "create-index-with-prior-data-stays-empty",
+      "description": "Phase 9a does NOT backfill from existing rows (deferred to 9b). Tests cannot observe the index's emptiness directly via SELECT (no query-planner integration yet), but the INSERT+SELECT path remains correct because it never touches the index.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (10);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (20);",     "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",    "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t ORDER BY x;",    "expect": {"rows": [[10], [20]]}}
+      ]
+    },
+    {
+      "name": "multiple-indexes-on-same-table",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER, c TEXT);", "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_a ON t (a);",                    "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_b ON t (b);",                    "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_c ON t (c);",                    "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_ab ON t (a, b);",                "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "index-on-different-tables-independent-namespace-for-columns",
+      "description": "Column names are validated against the specific target table. An index on t1(x) does not care whether t2 has a column `x`.",
+      "program": [
+        {"sql": "CREATE TABLE t1 (x INTEGER, y INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE TABLE t2 (a INTEGER, b INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx1 ON t1 (x);",            "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx2 ON t2 (a);",            "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx3 ON t2 (x);",            "expect": {"error": {"name": "COMPILE_UNKNOWN_COLUMN", "fields": {"table": "t2", "column": "x"}}}}
+      ]
+    },
+    {
+      "name": "index-name-collision-case-sensitivity",
+      "description": "sqlite_schema name-collision is case-insensitive per standard SQL convention (like SQLite's) — `idx` and `IDX` collide.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",  "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx ON t (x);",    "expect": {"rows": []}},
+        {"sql": "CREATE INDEX IDX ON t (x);",    "expect": {"error": {"name": "STORAGE_INDEX_EXISTS", "fields": {"name": "IDX"}}}}
+      ]
+    }
+  ]
+}

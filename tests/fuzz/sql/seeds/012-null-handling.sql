@@ -1,0 +1,4 @@
+CREATE TABLE nullable (id INTEGER PRIMARY KEY, v INTEGER);
+INSERT INTO nullable (v) VALUES (1), (NULL), (2), (NULL), (3);
+SELECT COUNT(*), COUNT(v), SUM(v), (SELECT COUNT(*) FROM nullable WHERE v IS NULL)
+FROM nullable;

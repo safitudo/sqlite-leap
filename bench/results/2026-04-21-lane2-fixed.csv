@@ -1,0 +1,5 @@
+lane,target,value,units,timestamp
+parse-speed,sqlite-mainline,2836978,bytes_per_second_single_run,2026-04-21T09:24:41Z
+parse-speed,turso,311494,bytes_per_second_single_run,2026-04-21T09:25:15Z
+parse-speed,sqlite-leap-rust,36791,bytes_per_second_single_run,2026-04-21T09:30:01Z
+parse-speed,sqlite-leap-c,28680,bytes_per_second_single_run,2026-04-21T09:36:07Z

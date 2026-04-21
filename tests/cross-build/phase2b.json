@@ -1,0 +1,145 @@
+{
+  "phase": "2b",
+  "description": "Phase 2b gate — VDBE-specific behaviour. Exercises the compiler and vdbe parts DIRECTLY (not via the executor), proving both parts exist with well-formed public entries. Every compiled program must also satisfy the well-formedness invariants in spec/vdbe-opcodes.spec.md § 'Well-formedness' — the harness verifies them per compiled program before running. Phase 2b also relies on tests/cross-build/phase2a.json remaining green via the updated executor; phase2a.json is the full behavioural regression.",
+  "cases": [
+    {
+      "name": "select-star-empty-table-vdbe",
+      "description": "Empty table — tests OpRewind jump_if_empty short-circuit.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "SELECT * FROM t;",            "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "select-star-multi-row-vdbe",
+      "description": "Multi-row table — tests OpNext back-edge loop.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (4);",   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",   "expect": {"rows": []}},
+        {"sql": "SELECT * FROM t;",            "expect": {"rows": [[1], [2], [3], [4], [5]]}}
+      ]
+    },
+    {
+      "name": "select-star-multi-column-vdbe",
+      "description": "Multi-column star SELECT — tests multiple OpColumn emissions per row.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b TEXT, c INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 'x', 10);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 'y', 20);",             "expect": {"rows": []}},
+        {"sql": "SELECT * FROM t;",                               "expect": {"rows": [[1, "x", 10], [2, "y", 20]]}}
+      ]
+    },
+    {
+      "name": "select-reordered-projection-vdbe",
+      "description": "Reordered projection — tests OpColumn with non-identity column indices.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b TEXT);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 'x');",      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 'y');",      "expect": {"rows": []}},
+        {"sql": "SELECT b, a FROM t;",                 "expect": {"rows": [["x", 1], ["y", 2]]}}
+      ]
+    },
+    {
+      "name": "compile-time-unknown-column-in-select",
+      "description": "Phase 2b raises STORAGE_COLUMN_NOT_FOUND at compile time for SELECT, not at execution.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "SELECT b FROM t;",            "expect": {"error": {"name": "STORAGE_COLUMN_NOT_FOUND", "fields": {"table": "t", "column": "b"}}}}
+      ]
+    },
+    {
+      "name": "compile-time-unknown-column-in-insert-list",
+      "description": "Phase 2b raises STORAGE_COLUMN_NOT_FOUND at compile time for INSERT with column list referencing unknown column.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (b) VALUES (1);",     "expect": {"error": {"name": "STORAGE_COLUMN_NOT_FOUND", "fields": {"table": "t", "column": "b"}}}}
+      ]
+    },
+    {
+      "name": "compile-time-missing-table-in-select",
+      "description": "SELECT from a non-existent table raises STORAGE_TABLE_NOT_FOUND at compile time.",
+      "program": [
+        {"sql": "SELECT a FROM ghost;",        "expect": {"error": {"name": "STORAGE_TABLE_NOT_FOUND", "fields": {"table": "ghost"}}}}
+      ]
+    },
+    {
+      "name": "select-literal-vdbe",
+      "description": "SelectLiteral compiles to a zero-cursor LoadConst + ResultRow + Halt program.",
+      "program": [
+        {"sql": "SELECT 42;",        "expect": {"rows": [[42]]}},
+        {"sql": "SELECT 'hi';",      "expect": {"rows": [["hi"]]}},
+        {"sql": "SELECT NULL;",      "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "insert-column-list-reordering-vdbe",
+      "description": "INSERT with reordered column list — tests column-name resolution during InsertRow.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b TEXT);",   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (b, a) VALUES ('hi', 7);","expect": {"rows": []}},
+        {"sql": "SELECT * FROM t;",                      "expect": {"rows": [[7, "hi"]]}}
+      ]
+    },
+    {
+      "name": "insert-type-mismatch-runtime-vdbe",
+      "description": "Type mismatch is raised by OpInsertRow at VDBE runtime (not at compile time — values are compiler-opaque).",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('x');", "expect": {"error": {"name": "STORAGE_TYPE_MISMATCH", "fields": {"table": "t", "column": "a", "expected_type": "INTEGER", "got_type": "TEXT"}}}}
+      ]
+    },
+    {
+      "name": "many-inserts-then-select-preserves-order",
+      "description": "Cursor write → read sequencing preserves insertion order across many rows.",
+      "program": [
+        {"sql": "CREATE TABLE nums (n INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO nums VALUES (10);",  "expect": {"rows": []}},
+        {"sql": "INSERT INTO nums VALUES (20);",  "expect": {"rows": []}},
+        {"sql": "INSERT INTO nums VALUES (30);",  "expect": {"rows": []}},
+        {"sql": "INSERT INTO nums VALUES (40);",  "expect": {"rows": []}},
+        {"sql": "INSERT INTO nums VALUES (50);",  "expect": {"rows": []}},
+        {"sql": "INSERT INTO nums VALUES (60);",  "expect": {"rows": []}},
+        {"sql": "INSERT INTO nums VALUES (70);",  "expect": {"rows": []}},
+        {"sql": "INSERT INTO nums VALUES (80);",  "expect": {"rows": []}},
+        {"sql": "SELECT * FROM nums;",            "expect": {"rows": [[10],[20],[30],[40],[50],[60],[70],[80]]}}
+      ]
+    },
+    {
+      "name": "duplicated-projection-columns-vdbe",
+      "description": "SELECT a, a FROM t duplicates the column. Compiler must emit two OpColumn opcodes with the same column index.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (7);",   "expect": {"rows": []}},
+        {"sql": "SELECT a, a, a FROM t;",      "expect": {"rows": [[7, 7, 7]]}}
+      ]
+    },
+    {
+      "name": "compile-time-duplicate-column-in-insert-list",
+      "description": "Phase 2b raises STORAGE_DUPLICATE_COLUMN at compile time for INSERT with a duplicated column name.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (a, a) VALUES (1, 2);",    "expect": {"error": {"name": "STORAGE_DUPLICATE_COLUMN", "fields": {"table": "t", "column": "a"}}}}
+      ]
+    },
+    {
+      "name": "create-table-vdbe",
+      "description": "CREATE TABLE compiles to a zero-cursor, zero-register program.",
+      "program": [
+        {"sql": "CREATE TABLE one_col (x INTEGER);",                      "expect": {"rows": []}},
+        {"sql": "CREATE TABLE multi (a INTEGER, b TEXT, c INTEGER);",     "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "create-table-already-exists-vdbe",
+      "description": "STORAGE_TABLE_EXISTS raised by OpCreateTable at runtime (compiler does not pre-check).",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",     "expect": {"rows": []}},
+        {"sql": "CREATE TABLE t (b TEXT);",        "expect": {"error": {"name": "STORAGE_TABLE_EXISTS", "fields": {"table": "t"}}}}
+      ]
+    }
+  ]
+}

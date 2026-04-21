@@ -1,0 +1,77 @@
+# bench/Dockerfile.linux-x86 — Linux x86_64 bench image for sqlite-leap.
+#
+# Distinct from /Dockerfile.linux (the CI image). This image adds bench tooling
+# (hyperfine, /usr/bin/time, python3, sqlite3 baseline package, unzip, curl)
+# on top of the C + Rust toolchains so the 6 benchmark lanes can run end to
+# end inside the container.
+#
+# Build (from repo root):
+#     docker build --platform=linux/amd64 \
+#         -f bench/Dockerfile.linux-x86 \
+#         -t sqlite-leap-bench:linux-amd64 .
+#
+# Run (host volume mount so CSV is written to the host bench/results/):
+#     docker run --rm --platform=linux/amd64 \
+#         -v "$PWD":/repo -w /repo \
+#         sqlite-leap-bench:linux-amd64 \
+#         /repo/bench/run-linux-bench.sh
+#
+# NOTE on emulation: on macOS arm64 hosts this runs under Rosetta/QEMU
+# emulation. Numbers are for CORRECTNESS cross-validation, not absolute
+# speed. The linux-x86_64.README.md explains this.
+
+FROM --platform=linux/amd64 debian:bookworm-slim
+
+ARG RUST_VERSION=1.82.0
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Bench tooling + build deps. hyperfine is pulled from debian backports-free
+# via its GitHub release (more stable than the repo package across versions).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        wget \
+        unzip \
+        build-essential \
+        gcc \
+        clang \
+        make \
+        pkg-config \
+        perl \
+        git \
+        python3 \
+        python3-pip \
+        time \
+        sqlite3 \
+        libsqlite3-dev \
+        procps \
+        coreutils \
+        rsync \
+    && rm -rf /var/lib/apt/lists/*
+
+# hyperfine via upstream .deb (v1.18.0) — keeps timing resolution comparable
+# across runs.
+RUN ARCH="$(dpkg --print-architecture)" \
+    && curl -fsSL -o /tmp/hyperfine.deb \
+        "https://github.com/sharkdp/hyperfine/releases/download/v1.18.0/hyperfine_1.18.0_${ARCH}.deb" \
+    && dpkg -i /tmp/hyperfine.deb \
+    && rm /tmp/hyperfine.deb
+
+# Rustup, pinned toolchain.
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/usr/local/cargo/bin:$PATH
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+        | sh -s -- -y --default-toolchain ${RUST_VERSION} --profile minimal --no-modify-path \
+    && rustup --version \
+    && cargo --version \
+    && rustc --version
+
+WORKDIR /repo
+# Do NOT COPY — we mount the repo as a volume at runtime. This keeps the
+# image lean and guarantees that the spec tree seen in-container matches the
+# host at run time.
+
+CMD ["bash", "-lc", "rustc --version && cargo --version && cc --version | head -n1 && hyperfine --version && sqlite3 --version && echo 'sqlite-leap bench image ready'"]

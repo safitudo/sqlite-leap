@@ -1,0 +1,1 @@
+CREATE TABLE t (a); CREATE TABLE t (a);

@@ -1,0 +1,229 @@
+{
+  "phase": "6s",
+  "description": "Phase 6s gate — multi-arg scalar functions. Grammar: variadic function-call (COMMA-separated args). Functions: IFNULL (exactly 2 args, Scalar2 opcode), COALESCE (>=2 args, desugared to nested IFNULL at compile time). New opcode `Scalar2 { kind, arg1_reg, arg2_reg, dest }`. New invariant 28. max_invariant=28. Arg-count enforcement via new `COMPILE_SCALAR_ARG_COUNT_MISMATCH` and `COMPILE_AGGREGATE_ARG_COUNT_MISMATCH` errors. All phase1..6q fixtures must stay green.",
+  "cases": [
+    {
+      "name": "ifnull-first-non-null",
+      "program": [
+        {"sql": "SELECT IFNULL(1, 2);", "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "ifnull-first-null-second-non-null",
+      "program": [
+        {"sql": "SELECT IFNULL(NULL, 2);", "expect": {"rows": [[2]]}}
+      ]
+    },
+    {
+      "name": "ifnull-both-null",
+      "program": [
+        {"sql": "SELECT IFNULL(NULL, NULL);", "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "ifnull-text-arguments",
+      "program": [
+        {"sql": "SELECT IFNULL('a', 'b');",    "expect": {"rows": [["a"]]}},
+        {"sql": "SELECT IFNULL(NULL, 'b');",   "expect": {"rows": [["b"]]}},
+        {"sql": "SELECT IFNULL('a', NULL);",   "expect": {"rows": [["a"]]}}
+      ]
+    },
+    {
+      "name": "ifnull-mixed-types-no-coercion",
+      "description": "IFNULL is a pure choice function — no type coercion. Integer/Text mixing is fine.",
+      "program": [
+        {"sql": "SELECT IFNULL(5, 'x');",     "expect": {"rows": [[5]]}},
+        {"sql": "SELECT IFNULL(NULL, 'x');",  "expect": {"rows": [["x"]]}},
+        {"sql": "SELECT IFNULL('x', 5);",     "expect": {"rows": [["x"]]}}
+      ]
+    },
+    {
+      "name": "ifnull-on-column",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL, 20);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3, NULL);",        "expect": {"rows": []}},
+        {"sql": "SELECT IFNULL(a, b) FROM t;",            "expect": {"rows": [[1], [20], [3]]}}
+      ]
+    },
+    {
+      "name": "ifnull-in-where",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER, name TEXT);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 'foo');",        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, NULL);",         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3, 'bar');",        "expect": {"rows": []}},
+        {"sql": "SELECT id FROM t WHERE IFNULL(name, 'anon') = 'anon';", "expect": {"rows": [[2]]}}
+      ]
+    },
+    {
+      "name": "ifnull-wrong-arg-count-zero",
+      "description": "Empty arg list rejected at parse time — function-args grammar requires at least one expression.",
+      "program": [
+        {"sql": "SELECT IFNULL();", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "RPAREN"}}}}
+      ]
+    },
+    {
+      "name": "ifnull-wrong-arg-count-one",
+      "program": [
+        {"sql": "SELECT IFNULL(5);", "expect": {"error": {"name": "COMPILE_SCALAR_ARG_COUNT_MISMATCH", "fields": {"function": "IFNULL", "expected": 2, "got": 1}}}}
+      ]
+    },
+    {
+      "name": "ifnull-wrong-arg-count-three",
+      "program": [
+        {"sql": "SELECT IFNULL(1, 2, 3);", "expect": {"error": {"name": "COMPILE_SCALAR_ARG_COUNT_MISMATCH", "fields": {"function": "IFNULL", "expected": 2, "got": 3}}}}
+      ]
+    },
+    {
+      "name": "ifnull-star-not-allowed",
+      "program": [
+        {"sql": "SELECT IFNULL(*);", "expect": {"error": {"name": "COMPILE_SCALAR_ARG_MISMATCH", "fields": {"function": "IFNULL", "reason": "star-not-allowed"}}}}
+      ]
+    },
+    {
+      "name": "coalesce-two-args-like-ifnull",
+      "program": [
+        {"sql": "SELECT COALESCE(1, 2);",      "expect": {"rows": [[1]]}},
+        {"sql": "SELECT COALESCE(NULL, 2);",   "expect": {"rows": [[2]]}},
+        {"sql": "SELECT COALESCE(NULL, NULL);","expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "coalesce-three-args-first-non-null",
+      "program": [
+        {"sql": "SELECT COALESCE(1, 2, 3);", "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "coalesce-three-args-second-non-null",
+      "program": [
+        {"sql": "SELECT COALESCE(NULL, 2, 3);", "expect": {"rows": [[2]]}}
+      ]
+    },
+    {
+      "name": "coalesce-three-args-third-non-null",
+      "program": [
+        {"sql": "SELECT COALESCE(NULL, NULL, 3);", "expect": {"rows": [[3]]}}
+      ]
+    },
+    {
+      "name": "coalesce-three-args-all-null",
+      "program": [
+        {"sql": "SELECT COALESCE(NULL, NULL, NULL);", "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "coalesce-five-args",
+      "program": [
+        {"sql": "SELECT COALESCE(NULL, NULL, NULL, NULL, 'found');", "expect": {"rows": [["found"]]}}
+      ]
+    },
+    {
+      "name": "coalesce-on-columns",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER, c INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL, NULL, 7);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL, 5, 7);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 5, 7);",                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL, NULL, NULL);",          "expect": {"rows": []}},
+        {"sql": "SELECT COALESCE(a, b, c) FROM t;",                  "expect": {"rows": [[7], [5], [1], [null]]}}
+      ]
+    },
+    {
+      "name": "coalesce-wrong-arg-count-zero",
+      "program": [
+        {"sql": "SELECT COALESCE();", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "RPAREN"}}}}
+      ]
+    },
+    {
+      "name": "coalesce-wrong-arg-count-one",
+      "program": [
+        {"sql": "SELECT COALESCE(5);", "expect": {"error": {"name": "COMPILE_SCALAR_ARG_COUNT_MISMATCH", "fields": {"function": "COALESCE", "expected": ">=2", "got": 1}}}}
+      ]
+    },
+    {
+      "name": "aggregate-wrong-arg-count-two",
+      "description": "Aggregates are now checked for exact arg count too (Phase 6s tightening). Previously the grammar only permitted 1 arg, now it permits many but the compiler rejects non-1 for known aggregates.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",          "expect": {"rows": []}},
+        {"sql": "SELECT SUM(x, x) FROM t;",           "expect": {"error": {"name": "COMPILE_AGGREGATE_ARG_COUNT_MISMATCH", "fields": {"function": "SUM", "expected": 1, "got": 2}}}}
+      ]
+    },
+    {
+      "name": "scalar-wrong-arg-count-two",
+      "description": "Known single-arg scalars are checked for exact arg count.",
+      "program": [
+        {"sql": "SELECT LENGTH('a', 'b');", "expect": {"error": {"name": "COMPILE_SCALAR_ARG_COUNT_MISMATCH", "fields": {"function": "LENGTH", "expected": 1, "got": 2}}}}
+      ]
+    },
+    {
+      "name": "unknown-function-still-unknown",
+      "description": "Unknown function names still raise COMPILE_UNKNOWN_FUNCTION, regardless of arg count.",
+      "program": [
+        {"sql": "SELECT FOO(1, 2);", "expect": {"error": {"name": "COMPILE_UNKNOWN_FUNCTION", "fields": {"name": "FOO"}}}}
+      ]
+    },
+    {
+      "name": "ifnull-nested",
+      "program": [
+        {"sql": "SELECT IFNULL(IFNULL(NULL, NULL), IFNULL(1, 2));", "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "ifnull-with-expressions",
+      "program": [
+        {"sql": "SELECT IFNULL(1 + 2, 99);", "expect": {"rows": [[3]]}},
+        {"sql": "SELECT IFNULL(NULL, 1 + 2);", "expect": {"rows": [[3]]}},
+        {"sql": "SELECT IFNULL(NULL, 'a' || 'b');", "expect": {"rows": [["ab"]]}}
+      ]
+    },
+    {
+      "name": "coalesce-in-aggregate",
+      "description": "COALESCE can appear inside an aggregate's argument.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL, 10);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL, 20);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3, 30);",          "expect": {"rows": []}},
+        {"sql": "SELECT SUM(COALESCE(a, b)) FROM t;",     "expect": {"rows": [[33]]}}
+      ]
+    },
+    {
+      "name": "ifnull-in-order-by",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER, sort_key INTEGER);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, NULL);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 5);",                       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3, 10);",                      "expect": {"rows": []}},
+        {"sql": "SELECT id FROM t ORDER BY IFNULL(sort_key, 999);",   "expect": {"rows": [[2], [3], [1]]}}
+      ]
+    },
+    {
+      "name": "ifnull-case-insensitive",
+      "program": [
+        {"sql": "SELECT ifnull(NULL, 1);", "expect": {"rows": [[1]]}},
+        {"sql": "SELECT IfNull(NULL, 2);", "expect": {"rows": [[2]]}},
+        {"sql": "SELECT IFNULL(NULL, 3);", "expect": {"rows": [[3]]}}
+      ]
+    },
+    {
+      "name": "coalesce-case-insensitive",
+      "program": [
+        {"sql": "SELECT coalesce(NULL, NULL, 1);", "expect": {"rows": [[1]]}},
+        {"sql": "SELECT CoAlEsCe(NULL, 2, 3);",    "expect": {"rows": [[2]]}}
+      ]
+    },
+    {
+      "name": "ifnull-and-coalesce-not-reserved-keywords",
+      "description": "IFNULL and COALESCE are IDENTIFIERs, not reserved keywords — they can be used as column names.",
+      "program": [
+        {"sql": "CREATE TABLE t (ifnull INTEGER, coalesce TEXT);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 'x');",                  "expect": {"rows": []}},
+        {"sql": "SELECT ifnull, coalesce FROM t;",                 "expect": {"rows": [[1, "x"]]}}
+      ]
+    }
+  ]
+}

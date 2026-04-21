@@ -1,0 +1,72 @@
+{
+  "phase": "6bi",
+  "description": "Phase 6bi gate — STRICT tables. CREATE TABLE ... STRICT enforces column types at INSERT/UPDATE time (matching SQLite 3.37+ semantics).",
+  "cases": [
+    {
+      "name": "strict-table-accepts-matching-types",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b TEXT, c REAL) STRICT;", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 'hello', 3.14);", "expect": {"rows": []}},
+        {"sql": "SELECT a, b, c FROM t;", "expect": {"rows": [[1, "hello", 3.14]]}}
+      ]
+    },
+    {
+      "name": "strict-table-rejects-wrong-type",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER) STRICT;", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('not an int');", "expect": {"error": "RUNTIME_STRICT_TYPE_MISMATCH"}}
+      ]
+    },
+    {
+      "name": "strict-table-accepts-null",
+      "description": "NULL is valid in any column (unless NOT NULL is declared) even in STRICT tables.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER) STRICT;", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL);", "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t;", "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "strict-rejects-integer-in-text",
+      "program": [
+        {"sql": "CREATE TABLE t (b TEXT) STRICT;", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (42);", "expect": {"error": "RUNTIME_STRICT_TYPE_MISMATCH"}}
+      ]
+    },
+    {
+      "name": "strict-accepts-integer-for-real-column",
+      "description": "SQLite STRICT allows INTEGER→REAL promotion (widening).",
+      "program": [
+        {"sql": "CREATE TABLE t (c REAL) STRICT;", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);", "expect": {"rows": []}},
+        {"sql": "SELECT c FROM t;", "expect": {"rows": [[5.0]]}}
+      ]
+    },
+    {
+      "name": "strict-update-rejects-wrong-type",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER) STRICT;", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);", "expect": {"rows": []}},
+        {"sql": "UPDATE t SET a = 'bad';", "expect": {"error": "RUNTIME_STRICT_TYPE_MISMATCH"}}
+      ]
+    },
+    {
+      "name": "non-strict-table-still-permissive",
+      "description": "Non-STRICT tables retain SQLite's classic type-affinity permissiveness.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('42');", "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t;", "expect": {"rows": [[42]]}}
+      ]
+    },
+    {
+      "name": "strict-any-column-accepts-anything",
+      "description": "The ANY column type is permitted in STRICT tables (SQLite spec) and accepts all types.",
+      "program": [
+        {"sql": "CREATE TABLE t (x ANY) STRICT;", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), ('hello'), (3.14);", "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t ORDER BY x;", "expect": {"rows": [[1], [3.14], ["hello"]]}}
+      ]
+    }
+  ]
+}

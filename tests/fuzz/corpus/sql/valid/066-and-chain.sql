@@ -1,0 +1,1 @@
+SELECT 1 WHERE 1 = 1 AND 2 = 2 AND 3 = 3;

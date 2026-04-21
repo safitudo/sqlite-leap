@@ -1,0 +1,89 @@
+{
+  "phase": "6br",
+  "description": "Phase 6br gate — subquery-in-FROM (derived tables). Parser + compiler extension: FROM (SELECT ...) AS alias materializes the inner SELECT as a virtual table.",
+  "cases": [
+    {
+      "name": "derived-literal",
+      "program": [
+        {"sql": "SELECT * FROM (SELECT 1) AS x;", "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "derived-passthrough",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2), (3);", "expect": {"rows": []}},
+        {"sql": "SELECT * FROM (SELECT a FROM t) AS sub ORDER BY a;", "expect": {"rows": [[1], [2], [3]]}}
+      ]
+    },
+    {
+      "name": "derived-where-inside",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2), (3), (4), (5);", "expect": {"rows": []}},
+        {"sql": "SELECT a FROM (SELECT a FROM t WHERE a > 2) AS sub ORDER BY a;", "expect": {"rows": [[3], [4], [5]]}}
+      ]
+    },
+    {
+      "name": "derived-order-limit-inside",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5), (1), (3), (2), (4);", "expect": {"rows": []}},
+        {"sql": "SELECT a FROM (SELECT a FROM t ORDER BY a LIMIT 3) AS sub;", "expect": {"rows": [[1], [2], [3]]}}
+      ]
+    },
+    {
+      "name": "derived-aggregate-inside",
+      "description": "Aggregation occurs inside the derived table; outer query projects the result.",
+      "program": [
+        {"sql": "CREATE TABLE t (k INTEGER, v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10), (1, 20), (2, 30);", "expect": {"rows": []}},
+        {"sql": "SELECT k, s FROM (SELECT k, SUM(v) AS s FROM t GROUP BY k) AS agg ORDER BY k;", "expect": {"rows": [[1, 30], [2, 30]]}}
+      ]
+    },
+    {
+      "name": "derived-outer-where",
+      "description": "Outer WHERE references derived-table columns via the alias.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2), (3), (4);", "expect": {"rows": []}},
+        {"sql": "SELECT sub.a FROM (SELECT a FROM t) AS sub WHERE sub.a >= 3 ORDER BY sub.a;", "expect": {"rows": [[3], [4]]}}
+      ]
+    },
+    {
+      "name": "derived-two-joined",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2);", "expect": {"rows": []}},
+        {"sql": "SELECT x.a, y.a FROM (SELECT a FROM t) AS x, (SELECT a FROM t) AS y ORDER BY x.a, y.a;", "expect": {"rows": [[1, 1], [1, 2], [2, 1], [2, 2]]}}
+      ]
+    },
+    {
+      "name": "derived-with-real-join",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE TABLE u (b INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO u VALUES (10), (20);", "expect": {"rows": []}},
+        {"sql": "SELECT sub.a, u.b FROM (SELECT a FROM t) AS sub, u ORDER BY sub.a, u.b;", "expect": {"rows": [[1, 10], [1, 20], [2, 10], [2, 20]]}}
+      ]
+    },
+    {
+      "name": "derived-projected-alias",
+      "description": "Inner SELECT uses an explicit alias; outer query references it.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3), (4);", "expect": {"rows": []}},
+        {"sql": "SELECT sub.doubled FROM (SELECT a * 2 AS doubled FROM t) AS sub ORDER BY sub.doubled;", "expect": {"rows": [[6], [8]]}}
+      ]
+    },
+    {
+      "name": "derived-missing-alias-rejected",
+      "description": "Derived table without a trailing alias must be rejected at parse time.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "SELECT * FROM (SELECT a FROM t);", "expect": {"error": "PARSE_UNEXPECTED_TOKEN"}}
+      ]
+    }
+  ]
+}

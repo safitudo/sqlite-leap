@@ -1,0 +1,273 @@
+{
+  "phase": "9g",
+  "description": "Phase 9g gate — UNIQUE enforcement. CREATE UNIQUE INDEX, UNIQUE column constraint, and non-INTEGER PRIMARY KEY (from 9f) now reject duplicate non-NULL keys. Backfill-time dup check raises STORAGE_UNIQUE_BACKFILL_VIOLATION. INSERT/UPDATE dup check raises STORAGE_UNIQUE_VIOLATION. NULL values never violate UNIQUE (SQLite convention; multiple NULLs OK). No new opcodes; semantic extension of IdxInsert and CreateIndex on the UNIQUE flag. max_invariant=42 unchanged. Non-goals: full-statement atomicity (WAL), multi-col UNIQUE, ON CONFLICT clauses. All prior phase fixtures must stay green.",
+  "cases": [
+    {
+      "name": "unique-index-create-on-empty-succeeds",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                 "expect": {"rows": []}},
+        {"sql": "CREATE UNIQUE INDEX uidx_x ON t (x);",        "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "unique-index-create-on-no-dups-succeeds",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                    "expect": {"rows": []}},
+        {"sql": "CREATE UNIQUE INDEX uidx_x ON t (x);",         "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 2;",                 "expect": {"rows": [[2]]}}
+      ]
+    },
+    {
+      "name": "unique-index-backfill-detects-dups-refuses-creation",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                    "expect": {"rows": []}},
+        {"sql": "CREATE UNIQUE INDEX uidx_x ON t (x);",         "expect": {"error": {"name": "STORAGE_UNIQUE_BACKFILL_VIOLATION", "fields": {"index": "uidx_x"}}}}
+      ]
+    },
+    {
+      "name": "unique-index-backfill-violation-leaves-no-index",
+      "description": "After STORAGE_UNIQUE_BACKFILL_VIOLATION, the index is NOT created; a second CREATE UNIQUE INDEX after removing the dup should succeed.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                    "expect": {"rows": []}},
+        {"sql": "CREATE UNIQUE INDEX uidx_x ON t (x);",         "expect": {"error": {"name": "STORAGE_UNIQUE_BACKFILL_VIOLATION"}}},
+        {"sql": "DELETE FROM t WHERE x = 1;",                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                    "expect": {"rows": []}},
+        {"sql": "CREATE UNIQUE INDEX uidx_x ON t (x);",         "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "unique-index-backfill-with-nulls-allowed",
+      "description": "Multiple NULLs do NOT violate UNIQUE during backfill.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER, y INTEGER);",      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (y) VALUES (100);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (y) VALUES (200);",              "expect": {"rows": []}},
+        {"sql": "CREATE UNIQUE INDEX uidx_x ON t (x);",         "expect": {"rows": []}},
+        {"sql": "SELECT y FROM t WHERE x = 1;",                 "expect": {"rows": [[10]]}}
+      ]
+    },
+    {
+      "name": "unique-insert-duplicate-rejected",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                 "expect": {"rows": []}},
+        {"sql": "CREATE UNIQUE INDEX uidx_x ON t (x);",         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",                    "expect": {"error": {"name": "STORAGE_UNIQUE_VIOLATION", "fields": {"index": "uidx_x"}}}}
+      ]
+    },
+    {
+      "name": "unique-insert-violation-preserves-original-row",
+      "description": "After a uniqueness violation on INSERT, the original row is still present and the violating row is NOT inserted.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                 "expect": {"rows": []}},
+        {"sql": "CREATE UNIQUE INDEX uidx_x ON t (x);",         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (7);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (7);",                    "expect": {"error": {"name": "STORAGE_UNIQUE_VIOLATION"}}},
+        {"sql": "SELECT COUNT(*) FROM t WHERE x = 7;",          "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "unique-insert-different-keys-both-succeed",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                 "expect": {"rows": []}},
+        {"sql": "CREATE UNIQUE INDEX uidx_x ON t (x);",         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                    "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t ORDER BY x;",                  "expect": {"rows": [[1], [2], [3]]}}
+      ]
+    },
+    {
+      "name": "unique-insert-nulls-allowed-multiple",
+      "description": "Multiple rows with NULL in the UNIQUE col are permitted (SQLite convention).",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER, y INTEGER);",      "expect": {"rows": []}},
+        {"sql": "CREATE UNIQUE INDEX uidx_x ON t (x);",         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (y) VALUES (1);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (y) VALUES (2);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (y) VALUES (3);",                "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(*) FROM t;",                      "expect": {"rows": [[3]]}}
+      ]
+    },
+    {
+      "name": "unique-update-to-existing-key-rejected",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                    "expect": {"rows": []}},
+        {"sql": "CREATE UNIQUE INDEX uidx_x ON t (x);",         "expect": {"rows": []}},
+        {"sql": "UPDATE t SET x = 2 WHERE x = 1;",              "expect": {"error": {"name": "STORAGE_UNIQUE_VIOLATION", "fields": {"index": "uidx_x"}}}}
+      ]
+    },
+    {
+      "name": "unique-update-to-same-key-idempotent",
+      "description": "UPDATE SET x = x (no-op on UNIQUE col) must NOT self-conflict; OLD-delete then NEW-insert sees empty-bucket.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",                    "expect": {"rows": []}},
+        {"sql": "CREATE UNIQUE INDEX uidx_x ON t (x);",         "expect": {"rows": []}},
+        {"sql": "UPDATE t SET x = 5 WHERE x = 5;",              "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 5;",                 "expect": {"rows": [[5]]}}
+      ]
+    },
+    {
+      "name": "unique-update-to-fresh-key-succeeds",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                    "expect": {"rows": []}},
+        {"sql": "CREATE UNIQUE INDEX uidx_x ON t (x);",         "expect": {"rows": []}},
+        {"sql": "UPDATE t SET x = 99 WHERE x = 1;",             "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 1;",                 "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 99;",                "expect": {"rows": [[99]]}}
+      ]
+    },
+    {
+      "name": "unique-update-to-null-allowed",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER, y INTEGER);",      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 20);",                "expect": {"rows": []}},
+        {"sql": "CREATE UNIQUE INDEX uidx_x ON t (x);",         "expect": {"rows": []}},
+        {"sql": "UPDATE t SET x = NULL WHERE y = 10;",          "expect": {"rows": []}},
+        {"sql": "UPDATE t SET x = NULL WHERE y = 20;",          "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(*) FROM t;",                      "expect": {"rows": [[2]]}}
+      ]
+    },
+    {
+      "name": "column-unique-constraint-enforces",
+      "description": "CREATE TABLE t (x INTEGER UNIQUE) creates auto-index and enforces uniqueness.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER UNIQUE);",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",                    "expect": {"error": {"name": "STORAGE_UNIQUE_VIOLATION"}}}
+      ]
+    },
+    {
+      "name": "column-unique-constraint-allows-nulls",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER UNIQUE, y INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (y) VALUES (1);",                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (y) VALUES (2);",                  "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(*) FROM t;",                        "expect": {"rows": [[2]]}}
+      ]
+    },
+    {
+      "name": "text-primary-key-duplicate-rejected",
+      "description": "Phase 9f created the auto-index without enforcement; 9g adds enforcement.",
+      "program": [
+        {"sql": "CREATE TABLE t (name TEXT PRIMARY KEY);",      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('alice');",               "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('alice');",               "expect": {"error": {"name": "STORAGE_UNIQUE_VIOLATION"}}}
+      ]
+    },
+    {
+      "name": "text-primary-key-different-values-ok",
+      "program": [
+        {"sql": "CREATE TABLE t (name TEXT PRIMARY KEY);",      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('alice');",               "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('bob');",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('carol');",               "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(*) FROM t;",                       "expect": {"rows": [[3]]}}
+      ]
+    },
+    {
+      "name": "integer-primary-key-duplicate-rejected",
+      "description": "INTEGER PK = rowid alias; rowids are already unique. Duplicate INSERT raises STORAGE_UNIQUE_VIOLATION (or equivalent duplicate-rowid error).",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER PRIMARY KEY);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                     "expect": {"error": {"name": "STORAGE_UNIQUE_VIOLATION"}}}
+      ]
+    },
+    {
+      "name": "unique-insert-then-delete-then-reinsert",
+      "description": "After DELETE, the key is free — a subsequent INSERT of the same value succeeds.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                 "expect": {"rows": []}},
+        {"sql": "CREATE UNIQUE INDEX uidx_x ON t (x);",         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (10);",                    "expect": {"rows": []}},
+        {"sql": "DELETE FROM t WHERE x = 10;",                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (10);",                    "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 10;",                 "expect": {"rows": [[10]]}}
+      ]
+    },
+    {
+      "name": "text-unique-duplicate-rejected",
+      "program": [
+        {"sql": "CREATE TABLE t (name TEXT);",                 "expect": {"rows": []}},
+        {"sql": "CREATE UNIQUE INDEX uidx_n ON t (name);",      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('x');",                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('x');",                   "expect": {"error": {"name": "STORAGE_UNIQUE_VIOLATION"}}}
+      ]
+    },
+    {
+      "name": "mixed-unique-and-non-unique-indexes",
+      "description": "Same table has a UNIQUE index and a non-UNIQUE index. Non-UNIQUE accepts duplicates; UNIQUE rejects. Row goes through only if BOTH checks pass (none in this fixture — only UNIQUE on x).",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER, y INTEGER);",      "expect": {"rows": []}},
+        {"sql": "CREATE UNIQUE INDEX uidx_x ON t (x);",         "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_y ON t (y);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 100);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 100);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3, 100);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 200);",                "expect": {"error": {"name": "STORAGE_UNIQUE_VIOLATION"}}},
+        {"sql": "SELECT COUNT(*) FROM t WHERE y = 100;",         "expect": {"rows": [[3]]}}
+      ]
+    },
+    {
+      "name": "non-unique-index-still-allows-dups",
+      "description": "Regression gate — non-UNIQUE indexes must still accept duplicates (9c/9d behaviour).",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                 "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",                    "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(*) FROM t WHERE x = 5;",          "expect": {"rows": [[2]]}}
+      ]
+    },
+    {
+      "name": "two-unique-indexes-one-violates",
+      "description": "Two UNIQUE indexes (on different cols). INSERT violating one MUST fail fast — no row inserted, neither index touched.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);",      "expect": {"rows": []}},
+        {"sql": "CREATE UNIQUE INDEX uidx_a ON t (a);",         "expect": {"rows": []}},
+        {"sql": "CREATE UNIQUE INDEX uidx_b ON t (b);",         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 100);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 200);",                "expect": {"error": {"name": "STORAGE_UNIQUE_VIOLATION"}}},
+        {"sql": "SELECT COUNT(*) FROM t;",                       "expect": {"rows": [[1]]}},
+        {"sql": "SELECT b FROM t WHERE a = 1;",                  "expect": {"rows": [[100]]}}
+      ]
+    },
+    {
+      "name": "drop-unique-index-allows-dups-after",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                 "expect": {"rows": []}},
+        {"sql": "CREATE UNIQUE INDEX uidx_x ON t (x);",         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                    "expect": {"rows": []}},
+        {"sql": "DROP INDEX uidx_x;",                           "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                    "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(*) FROM t WHERE x = 1;",          "expect": {"rows": [[2]]}}
+      ]
+    },
+    {
+      "name": "create-unique-index-after-insert-no-dups",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                    "expect": {"rows": []}},
+        {"sql": "CREATE UNIQUE INDEX uidx_x ON t (x);",         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                    "expect": {"error": {"name": "STORAGE_UNIQUE_VIOLATION"}}}
+      ]
+    }
+  ]
+}

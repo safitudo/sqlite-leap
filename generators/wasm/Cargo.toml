@@ -1,0 +1,42 @@
+[package]
+name = "sqlite_leap_wasm"
+version = "0.1.0"
+edition = "2021"
+description = "WASM wrapper crate for sqlite-leap. Re-exports the Rust engine's C-ABI through wasm32-unknown-unknown as a cdylib."
+publish = false
+
+[lib]
+name = "sqlite_leap_wasm"
+path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+# Path-depend on the Rust engine at its canonical location. The `rlib` form is
+# linked for `cargo test` on native; the wasm cdylib picks the `#[no_mangle]`
+# symbols exposed from this crate's `src/lib.rs`, which thin-wrap the engine's
+# public `wasm` module functions.
+#
+# No features, no default-features override — the engine crate is already wasm-
+# compatible (only `std::fs` is referenced, which links on wasm32-unknown-unknown
+# and simply returns runtime I/O errors if ever invoked; the FFI surface only
+# uses `Database::new()` which is in-memory).
+#
+# Deliberately NO wasm-bindgen. The goal is a minimal self-contained .wasm that
+# talks raw C-ABI to JS (ptr, len, u64 packed results), mirroring the sql.js /
+# sqlite-wasm embedding pattern without pulling the wasm-bindgen glue toolchain.
+[dependencies]
+sqlite-leap = { path = "../../src-rust" }
+
+# Release profile tuned for a small wasm artifact. `panic = "abort"` drops the
+# unwinding machinery; `lto = "fat"` and `codegen-units = 1` let LLVM strip all
+# unreferenced code paths (the parent crate's bin-oriented code is rlib-gated
+# and dead-strips when we only reference `wasm::*`); `opt-level = "z"` trades
+# a small amount of speed for ~30-40% size shrink.
+#
+# Override with `CARGO_PROFILE_RELEASE_OPT_LEVEL=3` if speed matters more than
+# bytes.
+[profile.release]
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"

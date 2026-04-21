@@ -1,0 +1,42 @@
+{
+  "phase": "6bw-groupby-divergence",
+  "description": "Task #92 minimal reproducer — leap-rust/leap-c divergence on random/groupby/slt_good_11.test when SELECT DISTINCT contains an output alias whose name shadows an underlying column and HAVING references that name. Root cause: leap-c's DISTINCT-wrapping re-entered sl_compile and double-applied apply_alias_substitution, which for alias-shadowing-column cases collapses the HAVING ref back to the base column (i.e. alias-in-HAVING becomes a no-op under DISTINCT for shadowing names). leap-rust only substituted once. Fix: when `distinct` is set, rewrite_core_with_alias_scope now applies alias_refs_in_expr twice to HAVING, mirroring leap-c's accidental behaviour and matching mainline SQLite result. Fixture cases are also integrated into phase6aj.json so they run under the regular rust/c regression harness.",
+  "cases": [
+    {
+      "name": "distinct-having-alias-shadows-column",
+      "description": "Reproducer drawn directly from slt_good_11.test line ~13219. Pre-fix leap-rust returned [[-81]]; post-fix returns [] matching leap-c and mainline SQLite.",
+      "program": [
+        {"sql": "CREATE TABLE tab0 (col0 INTEGER, col1 INTEGER, col2 INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO tab0 VALUES (83, 0, 38), (26, 0, 79), (43, 81, 24);", "expect": {"rows": []}},
+        {"sql": "SELECT DISTINCT -col1 AS col1 FROM tab0 GROUP BY col2, col1 HAVING NOT AVG(DISTINCT -col2) <= (+col1);", "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "distinct-having-base-col-wins",
+      "description": "Minimal variant — `HAVING x > 0` with alias `-x AS x` under DISTINCT must compare the BASE x (positive), not the aliased -x.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (10), (20);", "expect": {"rows": []}},
+        {"sql": "SELECT DISTINCT -x AS x FROM t GROUP BY x HAVING x > 0 ORDER BY x;", "expect": {"rows": [[-20], [-10]]}}
+      ]
+    },
+    {
+      "name": "non-distinct-having-alias-still-wins",
+      "description": "Without DISTINCT, HAVING continues to resolve to the output alias. Confirms the DISTINCT-specific asymmetry.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (10), (20);", "expect": {"rows": []}},
+        {"sql": "SELECT -x AS x FROM t GROUP BY x HAVING x > 0;", "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "distinct-having-non-shadowing-alias-unaffected",
+      "description": "When the alias name does NOT collide with a base column, the double-substitute is a no-op and HAVING still resolves to the alias expression.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2), (3);", "expect": {"rows": []}},
+        {"sql": "SELECT DISTINCT -x AS neg FROM t GROUP BY x HAVING neg < -1 ORDER BY neg;", "expect": {"rows": [[-3], [-2]]}}
+      ]
+    }
+  ]
+}

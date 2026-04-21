@@ -1,0 +1,90 @@
+{
+  "phase": "6ay",
+  "description": "Phase 6ay gate — N-way JOINs (N>=3). Extends Phase 6e's 2-table limit. No new VDBE opcodes. max_invariant=43 unchanged. Naive nested-loop lowering, left-associative.",
+  "cases": [
+    {
+      "name": "three-way-inner-join",
+      "program": [
+        {"sql": "CREATE TABLE a (id INTEGER, v INTEGER);",                         "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (id INTEGER, w INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "CREATE TABLE c (id INTEGER, x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1, 10), (2, 20);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (1, 100), (2, 200);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO c VALUES (1, 1000), (2, 2000);",                        "expect": {"rows": []}},
+        {"sql": "SELECT a.v, b.w, c.x FROM a INNER JOIN b ON a.id = b.id INNER JOIN c ON b.id = c.id ORDER BY a.id;", "expect": {"rows": [[10, 100, 1000], [20, 200, 2000]]}}
+      ]
+    },
+    {
+      "name": "four-way-inner-join",
+      "program": [
+        {"sql": "CREATE TABLE a (id INTEGER);",                                      "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (id INTEGER);",                                      "expect": {"rows": []}},
+        {"sql": "CREATE TABLE c (id INTEGER);",                                      "expect": {"rows": []}},
+        {"sql": "CREATE TABLE d (id INTEGER);",                                      "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);",                                         "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (1);",                                         "expect": {"rows": []}},
+        {"sql": "INSERT INTO c VALUES (1);",                                         "expect": {"rows": []}},
+        {"sql": "INSERT INTO d VALUES (1);",                                         "expect": {"rows": []}},
+        {"sql": "SELECT a.id FROM a INNER JOIN b ON a.id=b.id INNER JOIN c ON b.id=c.id INNER JOIN d ON c.id=d.id;", "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "three-way-with-filter",
+      "program": [
+        {"sql": "CREATE TABLE a (id INTEGER, v INTEGER);",                           "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (id INTEGER);",                                       "expect": {"rows": []}},
+        {"sql": "CREATE TABLE c (id INTEGER);",                                       "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1, 100), (2, 200), (3, 300);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (1), (2);",                                      "expect": {"rows": []}},
+        {"sql": "INSERT INTO c VALUES (1);",                                           "expect": {"rows": []}},
+        {"sql": "SELECT a.v FROM a INNER JOIN b ON a.id=b.id INNER JOIN c ON b.id=c.id WHERE a.v > 50;", "expect": {"rows": [[100]]}}
+      ]
+    },
+    {
+      "name": "three-way-comma-cross",
+      "description": "FROM a, b, c with ON in WHERE — common older SQL style.",
+      "program": [
+        {"sql": "CREATE TABLE a (id INTEGER);",                                      "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (id INTEGER);",                                      "expect": {"rows": []}},
+        {"sql": "CREATE TABLE c (id INTEGER);",                                      "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);",                                         "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (1);",                                         "expect": {"rows": []}},
+        {"sql": "INSERT INTO c VALUES (1);",                                         "expect": {"rows": []}},
+        {"sql": "SELECT a.id FROM a, b, c WHERE a.id=b.id AND b.id=c.id;",           "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "three-way-left-join",
+      "program": [
+        {"sql": "CREATE TABLE a (id INTEGER);",                                      "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (id INTEGER);",                                      "expect": {"rows": []}},
+        {"sql": "CREATE TABLE c (id INTEGER);",                                      "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1), (2);",                                     "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (1);",                                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO c VALUES (1);",                                          "expect": {"rows": []}},
+        {"sql": "SELECT a.id, b.id, c.id FROM a LEFT JOIN b ON a.id=b.id LEFT JOIN c ON b.id=c.id ORDER BY a.id;", "expect": {"rows": [[1, 1, 1], [2, null, null]]}}
+      ]
+    },
+    {
+      "name": "self-join-three-copies",
+      "description": "Self-join same table three times via aliases — pattern used heavily in upstream select1..5.",
+      "program": [
+        {"sql": "CREATE TABLE t1 (a INTEGER, b INTEGER);",                           "expect": {"rows": []}},
+        {"sql": "INSERT INTO t1 VALUES (1, 10), (2, 20);",                            "expect": {"rows": []}},
+        {"sql": "SELECT x.a, y.a, z.a FROM t1 x, t1 y, t1 z WHERE x.a=1 AND y.a=1 AND z.a=2;", "expect": {"rows": [[1, 1, 2]]}}
+      ]
+    },
+    {
+      "name": "three-way-aggregation",
+      "program": [
+        {"sql": "CREATE TABLE orders (oid INTEGER, uid INTEGER, pid INTEGER);",     "expect": {"rows": []}},
+        {"sql": "CREATE TABLE users (uid INTEGER);",                                  "expect": {"rows": []}},
+        {"sql": "CREATE TABLE products (pid INTEGER, price INTEGER);",               "expect": {"rows": []}},
+        {"sql": "INSERT INTO orders VALUES (1,1,1), (2,1,2), (3,2,1);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO users VALUES (1), (2);",                                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO products VALUES (1, 10), (2, 20);",                      "expect": {"rows": []}},
+        {"sql": "SELECT SUM(p.price) FROM orders o INNER JOIN users u ON o.uid=u.uid INNER JOIN products p ON o.pid=p.pid;", "expect": {"rows": [[40]]}}
+      ]
+    }
+  ]
+}

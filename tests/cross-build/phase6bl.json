@@ -1,0 +1,64 @@
+{
+  "phase": "6bl",
+  "description": "Phase 6bl gate — WITH RECURSIVE CTE. Iterative fixed-point evaluation: anchor UNION ALL recursive-self-reference.",
+  "cases": [
+    {
+      "name": "recursive-count-to-five",
+      "description": "Classic counter: generate integers 1..5 via self-reference.",
+      "program": [
+        {"sql": "WITH RECURSIVE c(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM c WHERE n < 5) SELECT n FROM c ORDER BY n;", "expect": {"rows": [[1], [2], [3], [4], [5]]}}
+      ]
+    },
+    {
+      "name": "recursive-sum-via-cte",
+      "description": "Use the recursive CTE as a source for an aggregate.",
+      "program": [
+        {"sql": "WITH RECURSIVE c(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM c WHERE n < 10) SELECT SUM(n) FROM c;", "expect": {"rows": [[55]]}}
+      ]
+    },
+    {
+      "name": "recursive-tree-walk",
+      "description": "Parent-child traversal using a physical table.",
+      "program": [
+        {"sql": "CREATE TABLE edges (parent INTEGER, child INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO edges VALUES (1, 2), (1, 3), (2, 4), (3, 5), (4, 6);", "expect": {"rows": []}},
+        {"sql": "WITH RECURSIVE d(node) AS (SELECT 1 UNION ALL SELECT child FROM edges, d WHERE edges.parent = d.node) SELECT node FROM d ORDER BY node;", "expect": {"rows": [[1], [2], [3], [4], [5], [6]]}}
+      ]
+    },
+    {
+      "name": "recursive-without-explicit-keyword",
+      "description": "`WITH` without `RECURSIVE` still works if the CTE is self-referential — RECURSIVE is a hint, not a gate.",
+      "program": [
+        {"sql": "WITH c(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM c WHERE n < 3) SELECT n FROM c ORDER BY n;", "expect": {"rows": [[1], [2], [3]]}}
+      ]
+    },
+    {
+      "name": "recursive-union-dedup",
+      "description": "UNION (not UNION ALL) dedups ACC at each step — values are not re-appended.",
+      "program": [
+        {"sql": "WITH RECURSIVE c(n) AS (SELECT 1 UNION SELECT (n % 3) + 1 FROM c) SELECT n FROM c ORDER BY n;", "expect": {"rows": [[1], [2], [3]]}}
+      ]
+    },
+    {
+      "name": "recursive-arity-mismatch",
+      "description": "Anchor and recursive branch column counts must match.",
+      "program": [
+        {"sql": "WITH RECURSIVE c(a, b) AS (SELECT 1 UNION ALL SELECT n + 1 FROM c) SELECT * FROM c;", "expect": {"error": "COMPILE_RECURSIVE_CTE_ARITY_MISMATCH"}}
+      ]
+    },
+    {
+      "name": "recursive-with-column-list",
+      "description": "Explicit column-list overrides anchor projection names.",
+      "program": [
+        {"sql": "WITH RECURSIVE fib(i, a, b) AS (SELECT 1, 0, 1 UNION ALL SELECT i + 1, b, a + b FROM fib WHERE i < 6) SELECT i, a FROM fib ORDER BY i;", "expect": {"rows": [[1, 0], [2, 1], [3, 1], [4, 2], [5, 3], [6, 5]]}}
+      ]
+    },
+    {
+      "name": "recursive-depth-cap",
+      "description": "Iteration cap at 1000 — an always-non-empty recursive branch triggers the error.",
+      "program": [
+        {"sql": "WITH RECURSIVE c(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM c) SELECT n FROM c;", "expect": {"error": "RUNTIME_RECURSIVE_CTE_LIMIT"}}
+      ]
+    }
+  ]
+}

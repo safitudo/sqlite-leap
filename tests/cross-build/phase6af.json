@@ -1,0 +1,64 @@
+{
+  "phase": "6af",
+  "description": "Phase 6af gate — accept-and-ignore parenthesized type parameters in CREATE TABLE (VARCHAR(30), NUMERIC(10,2), etc.). No new VDBE opcodes. max_invariant=43 unchanged.",
+  "cases": [
+    {
+      "name": "varchar-with-length",
+      "program": [
+        {"sql": "CREATE TABLE t (a VARCHAR(30));",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('hello');",               "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t;",                               "expect": {"rows": [["hello"]]}}
+      ]
+    },
+    {
+      "name": "char-with-length",
+      "program": [
+        {"sql": "CREATE TABLE t (a CHAR(8));",                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('x');",                    "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t;",                               "expect": {"rows": [["x"]]}}
+      ]
+    },
+    {
+      "name": "numeric-with-precision-scale",
+      "program": [
+        {"sql": "CREATE TABLE t (a NUMERIC(10, 2));",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (42);",                     "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t;",                               "expect": {"rows": [[42]]}}
+      ]
+    },
+    {
+      "name": "decimal-with-precision",
+      "program": [
+        {"sql": "CREATE TABLE t (a DECIMAL(5));",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (7);",                      "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t;",                               "expect": {"rows": [[7]]}}
+      ]
+    },
+    {
+      "name": "mixed-types-in-table",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER PRIMARY KEY, name VARCHAR(40), price NUMERIC(10, 2));", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 'widget', 9.99);",      "expect": {"rows": []}},
+        {"sql": "SELECT id, name FROM t;",                         "expect": {"rows": [[1, "widget"]]}}
+      ]
+    },
+    {
+      "name": "empty-paren-rejected",
+      "program": [
+        {"sql": "CREATE TABLE t (a VARCHAR());", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN"}}}
+      ]
+    },
+    {
+      "name": "trailing-comma-rejected",
+      "program": [
+        {"sql": "CREATE TABLE t (a VARCHAR(30,));", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN"}}}
+      ]
+    },
+    {
+      "name": "non-integer-param-rejected",
+      "program": [
+        {"sql": "CREATE TABLE t (a VARCHAR('hello'));", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN"}}}
+      ]
+    }
+  ]
+}

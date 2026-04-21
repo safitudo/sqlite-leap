@@ -1,0 +1,180 @@
+{
+  "phase": "6r",
+  "description": "Phase 6r gate — Real→Text coercion via fixed 17-digit scientific notation. Algorithm per spec/sql-grammar.spec.md § 'Phase 6r (IMPLEMENTATION)'. Output always scientific (except 0.0 → '0.0'). Byte-identical cross-build. Lifts VDBE_UNSUPPORTED_CAST for Real→Text in CAST and in Concat (||). No new opcodes. max_invariant=42 unchanged. All prior phase fixtures must stay green.",
+  "cases": [
+    {
+      "name": "cast-zero-to-text",
+      "program": [
+        {"sql": "SELECT CAST(0.0 AS TEXT);",  "expect": {"rows": [["0.0"]]}}
+      ]
+    },
+    {
+      "name": "cast-negative-zero-to-text-collapses-to-positive",
+      "program": [
+        {"sql": "SELECT CAST(-0.0 AS TEXT);", "expect": {"rows": [["0.0"]]}}
+      ]
+    },
+    {
+      "name": "cast-one-to-text",
+      "program": [
+        {"sql": "SELECT CAST(1.0 AS TEXT);",  "expect": {"rows": [["1.0000000000000000e+00"]]}}
+      ]
+    },
+    {
+      "name": "cast-negative-one-to-text",
+      "program": [
+        {"sql": "SELECT CAST(-1.0 AS TEXT);", "expect": {"rows": [["-1.0000000000000000e+00"]]}}
+      ]
+    },
+    {
+      "name": "cast-two-to-text",
+      "program": [
+        {"sql": "SELECT CAST(2.0 AS TEXT);",  "expect": {"rows": [["2.0000000000000000e+00"]]}}
+      ]
+    },
+    {
+      "name": "cast-ten-to-text",
+      "program": [
+        {"sql": "SELECT CAST(10.0 AS TEXT);", "expect": {"rows": [["1.0000000000000000e+01"]]}}
+      ]
+    },
+    {
+      "name": "cast-hundred-to-text",
+      "program": [
+        {"sql": "SELECT CAST(100.0 AS TEXT);",  "expect": {"rows": [["1.0000000000000000e+02"]]}}
+      ]
+    },
+    {
+      "name": "cast-point-one-to-text",
+      "description": "f64 representation of 0.1 is 0.1000000000000000055511... so 17-digit rounds to 1.0000000000000001e-01.",
+      "program": [
+        {"sql": "SELECT CAST(0.1 AS TEXT);",  "expect": {"rows": [["1.0000000000000001e-01"]]}}
+      ]
+    },
+    {
+      "name": "cast-point-five-to-text",
+      "description": "0.5 is exactly representable in f64 → 5.0000000000000000e-01.",
+      "program": [
+        {"sql": "SELECT CAST(0.5 AS TEXT);",  "expect": {"rows": [["5.0000000000000000e-01"]]}}
+      ]
+    },
+    {
+      "name": "cast-three-fourteen-to-text",
+      "description": "3.14 in f64 is 3.14000000000000012... → rounds to 3.1400000000000001e+00 at 17 digits.",
+      "program": [
+        {"sql": "SELECT CAST(3.14 AS TEXT);", "expect": {"rows": [["3.1400000000000001e+00"]]}}
+      ]
+    },
+    {
+      "name": "cast-large-exp-positive",
+      "description": "1e100 is exactly representable for our purposes (f64 rep is 1.0000000000000000e+100 within 17-digit precision).",
+      "program": [
+        {"sql": "SELECT CAST(1e100 AS TEXT);", "expect": {"rows": [["1.0000000000000000e+100"]]}}
+      ]
+    },
+    {
+      "name": "cast-large-exp-negative",
+      "program": [
+        {"sql": "SELECT CAST(1e-100 AS TEXT);", "expect": {"rows": [["1.0000000000000000e-100"]]}}
+      ]
+    },
+    {
+      "name": "cast-avogadro-approx",
+      "description": "6.022e23 is NOT exactly representable in f64; the nearest f64 is 6.022000000000000272...e+23. Rounded to 17 significant digits this renders as 6.0220000000000003e+23.",
+      "program": [
+        {"sql": "SELECT CAST(6.022e23 AS TEXT);", "expect": {"rows": [["6.0220000000000003e+23"]]}}
+      ]
+    },
+    {
+      "name": "cast-integer-valued-real",
+      "description": "CAST(CAST(42 AS REAL) AS TEXT). Integer→Real→Text path.",
+      "program": [
+        {"sql": "SELECT CAST(CAST(42 AS REAL) AS TEXT);", "expect": {"rows": [["4.2000000000000000e+01"]]}}
+      ]
+    },
+    {
+      "name": "cast-real-in-column-context",
+      "program": [
+        {"sql": "CREATE TABLE t (x REAL);",                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3.14);",               "expect": {"rows": []}},
+        {"sql": "SELECT CAST(x AS TEXT) FROM t;",             "expect": {"rows": [["3.1400000000000001e+00"]]}}
+      ]
+    },
+    {
+      "name": "concat-real-with-text",
+      "description": "String concat coerces Real to Text via same algorithm.",
+      "program": [
+        {"sql": "SELECT 'val=' || CAST(1.5 AS REAL);",        "expect": {"rows": [["val=1.5000000000000000e+00"]]}}
+      ]
+    },
+    {
+      "name": "concat-text-with-real",
+      "program": [
+        {"sql": "SELECT CAST(2.5 AS REAL) || ' units';",      "expect": {"rows": [["2.5000000000000000e+00 units"]]}}
+      ]
+    },
+    {
+      "name": "real-to-text-in-where-clause",
+      "program": [
+        {"sql": "CREATE TABLE t (x REAL);",                              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1.0);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2.0);",                            "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE CAST(x AS TEXT) = '1.0000000000000000e+00';", "expect": {"rows": [[1.0]]}}
+      ]
+    },
+    {
+      "name": "cast-inf-raises-overflow",
+      "description": "+Inf can occur from division-by-zero or from large products; v1 rejects cast of Inf.",
+      "program": [
+        {"sql": "SELECT CAST(1e308 * 10.0 AS TEXT);", "expect": {"error": {"name": "VDBE_CAST_OVERFLOW"}}}
+      ]
+    },
+    {
+      "name": "cast-real-sum-via-aggregate",
+      "program": [
+        {"sql": "CREATE TABLE t (x REAL);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1.0);",                        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2.0);",                        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3.0);",                        "expect": {"rows": []}},
+        {"sql": "SELECT CAST(SUM(x) AS TEXT) FROM t;",                "expect": {"rows": [["6.0000000000000000e+00"]]}}
+      ]
+    },
+    {
+      "name": "cast-real-avg",
+      "description": "AVG of 1,2,3 = 2.0 exactly.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                    "expect": {"rows": []}},
+        {"sql": "SELECT CAST(AVG(x) AS TEXT) FROM t;",          "expect": {"rows": [["2.0000000000000000e+00"]]}}
+      ]
+    },
+    {
+      "name": "cast-small-integer-real",
+      "program": [
+        {"sql": "SELECT CAST(CAST(5 AS REAL) AS TEXT);", "expect": {"rows": [["5.0000000000000000e+00"]]}}
+      ]
+    },
+    {
+      "name": "cast-large-integer-valued-real",
+      "description": "1e15 is exactly representable as f64 integer.",
+      "program": [
+        {"sql": "SELECT CAST(1e15 AS TEXT);", "expect": {"rows": [["1.0000000000000000e+15"]]}}
+      ]
+    },
+    {
+      "name": "cast-sub-nanosecond-small-real",
+      "description": "1e-9 is NOT exactly representable in f64; the nearest f64 is 1.000000000000000062...e-9. Rounded to 17 significant digits this renders as 1.0000000000000001e-09.",
+      "program": [
+        {"sql": "SELECT CAST(1e-9 AS TEXT);", "expect": {"rows": [["1.0000000000000001e-09"]]}}
+      ]
+    },
+    {
+      "name": "cast-negative-small-real",
+      "program": [
+        {"sql": "SELECT CAST(-0.0001 AS TEXT);", "expect": {"rows": [["-1.0000000000000000e-04"]]}}
+      ]
+    }
+  ]
+}

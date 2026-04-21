@@ -1,0 +1,76 @@
+{
+  "phase": "6aw",
+  "description": "Phase 6aw gate — PRAGMA core subset. Read-only introspection PRAGMAs: table_info, index_list, index_info, page_size, page_count, application_id, user_version, foreign_keys (accept+ignore).",
+  "cases": [
+    {
+      "name": "pragma-table-info-basic",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT, score REAL);", "expect": {"rows": []}},
+        {"sql": "PRAGMA table_info(t);", "expect": {"rows": [[0, "id", "INTEGER", 0, null, 1], [1, "name", "TEXT", 0, null, 0], [2, "score", "REAL", 0, null, 0]]}}
+      ]
+    },
+    {
+      "name": "pragma-table-info-with-not-null-default",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER NOT NULL, b TEXT DEFAULT 'x');", "expect": {"rows": []}},
+        {"sql": "PRAGMA table_info(t);", "expect": {"rows": [[0, "a", "INTEGER", 1, null, 0], [1, "b", "TEXT", 0, "'x'", 0]]}}
+      ]
+    },
+    {
+      "name": "pragma-table-info-unknown-table",
+      "description": "PRAGMA table_info on a missing table returns 0 rows (SQLite behavior, not an error).",
+      "program": [
+        {"sql": "PRAGMA table_info(does_not_exist);", "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "pragma-index-list-and-info",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_a ON t (a);", "expect": {"rows": []}},
+        {"sql": "CREATE UNIQUE INDEX idx_b ON t (b);", "expect": {"rows": []}},
+        {"sql": "PRAGMA index_list(t);", "expect": {"rows": [[0, "idx_b", 1, "c", 0], [1, "idx_a", 0, "c", 0]]}},
+        {"sql": "PRAGMA index_info(idx_a);", "expect": {"rows": [[0, 0, "a"]]}}
+      ]
+    },
+    {
+      "name": "pragma-page-size-read",
+      "program": [
+        {"sql": "PRAGMA page_size;", "expect": {"rows": [[4096]]}}
+      ]
+    },
+    {
+      "name": "pragma-application-id-read-write",
+      "program": [
+        {"sql": "PRAGMA application_id;",            "expect": {"rows": [[0]]}},
+        {"sql": "PRAGMA application_id = 42;",       "expect": {"rows": []}},
+        {"sql": "PRAGMA application_id;",            "expect": {"rows": [[42]]}}
+      ]
+    },
+    {
+      "name": "pragma-user-version-read-write",
+      "program": [
+        {"sql": "PRAGMA user_version;",              "expect": {"rows": [[0]]}},
+        {"sql": "PRAGMA user_version = 7;",          "expect": {"rows": []}},
+        {"sql": "PRAGMA user_version;",              "expect": {"rows": [[7]]}}
+      ]
+    },
+    {
+      "name": "pragma-foreign-keys-accept-ignore",
+      "description": "PRAGMA foreign_keys accepted but is a no-op (FKs out of scope in v1).",
+      "program": [
+        {"sql": "PRAGMA foreign_keys = 1;",          "expect": {"rows": []}},
+        {"sql": "PRAGMA foreign_keys = 0;",          "expect": {"rows": []}},
+        {"sql": "PRAGMA foreign_keys;",              "expect": {"rows": [[0]]}}
+      ]
+    },
+    {
+      "name": "pragma-unknown-name-graceful",
+      "description": "Unknown PRAGMA is a silent no-op (SQLite behavior — returns 0 rows, no error).",
+      "program": [
+        {"sql": "PRAGMA some_unknown_pragma;",         "expect": {"rows": []}},
+        {"sql": "PRAGMA some_unknown_pragma = 1;",     "expect": {"rows": []}}
+      ]
+    }
+  ]
+}

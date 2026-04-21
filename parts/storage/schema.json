@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Storage part API",
+  "description": "Abstract API of the storage part. Each language target maps this to idiomatic syntax, representing the 'handle' as its idiomatic mutable reference type.",
+  "part": "storage",
+  "entries": [
+    {
+      "name": "create_database",
+      "inputs": [],
+      "outputs": {
+        "success": {"type": "handle", "description": "fresh, empty Database handle (target-defined representation). Phase 3a: equivalent to create_memory_database(); retained as an alias for pre-3a tests."},
+        "errors": []
+      }
+    },
+    {
+      "name": "create_memory_database",
+      "inputs": [],
+      "outputs": {
+        "success": {"type": "handle", "description": "Phase 3a: fresh in-memory Database handle. Same semantics as create_database."},
+        "errors": []
+      }
+    },
+    {
+      "name": "open_database",
+      "inputs": [
+        {"name": "path", "type": "string", "description": "filesystem path to a .db file; if the file does not exist, it is created with an empty SQLite-compatible 4096-byte page"}
+      ],
+      "outputs": {
+        "success": {"type": "handle", "description": "Phase 3a: on-disk Database handle"},
+        "errors": [
+          {"name": "STORAGE_FILE_IO",              "fields": {"path": {"type": "string"}, "operation": {"type": "string", "enum": ["open", "read", "write", "sync", "close"]}}},
+          {"name": "STORAGE_CORRUPT_HEADER",       "fields": {"path": {"type": "string"}, "field": {"type": "string"}, "expected": {}, "got": {}}},
+          {"name": "STORAGE_UNSUPPORTED_FEATURE",  "fields": {"path": {"type": "string"}, "feature": {"type": "string"}}}
+        ]
+      }
+    },
+    {
+      "name": "close_database",
+      "inputs": [
+        {"name": "handle", "type": "handle"}
+      ],
+      "outputs": {
+        "success": {"type": "void"},
+        "errors": [
+          {"name": "STORAGE_FILE_IO", "fields": {"path": {"type": "string"}, "operation": {"type": "string"}}}
+        ]
+      },
+      "note": "Phase 3a. Flushes dirty pages to disk (on-disk backend) and releases the handle. No-op on in-memory backend. Called by test harness at end of case."
+    },
+    {
+      "name": "create_table",
+      "inputs": [
+        {"name": "handle", "type": "handle"},
+        {"name": "name", "type": "string"},
+        {"name": "columns", "type": "array", "itemsShape": {"name": {"type": "string"}, "type": {"enum": ["INTEGER", "TEXT"]}}}
+      ],
+      "outputs": {
+        "success": {"type": "void"},
+        "errors": [
+          {"name": "STORAGE_TABLE_EXISTS",    "fields": {"table": {"type": "string"}}},
+          {"name": "STORAGE_DUPLICATE_COLUMN","fields": {"table": {"type": "string"}, "column": {"type": "string"}}}
+        ]
+      }
+    },
+    {
+      "name": "insert_row",
+      "inputs": [
+        {"name": "handle", "type": "handle"},
+        {"name": "table_name", "type": "string"},
+        {"name": "column_names", "type": "nullable-array", "itemsType": "string"},
+        {"name": "values", "type": "array", "itemsRef": "../../schema/value.schema.json"}
+      ],
+      "outputs": {
+        "success": {"type": "void"},
+        "errors": [
+          {"name": "STORAGE_TABLE_NOT_FOUND",  "fields": {"table": {"type": "string"}}},
+          {"name": "STORAGE_COLUMN_NOT_FOUND", "fields": {"table": {"type": "string"}, "column": {"type": "string"}}},
+          {"name": "STORAGE_DUPLICATE_COLUMN", "fields": {"table": {"type": "string"}, "column": {"type": "string"}}},
+          {"name": "STORAGE_ARITY_MISMATCH",   "fields": {"table": {"type": "string"}, "expected": {"type": "integer"}, "got": {"type": "integer"}}},
+          {"name": "STORAGE_TYPE_MISMATCH",    "fields": {"table": {"type": "string"}, "column": {"type": "string"}, "expected_type": {"enum": ["INTEGER", "TEXT"]}, "got_type": {"enum": ["INTEGER", "TEXT"]}}}
+        ]
+      }
+    },
+    {
+      "name": "select_all",
+      "inputs": [
+        {"name": "handle", "type": "handle"},
+        {"name": "table_name", "type": "string"}
+      ],
+      "outputs": {
+        "success": {"type": "array", "itemsType": "array", "itemsRef": "../../schema/value.schema.json"},
+        "errors": [
+          {"name": "STORAGE_TABLE_NOT_FOUND", "fields": {"table": {"type": "string"}}}
+        ]
+      }
+    },
+    {
+      "name": "select_columns",
+      "inputs": [
+        {"name": "handle", "type": "handle"},
+        {"name": "table_name", "type": "string"},
+        {"name": "column_names", "type": "array", "itemsType": "string"}
+      ],
+      "outputs": {
+        "success": {"type": "array", "itemsType": "array", "itemsRef": "../../schema/value.schema.json"},
+        "errors": [
+          {"name": "STORAGE_TABLE_NOT_FOUND",  "fields": {"table": {"type": "string"}}},
+          {"name": "STORAGE_COLUMN_NOT_FOUND", "fields": {"table": {"type": "string"}, "column": {"type": "string"}}}
+        ]
+      }
+    },
+    {
+      "name": "update_row_at_cursor",
+      "inputs": [
+        {"name": "handle",       "type": "handle"},
+        {"name": "cursor",       "type": "handle", "description": "a write cursor currently positioned on a live row"},
+        {"name": "column_names", "type": "array", "itemsType": "string", "minItems": 1},
+        {"name": "values",       "type": "array", "itemsRef": "../../schema/value.schema.json", "minItems": 1}
+      ],
+      "outputs": {
+        "success": {"type": "void"},
+        "errors": [
+          {"name": "STORAGE_COLUMN_NOT_FOUND", "fields": {"table": {"type": "string"}, "column": {"type": "string"}}},
+          {"name": "STORAGE_DUPLICATE_COLUMN", "fields": {"table": {"type": "string"}, "column": {"type": "string"}}},
+          {"name": "STORAGE_TYPE_MISMATCH",    "fields": {"table": {"type": "string"}, "column": {"type": "string"}, "expected_type": {"enum": ["INTEGER", "TEXT"]}, "got_type": {"enum": ["INTEGER", "TEXT"]}}}
+        ]
+      },
+      "note": "Phase 2c-3. Mutates the Row at the cursor's current position. |values| must equal |column_names|. Columns not listed retain existing values. NULL Values are universally accepted."
+    },
+    {
+      "name": "delete_row_at_cursor",
+      "inputs": [
+        {"name": "handle", "type": "handle"},
+        {"name": "cursor", "type": "handle", "description": "a write cursor currently positioned on a live row"}
+      ],
+      "outputs": {
+        "success": {"type": "void"},
+        "errors": []
+      },
+      "note": "Phase 2c-3. Marks the Row at the cursor's current position as tombstoned. Subsequent queries skip it. The cursor's Next advances past it to the next live row."
+    }
+  ]
+}

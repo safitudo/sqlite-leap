@@ -1,0 +1,299 @@
+{
+  "phase": "6i",
+  "description": "Phase 6i gate — CAST expression. CAST(expr AS type) for Integer/Real/Text and their aliases (FLOAT, DOUBLE, VARCHAR). Reserved keywords CAST and AS. Real->Text deferred to 6j (raises VDBE_UNSUPPORTED_CAST). VDBE_CAST_OVERFLOW for numeric out-of-range. All phase1..6h fixtures must stay green.",
+  "cases": [
+    {
+      "name": "cast-integer-literal-to-integer",
+      "program": [
+        {"sql": "SELECT CAST(5 AS INTEGER);", "expect": {"rows": [[5]]}}
+      ]
+    },
+    {
+      "name": "cast-integer-literal-to-real",
+      "program": [
+        {"sql": "SELECT CAST(5 AS REAL);", "expect": {"rows": [[5.0]]}}
+      ]
+    },
+    {
+      "name": "cast-integer-literal-to-text",
+      "program": [
+        {"sql": "SELECT CAST(42 AS TEXT);", "expect": {"rows": [["42"]]}}
+      ]
+    },
+    {
+      "name": "cast-negative-integer-to-text",
+      "program": [
+        {"sql": "SELECT CAST(0 - 5 AS TEXT);", "expect": {"rows": [["-5"]]}}
+      ]
+    },
+    {
+      "name": "cast-zero-integer-to-text",
+      "program": [
+        {"sql": "SELECT CAST(0 AS TEXT);", "expect": {"rows": [["0"]]}}
+      ]
+    },
+    {
+      "name": "cast-real-to-integer-trunc-positive",
+      "program": [
+        {"sql": "SELECT CAST(3.7 AS INTEGER);", "expect": {"rows": [[3]]}}
+      ]
+    },
+    {
+      "name": "cast-real-to-integer-trunc-negative-toward-zero",
+      "description": "-3.7 truncates toward zero -> -3 (not -4).",
+      "program": [
+        {"sql": "SELECT CAST(0 - 3.7 AS INTEGER);", "expect": {"rows": [[-3]]}}
+      ]
+    },
+    {
+      "name": "cast-real-to-real-identity",
+      "program": [
+        {"sql": "SELECT CAST(3.14 AS REAL);", "expect": {"rows": [[3.14]]}}
+      ]
+    },
+    {
+      "name": "cast-real-to-text-unsupported-runtime",
+      "description": "Phase 6r lifted the Real→Text UNSUPPORTED_CAST restriction; CAST(real AS TEXT) now emits fixed 17-digit scientific notation. Fixture retained under its original name to pin the post-6r behavior.",
+      "program": [
+        {"sql": "SELECT CAST(3.14 AS TEXT);", "expect": {"rows": [["3.1400000000000001e+00"]]}}
+      ]
+    },
+    {
+      "name": "cast-text-to-integer-exact-digits",
+      "program": [
+        {"sql": "SELECT CAST('42' AS INTEGER);", "expect": {"rows": [[42]]}}
+      ]
+    },
+    {
+      "name": "cast-text-to-integer-prefix",
+      "description": "Longest-valid-prefix parse — '42abc' yields 42.",
+      "program": [
+        {"sql": "SELECT CAST('42abc' AS INTEGER);", "expect": {"rows": [[42]]}}
+      ]
+    },
+    {
+      "name": "cast-text-to-integer-empty-string-yields-zero",
+      "program": [
+        {"sql": "SELECT CAST('' AS INTEGER);", "expect": {"rows": [[0]]}}
+      ]
+    },
+    {
+      "name": "cast-text-to-integer-only-letters-yields-zero",
+      "program": [
+        {"sql": "SELECT CAST('hello' AS INTEGER);", "expect": {"rows": [[0]]}}
+      ]
+    },
+    {
+      "name": "cast-text-to-integer-negative",
+      "program": [
+        {"sql": "SELECT CAST('-7' AS INTEGER);", "expect": {"rows": [[-7]]}}
+      ]
+    },
+    {
+      "name": "cast-text-to-integer-explicit-plus",
+      "program": [
+        {"sql": "SELECT CAST('+7' AS INTEGER);", "expect": {"rows": [[7]]}}
+      ]
+    },
+    {
+      "name": "cast-text-to-integer-whitespace-not-trimmed",
+      "description": "Leading whitespace is NOT trimmed; '  42' has zero valid prefix digits -> 0.",
+      "program": [
+        {"sql": "SELECT CAST('  42' AS INTEGER);", "expect": {"rows": [[0]]}}
+      ]
+    },
+    {
+      "name": "cast-text-to-integer-overflow",
+      "program": [
+        {"sql": "SELECT CAST('99999999999999999999' AS INTEGER);", "expect": {"error": {"name": "VDBE_CAST_OVERFLOW", "fields": {"from_kind": "Text", "to_kind": "Integer"}}}}
+      ]
+    },
+    {
+      "name": "cast-text-to-real-simple",
+      "program": [
+        {"sql": "SELECT CAST('3.14' AS REAL);", "expect": {"rows": [[3.14]]}}
+      ]
+    },
+    {
+      "name": "cast-text-to-real-exponent",
+      "program": [
+        {"sql": "SELECT CAST('1e2' AS REAL);", "expect": {"rows": [[100.0]]}}
+      ]
+    },
+    {
+      "name": "cast-text-to-real-prefix",
+      "description": "Longest-valid-prefix — '3.14xyz' yields 3.14.",
+      "program": [
+        {"sql": "SELECT CAST('3.14xyz' AS REAL);", "expect": {"rows": [[3.14]]}}
+      ]
+    },
+    {
+      "name": "cast-text-to-real-empty-yields-zero",
+      "program": [
+        {"sql": "SELECT CAST('' AS REAL);", "expect": {"rows": [[0.0]]}}
+      ]
+    },
+    {
+      "name": "cast-text-to-real-only-letters-yields-zero",
+      "program": [
+        {"sql": "SELECT CAST('abc' AS REAL);", "expect": {"rows": [[0.0]]}}
+      ]
+    },
+    {
+      "name": "cast-text-to-real-negative",
+      "program": [
+        {"sql": "SELECT CAST('-2.5' AS REAL);", "expect": {"rows": [[-2.5]]}}
+      ]
+    },
+    {
+      "name": "cast-text-to-text-identity",
+      "program": [
+        {"sql": "SELECT CAST('hello' AS TEXT);", "expect": {"rows": [["hello"]]}}
+      ]
+    },
+    {
+      "name": "cast-null-to-integer",
+      "program": [
+        {"sql": "SELECT CAST(NULL AS INTEGER);", "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "cast-null-to-real",
+      "program": [
+        {"sql": "SELECT CAST(NULL AS REAL);", "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "cast-null-to-text",
+      "description": "Null propagates through CAST(... AS TEXT); does NOT raise VDBE_UNSUPPORTED_CAST (that's only for Real inputs).",
+      "program": [
+        {"sql": "SELECT CAST(NULL AS TEXT);", "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "cast-alias-float",
+      "description": "FLOAT is an alias for REAL in cast-type.",
+      "program": [
+        {"sql": "SELECT CAST(5 AS FLOAT);", "expect": {"rows": [[5.0]]}}
+      ]
+    },
+    {
+      "name": "cast-alias-double",
+      "program": [
+        {"sql": "SELECT CAST(5 AS DOUBLE);", "expect": {"rows": [[5.0]]}}
+      ]
+    },
+    {
+      "name": "cast-alias-varchar",
+      "description": "VARCHAR is an alias for TEXT in cast-type.",
+      "program": [
+        {"sql": "SELECT CAST(42 AS VARCHAR);", "expect": {"rows": [["42"]]}}
+      ]
+    },
+    {
+      "name": "cast-in-where",
+      "program": [
+        {"sql": "CREATE TABLE t (x TEXT);",                             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('1');",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('5');",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('10');",                         "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE CAST(x AS INTEGER) > 2;",        "expect": {"rows": [["5"], ["10"]]}}
+      ]
+    },
+    {
+      "name": "cast-in-order-by",
+      "program": [
+        {"sql": "CREATE TABLE t (s TEXT);",                             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('3');",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('1');",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('2');",                          "expect": {"rows": []}},
+        {"sql": "SELECT s FROM t ORDER BY CAST(s AS INTEGER);",         "expect": {"rows": [["1"], ["2"], ["3"]]}}
+      ]
+    },
+    {
+      "name": "cast-in-sum-aggregate",
+      "program": [
+        {"sql": "CREATE TABLE t (s TEXT);",                             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('10');",                         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('20');",                         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('30');",                         "expect": {"rows": []}},
+        {"sql": "SELECT SUM(CAST(s AS INTEGER)) FROM t;",               "expect": {"rows": [[60]]}}
+      ]
+    },
+    {
+      "name": "cast-nested-real-to-integer-to-text",
+      "program": [
+        {"sql": "SELECT CAST(CAST(3.7 AS INTEGER) AS TEXT);",           "expect": {"rows": [["3"]]}}
+      ]
+    },
+    {
+      "name": "cast-keyword-cast-reserved-as-identifier",
+      "program": [
+        {"sql": "CREATE TABLE t (cast INTEGER);",                       "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "KEYWORD_CAST"}}}}
+      ]
+    },
+    {
+      "name": "cast-keyword-as-reserved-as-identifier",
+      "program": [
+        {"sql": "CREATE TABLE t (as INTEGER);",                         "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "KEYWORD_AS"}}}}
+      ]
+    },
+    {
+      "name": "cast-missing-as-keyword-parse-error",
+      "program": [
+        {"sql": "SELECT CAST(5 INTEGER);",                              "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN"}}}
+      ]
+    },
+    {
+      "name": "cast-unknown-type-parse-error",
+      "description": "Phase 6bn widens the cast-type slot to any IDENTIFIER; a previously-invented BOGUS identifier now resolves to NUMERIC affinity. A non-identifier / non-keyword-type token still fails to parse — here a string literal in the type slot.",
+      "program": [
+        {"sql": "SELECT CAST(5 AS 'BOGUS');",                           "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN"}}}
+      ]
+    },
+    {
+      "name": "cast-case-insensitive-cast-keyword",
+      "program": [
+        {"sql": "SELECT cast(42 as integer);",                          "expect": {"rows": [[42]]}}
+      ]
+    },
+    {
+      "name": "cast-case-insensitive-mixed",
+      "program": [
+        {"sql": "SELECT Cast(5 As Real);",                              "expect": {"rows": [[5.0]]}}
+      ]
+    },
+    {
+      "name": "cast-real-arithmetic-result-to-integer",
+      "description": "CAST of a Real-typed runtime expression result (from arithmetic promotion).",
+      "program": [
+        {"sql": "SELECT CAST(7 / 2.0 AS INTEGER);",                     "expect": {"rows": [[3]]}}
+      ]
+    },
+    {
+      "name": "cast-integer-arithmetic-result-to-real",
+      "program": [
+        {"sql": "SELECT CAST(7 / 2 AS REAL);",                          "expect": {"rows": [[3.0]]}}
+      ]
+    },
+    {
+      "name": "cast-column-ref-integer-to-real",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (10);",                           "expect": {"rows": []}},
+        {"sql": "SELECT CAST(x AS REAL) FROM t;",                       "expect": {"rows": [[5.0], [10.0]]}}
+      ]
+    },
+    {
+      "name": "cast-column-ref-real-to-integer",
+      "program": [
+        {"sql": "CREATE TABLE t (x REAL);",                             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1.9);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2.5);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3.1);",                          "expect": {"rows": []}},
+        {"sql": "SELECT CAST(x AS INTEGER) FROM t;",                    "expect": {"rows": [[1], [2], [3]]}}
+      ]
+    }
+  ]
+}

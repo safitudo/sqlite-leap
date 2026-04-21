@@ -1,0 +1,149 @@
+{
+  "phase": "6h",
+  "description": "Phase 6h gate — AVG aggregate function. Always returns Real; NULL on empty or all-NULL input; skips NULL inputs; rejects TEXT inputs; composes with WHERE / GROUP BY / HAVING / ORDER BY. All phase1..6g fixtures must stay green.",
+  "cases": [
+    {
+      "name": "avg-basic-integers",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                "expect": {"rows": []}},
+        {"sql": "SELECT AVG(x) FROM t;",                    "expect": {"rows": [[2.0]]}}
+      ]
+    },
+    {
+      "name": "avg-integers-non-integer-result",
+      "description": "AVG always returns Real — 1+2=3, 3/2 = 1.5.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                "expect": {"rows": []}},
+        {"sql": "SELECT AVG(x) FROM t;",                    "expect": {"rows": [[1.5]]}}
+      ]
+    },
+    {
+      "name": "avg-reals",
+      "program": [
+        {"sql": "CREATE TABLE t (x REAL);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1.5);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2.5);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (4.0);",              "expect": {"rows": []}},
+        {"sql": "SELECT AVG(x) FROM t;",                    "expect": {"rows": [[2.6666666666666665]]}}
+      ]
+    },
+    {
+      "name": "avg-empty-returns-null",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",              "expect": {"rows": []}},
+        {"sql": "SELECT AVG(x) FROM t;",                    "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "avg-all-null-returns-null",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL);",             "expect": {"rows": []}},
+        {"sql": "SELECT AVG(x) FROM t;",                    "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "avg-skips-nulls",
+      "description": "AVG(1, NULL, 2, NULL, 3) = (1+2+3)/3 = 2.0.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                "expect": {"rows": []}},
+        {"sql": "SELECT AVG(x) FROM t;",                    "expect": {"rows": [[2.0]]}}
+      ]
+    },
+    {
+      "name": "avg-with-where",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (10);",               "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (20);",               "expect": {"rows": []}},
+        {"sql": "SELECT AVG(x) FROM t WHERE x > 2;",        "expect": {"rows": [[11.0]]}}
+      ]
+    },
+    {
+      "name": "avg-with-group-by",
+      "program": [
+        {"sql": "CREATE TABLE t (k INTEGER, v INTEGER);",                               "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);",                                        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 20);",                                        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 5);",                                         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 15);",                                        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 25);",                                        "expect": {"rows": []}},
+        {"sql": "SELECT k, AVG(v) FROM t GROUP BY k ORDER BY k;",                       "expect": {"rows": [[1, 15.0], [2, 15.0]]}}
+      ]
+    },
+    {
+      "name": "avg-with-group-by-and-having",
+      "program": [
+        {"sql": "CREATE TABLE t (k INTEGER, v INTEGER);",                                        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);",                                                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 20);",                                                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 5);",                                                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 15);",                                                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3, 100);",                                                "expect": {"rows": []}},
+        {"sql": "SELECT k, AVG(v) FROM t GROUP BY k HAVING AVG(v) >= 15 ORDER BY k;",            "expect": {"rows": [[1, 15.0], [3, 100.0]]}}
+      ]
+    },
+    {
+      "name": "avg-mixed-int-real",
+      "description": "AVG of (1, 2.0, 3) = (1+2+3)/3 = 2.0 Real.",
+      "program": [
+        {"sql": "CREATE TABLE t (x REAL);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2.0);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                "expect": {"rows": []}},
+        {"sql": "SELECT AVG(x) FROM t;",                    "expect": {"rows": [[2.0]]}}
+      ]
+    },
+    {
+      "name": "avg-text-type-mismatch",
+      "program": [
+        {"sql": "CREATE TABLE t (s TEXT);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('hello');",          "expect": {"rows": []}},
+        {"sql": "SELECT AVG(s) FROM t;",                    "expect": {"error": {"name": "VDBE_TYPE_MISMATCH", "fields": {"operation": "avg"}}}}
+      ]
+    },
+    {
+      "name": "avg-star-rejected",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",              "expect": {"rows": []}},
+        {"sql": "SELECT AVG(*) FROM t;",                    "expect": {"error": {"name": "COMPILE_AGGREGATE_ARG_MISMATCH", "fields": {"function": "AVG", "reason": "star-only-for-count"}}}}
+      ]
+    },
+    {
+      "name": "avg-case-insensitive",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (4);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (6);",                "expect": {"rows": []}},
+        {"sql": "SELECT Avg(x), avg(x), AVG(x) FROM t;",    "expect": {"rows": [[4.0, 4.0, 4.0]]}}
+      ]
+    },
+    {
+      "name": "avg-with-other-aggregates",
+      "description": "Multi-aggregate projection mixing AVG with COUNT/SUM/MIN/MAX.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (4);",                                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (6);",                                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (8);",                                  "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(*), SUM(x), AVG(x), MIN(x), MAX(x) FROM t;",    "expect": {"rows": [[4, 20, 5.0, 2, 8]]}}
+      ]
+    }
+  ]
+}

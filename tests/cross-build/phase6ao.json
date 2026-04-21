@@ -1,0 +1,126 @@
+{
+  "phase": "6ao",
+  "description": "Phase 6ao gate — scalar functions SUBSTR, REPLACE, INSTR, ROUND. Byte-level string semantics (matches SQLite).",
+  "cases": [
+    {
+      "name": "substr-basic",
+      "program": [
+        {"sql": "SELECT SUBSTR('hello world', 1, 5);", "expect": {"rows": [["hello"]]}},
+        {"sql": "SELECT SUBSTR('hello world', 7, 5);", "expect": {"rows": [["world"]]}},
+        {"sql": "SELECT SUBSTR('hello world', 7);",    "expect": {"rows": [["world"]]}}
+      ]
+    },
+    {
+      "name": "substr-negative-start",
+      "description": "Negative start indexes from end (SQLite: -1 = last byte).",
+      "program": [
+        {"sql": "SELECT SUBSTR('hello', -3);",    "expect": {"rows": [["llo"]]}},
+        {"sql": "SELECT SUBSTR('hello', -3, 2);", "expect": {"rows": [["ll"]]}}
+      ]
+    },
+    {
+      "name": "substr-null-propagates",
+      "program": [
+        {"sql": "SELECT SUBSTR(NULL, 1, 3);",       "expect": {"rows": [[null]]}},
+        {"sql": "SELECT SUBSTR('hello', NULL, 3);", "expect": {"rows": [[null]]}},
+        {"sql": "SELECT SUBSTR('hello', 1, NULL);", "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "substr-out-of-range",
+      "description": "start past end of string returns empty string; length past end returns truncated.",
+      "program": [
+        {"sql": "SELECT SUBSTR('hello', 10, 3);", "expect": {"rows": [[""]]}},
+        {"sql": "SELECT SUBSTR('hello', 3, 100);", "expect": {"rows": [["llo"]]}}
+      ]
+    },
+    {
+      "name": "replace-basic",
+      "program": [
+        {"sql": "SELECT REPLACE('hello world', 'world', 'SQL');", "expect": {"rows": [["hello SQL"]]}},
+        {"sql": "SELECT REPLACE('aaaa', 'a', 'bb');",              "expect": {"rows": [["bbbbbbbb"]]}},
+        {"sql": "SELECT REPLACE('abc', 'x', 'y');",                "expect": {"rows": [["abc"]]}}
+      ]
+    },
+    {
+      "name": "replace-empty-from",
+      "description": "Empty 'from' returns s unchanged (matches SQLite).",
+      "program": [
+        {"sql": "SELECT REPLACE('abc', '', 'x');", "expect": {"rows": [["abc"]]}}
+      ]
+    },
+    {
+      "name": "replace-null-propagates",
+      "program": [
+        {"sql": "SELECT REPLACE(NULL, 'a', 'b');",     "expect": {"rows": [[null]]}},
+        {"sql": "SELECT REPLACE('abc', NULL, 'b');",   "expect": {"rows": [[null]]}},
+        {"sql": "SELECT REPLACE('abc', 'a', NULL);",   "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "instr-basic",
+      "description": "1-based index of first occurrence; 0 if not found.",
+      "program": [
+        {"sql": "SELECT INSTR('hello world', 'world');", "expect": {"rows": [[7]]}},
+        {"sql": "SELECT INSTR('hello world', 'hello');", "expect": {"rows": [[1]]}},
+        {"sql": "SELECT INSTR('hello world', 'xyz');",   "expect": {"rows": [[0]]}}
+      ]
+    },
+    {
+      "name": "instr-null-propagates",
+      "program": [
+        {"sql": "SELECT INSTR(NULL, 'x');",      "expect": {"rows": [[null]]}},
+        {"sql": "SELECT INSTR('abc', NULL);",    "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "round-default-digits",
+      "description": "ROUND with no second arg rounds to 0 decimal places.",
+      "program": [
+        {"sql": "SELECT ROUND(3.14);",   "expect": {"rows": [[3.0]]}},
+        {"sql": "SELECT ROUND(3.7);",    "expect": {"rows": [[4.0]]}},
+        {"sql": "SELECT ROUND(2.5);",    "expect": {"rows": [[3.0]]}},
+        {"sql": "SELECT ROUND(-2.5);",   "expect": {"rows": [[-3.0]]}}
+      ]
+    },
+    {
+      "name": "round-with-digits",
+      "program": [
+        {"sql": "SELECT ROUND(3.14159, 2);",   "expect": {"rows": [[3.14]]}},
+        {"sql": "SELECT ROUND(3.14159, 4);",   "expect": {"rows": [[3.1416]]}},
+        {"sql": "SELECT ROUND(123.456, 1);",   "expect": {"rows": [[123.5]]}}
+      ]
+    },
+    {
+      "name": "round-negative-digits",
+      "description": "Negative digits round to power of 10.",
+      "program": [
+        {"sql": "SELECT ROUND(1234.5, -1);", "expect": {"rows": [[1230.0]]}},
+        {"sql": "SELECT ROUND(1234.5, -2);", "expect": {"rows": [[1200.0]]}}
+      ]
+    },
+    {
+      "name": "round-null-propagates",
+      "program": [
+        {"sql": "SELECT ROUND(NULL);",      "expect": {"rows": [[null]]}},
+        {"sql": "SELECT ROUND(3.14, NULL);","expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "round-integer-arg",
+      "description": "ROUND on integer returns that integer as REAL.",
+      "program": [
+        {"sql": "SELECT ROUND(5);",    "expect": {"rows": [[5.0]]}},
+        {"sql": "SELECT ROUND(5, 2);", "expect": {"rows": [[5.0]]}}
+      ]
+    },
+    {
+      "name": "substr-on-table-column",
+      "program": [
+        {"sql": "CREATE TABLE t (s TEXT);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('foobar'), ('hello');", "expect": {"rows": []}},
+        {"sql": "SELECT SUBSTR(s, 1, 3) FROM t ORDER BY s;", "expect": {"rows": [["foo"], ["hel"]]}}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+# Smoke: ORDER BY (ASC/DESC) + LIMIT + OFFSET.
+
+statement ok
+CREATE TABLE t (a INTEGER, b TEXT)
+
+statement ok
+INSERT INTO t VALUES (3, 'c')
+
+statement ok
+INSERT INTO t VALUES (1, 'a')
+
+statement ok
+INSERT INTO t VALUES (2, 'b')
+
+query I nosort
+SELECT a FROM t ORDER BY a
+----
+1
+2
+3
+
+query I nosort
+SELECT a FROM t ORDER BY a DESC
+----
+3
+2
+1
+
+query T nosort
+SELECT b FROM t ORDER BY a
+----
+a
+b
+c
+
+query I nosort
+SELECT a FROM t ORDER BY a LIMIT 2
+----
+1
+2
+
+query I nosort
+SELECT a FROM t ORDER BY a LIMIT 1 OFFSET 1
+----
+2
+
+query I nosort
+SELECT a FROM t ORDER BY a DESC LIMIT 100 OFFSET 1
+----
+2
+1

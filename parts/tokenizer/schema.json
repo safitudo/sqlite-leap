@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Tokenizer part API",
+  "description": "Abstract API of the tokenizer part. Each language target maps this to idiomatic syntax.",
+  "part": "tokenizer",
+  "entry": {
+    "name": "tokenize",
+    "input": {
+      "name": "sql",
+      "type": "string",
+      "description": "SQL input; ASCII in Phase 1"
+    },
+    "outputs": {
+      "success": {
+        "type": "array",
+        "itemsRef": "../../schema/tokens.schema.json",
+        "description": "Ordered tokens ending with exactly one EOF token"
+      },
+      "errors": [
+        {
+          "name": "LEX_UNEXPECTED_CHARACTER",
+          "fields": {
+            "pos": {"type": "integer", "minimum": 0}
+          }
+        },
+        {
+          "name": "LEX_UNTERMINATED_STRING",
+          "fields": {
+            "pos": {"type": "integer", "minimum": 0}
+          }
+        },
+        {
+          "name": "LEX_INTEGER_OVERFLOW",
+          "fields": {
+            "pos": {"type": "integer", "minimum": 0}
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,236 @@
+{
+  "phase": "6j",
+  "description": "Phase 6j gate — scalar functions LENGTH and ABS. Proves scalar-function dispatch infrastructure. LENGTH accepts Text only; ABS accepts Integer or Real. Null passes through. Unknown names raise COMPILE_UNKNOWN_FUNCTION. STAR arg on scalar raises COMPILE_SCALAR_ARG_MISMATCH. All phase1..6i fixtures must stay green.",
+  "cases": [
+    {
+      "name": "length-ascii-literal",
+      "program": [
+        {"sql": "SELECT LENGTH('hello');", "expect": {"rows": [[5]]}}
+      ]
+    },
+    {
+      "name": "length-empty-string",
+      "program": [
+        {"sql": "SELECT LENGTH('');", "expect": {"rows": [[0]]}}
+      ]
+    },
+    {
+      "name": "length-case-insensitive-name",
+      "program": [
+        {"sql": "SELECT Length('abc'), length('wxyz'), LENGTH('ab');", "expect": {"rows": [[3, 4, 2]]}}
+      ]
+    },
+    {
+      "name": "length-null",
+      "program": [
+        {"sql": "SELECT LENGTH(NULL);", "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "length-utf8-multibyte-counts-code-points",
+      "description": "'é' is 2 UTF-8 bytes (0xC3 0xA9) but 1 code point. 'café' is 4 code points / 5 bytes.",
+      "program": [
+        {"sql": "SELECT LENGTH('café');", "expect": {"rows": [[4]]}}
+      ]
+    },
+    {
+      "name": "length-utf8-three-byte-codepoint",
+      "description": "U+4E2D (中) is 3 UTF-8 bytes (0xE4 0xB8 0xAD) but 1 code point.",
+      "program": [
+        {"sql": "SELECT LENGTH('中');", "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "length-integer-rejected",
+      "program": [
+        {"sql": "SELECT LENGTH(42);", "expect": {"error": {"name": "VDBE_TYPE_MISMATCH", "fields": {"operation": "length", "kind": "Integer"}}}}
+      ]
+    },
+    {
+      "name": "length-real-rejected",
+      "program": [
+        {"sql": "SELECT LENGTH(3.14);", "expect": {"error": {"name": "VDBE_TYPE_MISMATCH", "fields": {"operation": "length", "kind": "Real"}}}}
+      ]
+    },
+    {
+      "name": "length-star-rejected",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                   "expect": {"rows": []}},
+        {"sql": "SELECT LENGTH(*) FROM t;",                      "expect": {"error": {"name": "COMPILE_SCALAR_ARG_MISMATCH", "fields": {"function": "LENGTH", "reason": "star-not-allowed"}}}}
+      ]
+    },
+    {
+      "name": "length-on-column",
+      "program": [
+        {"sql": "CREATE TABLE t (s TEXT);",                      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('a');",                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('ab');",                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('abc');",                 "expect": {"rows": []}},
+        {"sql": "SELECT LENGTH(s) FROM t;",                      "expect": {"rows": [[1], [2], [3]]}}
+      ]
+    },
+    {
+      "name": "length-in-where",
+      "program": [
+        {"sql": "CREATE TABLE t (s TEXT);",                      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('a');",                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('abc');",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('abcdef');",              "expect": {"rows": []}},
+        {"sql": "SELECT s FROM t WHERE LENGTH(s) > 2;",          "expect": {"rows": [["abc"], ["abcdef"]]}}
+      ]
+    },
+    {
+      "name": "length-in-order-by",
+      "program": [
+        {"sql": "CREATE TABLE t (s TEXT);",                      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('abc');",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('a');",                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('ab');",                  "expect": {"rows": []}},
+        {"sql": "SELECT s FROM t ORDER BY LENGTH(s);",           "expect": {"rows": [["a"], ["ab"], ["abc"]]}}
+      ]
+    },
+    {
+      "name": "length-in-aggregate-sum",
+      "program": [
+        {"sql": "CREATE TABLE t (s TEXT);",                      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('a');",                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('bb');",                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('ccc');",                 "expect": {"rows": []}},
+        {"sql": "SELECT SUM(LENGTH(s)) FROM t;",                 "expect": {"rows": [[6]]}}
+      ]
+    },
+    {
+      "name": "abs-integer-positive",
+      "program": [
+        {"sql": "SELECT ABS(5);", "expect": {"rows": [[5]]}}
+      ]
+    },
+    {
+      "name": "abs-integer-negative",
+      "program": [
+        {"sql": "SELECT ABS(0 - 5);", "expect": {"rows": [[5]]}}
+      ]
+    },
+    {
+      "name": "abs-integer-zero",
+      "program": [
+        {"sql": "SELECT ABS(0);", "expect": {"rows": [[0]]}}
+      ]
+    },
+    {
+      "name": "abs-real-positive",
+      "program": [
+        {"sql": "SELECT ABS(3.14);", "expect": {"rows": [[3.14]]}}
+      ]
+    },
+    {
+      "name": "abs-real-negative",
+      "program": [
+        {"sql": "SELECT ABS(0 - 3.14);", "expect": {"rows": [[3.14]]}}
+      ]
+    },
+    {
+      "name": "abs-null",
+      "program": [
+        {"sql": "SELECT ABS(NULL);", "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "abs-text-rejected",
+      "program": [
+        {"sql": "SELECT ABS('hello');", "expect": {"error": {"name": "VDBE_TYPE_MISMATCH", "fields": {"operation": "abs", "kind": "Text"}}}}
+      ]
+    },
+    {
+      "name": "abs-case-insensitive-name",
+      "program": [
+        {"sql": "SELECT Abs(0 - 7), abs(2), ABS(0 - 3);", "expect": {"rows": [[7, 2, 3]]}}
+      ]
+    },
+    {
+      "name": "abs-star-rejected",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                   "expect": {"rows": []}},
+        {"sql": "SELECT ABS(*) FROM t;",                         "expect": {"error": {"name": "COMPILE_SCALAR_ARG_MISMATCH", "fields": {"function": "ABS", "reason": "star-not-allowed"}}}}
+      ]
+    },
+    {
+      "name": "abs-on-column-integer",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (0 - 3);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",                     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (0 - 7);                 ","expect": {"rows": []}},
+        {"sql": "SELECT ABS(x) FROM t;",                         "expect": {"rows": [[3], [5], [7]]}}
+      ]
+    },
+    {
+      "name": "abs-on-column-real",
+      "program": [
+        {"sql": "CREATE TABLE t (x REAL);",                      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (0 - 1.5);",               "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2.5);",                   "expect": {"rows": []}},
+        {"sql": "SELECT ABS(x) FROM t;",                         "expect": {"rows": [[1.5], [2.5]]}}
+      ]
+    },
+    {
+      "name": "abs-in-aggregate",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (0 - 3);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (0 - 5);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                     "expect": {"rows": []}},
+        {"sql": "SELECT SUM(ABS(x)) FROM t;",                    "expect": {"rows": [[10]]}}
+      ]
+    },
+    {
+      "name": "unknown-function-name",
+      "program": [
+        {"sql": "SELECT FOOBAR(1);", "expect": {"error": {"name": "COMPILE_UNKNOWN_FUNCTION", "fields": {"name": "FOOBAR"}}}}
+      ]
+    },
+    {
+      "name": "unknown-function-mixed-case",
+      "description": "Name surfaced in error is UPPERCASED (matches COMPILE_AGGREGATE_ARG_MISMATCH.function convention).",
+      "program": [
+        {"sql": "SELECT Sprintf(1);", "expect": {"error": {"name": "COMPILE_UNKNOWN_FUNCTION", "fields": {"name": "SPRINTF"}}}}
+      ]
+    },
+    {
+      "name": "unknown-function-no-args",
+      "description": "Parse-level grammar still requires an expression argument — unknown name is detected AFTER parse succeeds.",
+      "program": [
+        {"sql": "SELECT NOFUNC(5);", "expect": {"error": {"name": "COMPILE_UNKNOWN_FUNCTION", "fields": {"name": "NOFUNC"}}}}
+      ]
+    },
+    {
+      "name": "abs-of-length",
+      "description": "Nested scalar calls.",
+      "program": [
+        {"sql": "SELECT ABS(LENGTH('hello'));", "expect": {"rows": [[5]]}}
+      ]
+    },
+    {
+      "name": "length-of-cast",
+      "description": "Phase 6i CAST composed with Phase 6j LENGTH.",
+      "program": [
+        {"sql": "SELECT LENGTH(CAST(12345 AS TEXT));", "expect": {"rows": [[5]]}}
+      ]
+    },
+    {
+      "name": "abs-of-cast-real-to-integer",
+      "program": [
+        {"sql": "SELECT ABS(CAST(0 - 3.7 AS INTEGER));", "expect": {"rows": [[3]]}}
+      ]
+    },
+    {
+      "name": "abs-integer-i64-min-overflows",
+      "description": "ABS(i64::MIN) has no representable positive counterpart — raises VDBE_INTEGER_OVERFLOW.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (0 - 9223372036854775807 - 1);",          "expect": {"rows": []}},
+        {"sql": "SELECT ABS(x) FROM t;",                                        "expect": {"error": {"name": "VDBE_INTEGER_OVERFLOW"}}}
+      ]
+    }
+  ]
+}

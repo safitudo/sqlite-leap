@@ -1,0 +1,44 @@
+# Generated code — never commit. Regenerate from specs + schemas + tests.
+src-c/
+src-rust/
+src-wasm/
+
+# Rust build artifacts (in case cargo is run from repo root)
+target/
+Cargo.lock
+
+# C build artifacts
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+
+# WASM build artifacts
+*.wasm
+
+# Benchmark results (raw CSV + graphs live under bench/results/ which is committed;
+# anything in a tmp/ subdir is scratch)
+bench/**/tmp/
+bench/**/.cache/
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Editor noise
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Agent scratch
+.claude/local/
+
+# Upstream sqllogictest corpus — fetched out-of-band, not committed (1.2 GB)
+tests/sqllogictest/upstream/
+tests/sqllogictest/.fetched/
+
+# tests/sqllogictest/results/ IS committed — small logs (~28 KB each) are
+# evidence for the corpus-pass claims in DASHBOARD.md.

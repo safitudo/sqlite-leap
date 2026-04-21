@@ -1,0 +1,91 @@
+{
+  "phase": "6bt",
+  "description": "Phase 6bt (post-9be persistence gate) — INSERTs into an indexed table must flush populated 0x0a index-leaf pages on db_close, not empty ones. Regression for the 2026-04-20 silent file-format-compat bug: leap-c serialised an empty 0x0a page for every index regardless of ie->cells_n, so the index was dropped at close-time. leap-c read its own DB via table scan (planner didn't consult the index for single-table ORDER BY scans), masking the corruption. Mainline SQLite, which DID use the index, saw zero rows and PRAGMA integrity_check reported 'wrong # of entries in index'. Fixtures validate that a leap-c-written DB with a populated index is well-formed per mainline (integrity_check 'ok') and returns the expected rows via mainline's index-based planner.",
+  "schema": {
+    "case": {
+      "name": "string — unique",
+      "description": "string — optional",
+      "ddl": "string — DDL to create schema (table + index)",
+      "inserts": "array of strings — INSERT statements run in order inside a single BEGIN/COMMIT",
+      "expect_integrity_ok": "boolean — mainline PRAGMA integrity_check must return 'ok'",
+      "select_index_ordered": "string — SELECT that exercises the index path (e.g. ORDER BY indexed col)",
+      "expect_rows_ordered": "array of arrays — rows the SELECT must return, in order"
+    }
+  },
+  "cases": [
+    {
+      "name": "index-persist-single-row",
+      "description": "CREATE TABLE + CREATE INDEX + 1 INSERT + ORDER BY indexed col must return the row. Reproduces the original bug report: schema=indexed-text, rowcount=1.",
+      "ddl": "CREATE TABLE kv (k TEXT, v TEXT); CREATE INDEX idx_k ON kv(k);",
+      "inserts": [
+        "INSERT INTO kv VALUES ('a', 'v1');"
+      ],
+      "expect_integrity_ok": true,
+      "select_index_ordered": "SELECT k FROM kv ORDER BY k;",
+      "expect_rows_ordered": [["a"]]
+    },
+    {
+      "name": "index-persist-hundred-rows",
+      "description": "100 rows through the same shape — cells fit on a single 0x0a leaf (no Phase 9d split needed).",
+      "ddl": "CREATE TABLE kv (k TEXT, v INTEGER); CREATE INDEX kv_k ON kv(k);",
+      "inserts_generator": {
+        "kind": "range-key-text",
+        "key_format": "key{:06d}",
+        "value_kind": "integer",
+        "n": 100
+      },
+      "expect_integrity_ok": true,
+      "select_index_ordered_limit": 3,
+      "expect_head_rows": [["key000000", 0], ["key000001", 1], ["key000002", 2]]
+    },
+    {
+      "name": "index-persist-reopen",
+      "description": "Persist-and-reopen via CLI (leap-c writes, closes, reopens, SELECTs). Validates that (a) the populated 0x0a leaf round-trips through db_close / db_open, and (b) the reopened index still drives leap-c's own ORDER BY traversal correctly.",
+      "ddl": "CREATE TABLE kv (k TEXT, v INTEGER); CREATE INDEX kv_k ON kv(k);",
+      "inserts_generator": {
+        "kind": "range-key-text",
+        "key_format": "key{:06d}",
+        "value_kind": "integer",
+        "n": 10
+      },
+      "reopen_between": true,
+      "expect_integrity_ok": true,
+      "select_index_ordered": "SELECT k, v FROM kv ORDER BY k;",
+      "expect_rows_ordered_generator": {
+        "kind": "range-key-text",
+        "key_format": "key{:06d}",
+        "value_kind": "integer",
+        "n": 10
+      }
+    },
+    {
+      "name": "index-persist-10k-split",
+      "description": "Phase 9d regression: n=10000 rows spill the index past a single 0x0a leaf. leap-c's writer must split cells across multiple leaves + build a 0x02 interior root (reusing sqlite_schema.rootpage). Mainline must integrity_check to 'ok' and read the rows in index order. This is the C-side analog of roundtrip_index_paging.py's `write-large-indexed-roundtrip` case (which exercises leap-rust).",
+      "ddl": "CREATE TABLE kv (k TEXT, v INTEGER); CREATE INDEX kv_k ON kv(k);",
+      "inserts_generator": {
+        "kind": "range-key-text",
+        "key_format": "key{:06d}",
+        "value_kind": "integer",
+        "n": 10000
+      },
+      "expect_integrity_ok": true,
+      "select_index_ordered_limit": 3,
+      "expect_head_rows": [["key000000", 0], ["key000001", 1], ["key000002", 2]]
+    },
+    {
+      "name": "index-persist-10k-reopen",
+      "description": "Phase 9d regression with reopen_between: after leap-c writes 10k rows + splits the index, leap-c re-opens the DB and must walk the 0x02 root + 0x0a leaves (read_index_tree / walk_index_tree_page) to rebuild the in-memory IndexEntry.cells before the table-ordered SELECT. This is the C-side analog of `read-large-indexed-from-mainline`, but with self-read instead of mainline-produced input.",
+      "ddl": "CREATE TABLE kv (k TEXT, v INTEGER); CREATE INDEX kv_k ON kv(k);",
+      "inserts_generator": {
+        "kind": "range-key-text",
+        "key_format": "key{:06d}",
+        "value_kind": "integer",
+        "n": 10000
+      },
+      "reopen_between": true,
+      "expect_integrity_ok": true,
+      "select_index_ordered": "SELECT k, v FROM kv ORDER BY k LIMIT 5;",
+      "expect_rows_ordered": [["key000000", 0], ["key000001", 1], ["key000002", 2], ["key000003", 3], ["key000004", 4]]
+    }
+  ]
+}

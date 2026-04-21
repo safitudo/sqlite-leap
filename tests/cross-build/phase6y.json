@@ -1,0 +1,157 @@
+{
+  "phase": "6y",
+  "description": "Phase 6y gate — CASE expression, simple and searched forms. No new VDBE opcodes. max_invariant=43 unchanged. Algorithm per spec/sql-grammar.spec.md § 'Phase 6y'. All prior phase fixtures must stay green.",
+  "cases": [
+    {
+      "name": "searched-case-first-match",
+      "program": [
+        {"sql": "SELECT CASE WHEN 1 THEN 'a' WHEN 1 THEN 'b' END;", "expect": {"rows": [["a"]]}}
+      ]
+    },
+    {
+      "name": "searched-case-second-match",
+      "program": [
+        {"sql": "SELECT CASE WHEN 0 THEN 'a' WHEN 1 THEN 'b' END;", "expect": {"rows": [["b"]]}}
+      ]
+    },
+    {
+      "name": "searched-case-no-match-no-else",
+      "description": "No match + no ELSE → Null.",
+      "program": [
+        {"sql": "SELECT CASE WHEN 0 THEN 'a' WHEN 0 THEN 'b' END IS NULL;", "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "searched-case-no-match-with-else",
+      "program": [
+        {"sql": "SELECT CASE WHEN 0 THEN 'a' ELSE 'z' END;", "expect": {"rows": [["z"]]}}
+      ]
+    },
+    {
+      "name": "searched-case-null-condition-treated-as-false",
+      "description": "Null WHEN condition → skip to next (SQL 3VL: Null is not truthy).",
+      "program": [
+        {"sql": "SELECT CASE WHEN NULL THEN 'a' WHEN 1 THEN 'b' ELSE 'z' END;", "expect": {"rows": [["b"]]}}
+      ]
+    },
+    {
+      "name": "searched-case-all-null-conditions-fall-to-else",
+      "program": [
+        {"sql": "SELECT CASE WHEN NULL THEN 'a' WHEN NULL THEN 'b' ELSE 'z' END;", "expect": {"rows": [["z"]]}}
+      ]
+    },
+    {
+      "name": "searched-case-all-null-conditions-no-else-is-null",
+      "program": [
+        {"sql": "SELECT CASE WHEN NULL THEN 'a' WHEN NULL THEN 'b' END IS NULL;", "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "simple-case-first-match",
+      "program": [
+        {"sql": "SELECT CASE 1 WHEN 1 THEN 'a' WHEN 2 THEN 'b' END;", "expect": {"rows": [["a"]]}}
+      ]
+    },
+    {
+      "name": "simple-case-second-match",
+      "program": [
+        {"sql": "SELECT CASE 2 WHEN 1 THEN 'a' WHEN 2 THEN 'b' END;", "expect": {"rows": [["b"]]}}
+      ]
+    },
+    {
+      "name": "simple-case-no-match-with-else",
+      "program": [
+        {"sql": "SELECT CASE 3 WHEN 1 THEN 'a' WHEN 2 THEN 'b' ELSE 'z' END;", "expect": {"rows": [["z"]]}}
+      ]
+    },
+    {
+      "name": "simple-case-no-match-no-else",
+      "program": [
+        {"sql": "SELECT CASE 3 WHEN 1 THEN 'a' WHEN 2 THEN 'b' END IS NULL;", "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "simple-case-null-scrutinee-falls-to-else",
+      "description": "CASE NULL WHEN 1 ... : NULL = 1 is Null, so no WHEN matches; ELSE applies.",
+      "program": [
+        {"sql": "SELECT CASE NULL WHEN 1 THEN 'a' ELSE 'z' END;", "expect": {"rows": [["z"]]}}
+      ]
+    },
+    {
+      "name": "simple-case-null-scrutinee-no-else-is-null",
+      "program": [
+        {"sql": "SELECT CASE NULL WHEN 1 THEN 'a' WHEN 2 THEN 'b' END IS NULL;", "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "case-with-column-ref",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                                             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2), (3);",                                      "expect": {"rows": []}},
+        {"sql": "SELECT CASE WHEN a = 1 THEN 'one' WHEN a = 2 THEN 'two' ELSE 'other' END FROM t ORDER BY a;", "expect": {"rows": [["one"], ["two"], ["other"]]}}
+      ]
+    },
+    {
+      "name": "simple-case-with-column-ref",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                                             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2), (3);",                                      "expect": {"rows": []}},
+        {"sql": "SELECT CASE a WHEN 1 THEN 'x' WHEN 2 THEN 'y' ELSE 'z' END FROM t ORDER BY a;", "expect": {"rows": [["x"], ["y"], ["z"]]}}
+      ]
+    },
+    {
+      "name": "case-result-types-mixed",
+      "description": "CASE arms may return different types; each row emits the type of its selected arm.",
+      "program": [
+        {"sql": "SELECT CASE WHEN 1 THEN 42 END;",                    "expect": {"rows": [[42]]}},
+        {"sql": "SELECT CASE WHEN 1 THEN 'text' END;",                "expect": {"rows": [["text"]]}},
+        {"sql": "SELECT CASE WHEN 0 THEN 42 ELSE 'text' END;",        "expect": {"rows": [["text"]]}}
+      ]
+    },
+    {
+      "name": "case-nested",
+      "program": [
+        {"sql": "SELECT CASE WHEN 1 THEN CASE WHEN 1 THEN 'inner' END END;", "expect": {"rows": [["inner"]]}}
+      ]
+    },
+    {
+      "name": "case-in-where",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                                             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2), (3);",                                      "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t WHERE CASE WHEN a = 2 THEN 0 ELSE 1 END ORDER BY a;",     "expect": {"rows": [[1], [3]]}}
+      ]
+    },
+    {
+      "name": "case-in-order-by",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                                             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2), (3);",                                      "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t ORDER BY CASE WHEN a = 2 THEN 0 ELSE a END;",              "expect": {"rows": [[2], [1], [3]]}}
+      ]
+    },
+    {
+      "name": "case-empty-when-list-rejected",
+      "description": "CASE with no WHEN clauses is a parse error.",
+      "program": [
+        {"sql": "SELECT CASE ELSE 'z' END;", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN"}}}
+      ]
+    },
+    {
+      "name": "case-unterminated-rejected",
+      "description": "Missing END is a parse error.",
+      "program": [
+        {"sql": "SELECT CASE WHEN 1 THEN 'a';", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN"}}}
+      ]
+    },
+    {
+      "name": "simple-case-scrutinee-evaluated-once",
+      "description": "Demonstration: in Simple CASE, scrutinee is evaluated once even against many WHENs. We can't directly observe this without side-effects, but we can verify correctness against a column reference (every row routes correctly).",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                                                                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2), (3), (4), (5);",                                                   "expect": {"rows": []}},
+        {"sql": "SELECT a, CASE a WHEN 1 THEN 'one' WHEN 2 THEN 'two' WHEN 3 THEN 'three' ELSE 'other' END FROM t ORDER BY a;", "expect": {"rows": [[1, "one"], [2, "two"], [3, "three"], [4, "other"], [5, "other"]]}}
+      ]
+    }
+  ]
+}

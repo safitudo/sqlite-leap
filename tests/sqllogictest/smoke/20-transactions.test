@@ -1,0 +1,38 @@
+# Smoke: BEGIN / COMMIT / END (pre-WAL semantics — all no-ops per Phase 6t).
+
+statement ok
+BEGIN
+
+statement ok
+CREATE TABLE t (a INTEGER)
+
+statement ok
+INSERT INTO t VALUES (1)
+
+statement ok
+COMMIT
+
+query I nosort
+SELECT a FROM t
+----
+1
+
+# END is a synonym for COMMIT
+statement ok
+BEGIN
+
+statement ok
+INSERT INTO t VALUES (2)
+
+statement ok
+END
+
+query I nosort
+SELECT a FROM t ORDER BY a
+----
+1
+2
+
+# ROLLBACK raises VDBE_ROLLBACK_NOT_SUPPORTED (pre-WAL)
+statement error
+ROLLBACK

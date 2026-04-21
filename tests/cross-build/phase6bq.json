@@ -1,0 +1,87 @@
+{
+  "phase": "6bq",
+  "description": "Phase 6bq gate — parenthesized FROM expressions. 4596 queries in random/aggregates/ wrap their FROM source in parens: SELECT ... FROM ( t1 CROSS JOIN t2 ), etc. Parser must accept LPAREN before the first table-source and RPAREN after the last; treat the parenthesized group as a single join tree.",
+  "cases": [
+    {
+      "name": "parens-single-table",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2);", "expect": {"rows": []}},
+        {"sql": "SELECT a FROM (t) ORDER BY a;", "expect": {"rows": [[1], [2]]}}
+      ]
+    },
+    {
+      "name": "parens-single-table-aliased",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);", "expect": {"rows": []}},
+        {"sql": "SELECT cor0.a FROM (t AS cor0);", "expect": {"rows": [[5]]}}
+      ]
+    },
+    {
+      "name": "parens-cross-join",
+      "program": [
+        {"sql": "CREATE TABLE a (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (y INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (2);", "expect": {"rows": []}},
+        {"sql": "SELECT * FROM (a CROSS JOIN b);", "expect": {"rows": [[1, 2]]}}
+      ]
+    },
+    {
+      "name": "parens-join-on",
+      "program": [
+        {"sql": "CREATE TABLE a (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (y INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1), (2);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (1), (3);", "expect": {"rows": []}},
+        {"sql": "SELECT a.x FROM (a JOIN b ON a.x = b.y) ORDER BY a.x;", "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "parens-with-outer-join",
+      "description": "Parenthesized group composes with an outer comma-join or JOIN.",
+      "program": [
+        {"sql": "CREATE TABLE a (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (y INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE TABLE c (z INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (2);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO c VALUES (3);", "expect": {"rows": []}},
+        {"sql": "SELECT * FROM (a CROSS JOIN b), c;", "expect": {"rows": [[1, 2, 3]]}}
+      ]
+    },
+    {
+      "name": "parens-aliased-tables-cross",
+      "description": "Exact shape from random/aggregates/slt_good_14.test: parenthesized CROSS JOIN with both tables aliased.",
+      "program": [
+        {"sql": "CREATE TABLE tab0 (col0 INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE TABLE tab1 (col1 INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO tab0 VALUES (1);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO tab1 VALUES (2);", "expect": {"rows": []}},
+        {"sql": "SELECT 54 FROM (tab0 AS cor0 CROSS JOIN tab1 cor1);", "expect": {"rows": [[54]]}}
+      ]
+    },
+    {
+      "name": "parens-aggregate-over-group",
+      "program": [
+        {"sql": "CREATE TABLE tab2 (col INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO tab2 VALUES (1), (2), (3);", "expect": {"rows": []}},
+        {"sql": "SELECT DISTINCT - 46 FROM (tab2 AS cor0 CROSS JOIN tab2 AS cor1);", "expect": {"rows": [[-46]]}}
+      ]
+    },
+    {
+      "name": "parens-nested",
+      "description": "Nested parenthesized FROM expressions — parser must handle arbitrary nesting.",
+      "program": [
+        {"sql": "CREATE TABLE a (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (y INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE TABLE c (z INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (2);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO c VALUES (3);", "expect": {"rows": []}},
+        {"sql": "SELECT * FROM ((a CROSS JOIN b) CROSS JOIN c);", "expect": {"rows": [[1, 2, 3]]}}
+      ]
+    }
+  ]
+}

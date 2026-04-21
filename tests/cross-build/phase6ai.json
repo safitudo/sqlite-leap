@@ -1,0 +1,88 @@
+{
+  "phase": "6ai",
+  "description": "Phase 6ai gate — COUNT(DISTINCT expr) + MIN/MAX on strings. Adds per-aggregate dedup machinery and verifies string-aware MIN/MAX.",
+  "cases": [
+    {
+      "name": "count-distinct-basic",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2), (2), (3), (3), (3);", "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(DISTINCT a) FROM t;", "expect": {"rows": [[3]]}}
+      ]
+    },
+    {
+      "name": "count-distinct-ignores-null",
+      "description": "DISTINCT COUNT skips NULLs just like plain COUNT(expr).",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (NULL), (2), (NULL), (2);", "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(DISTINCT a) FROM t;", "expect": {"rows": [[2]]}}
+      ]
+    },
+    {
+      "name": "count-distinct-vs-count-all",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (1), (2), (2), (2);", "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(a), COUNT(DISTINCT a) FROM t;", "expect": {"rows": [[5, 2]]}}
+      ]
+    },
+    {
+      "name": "count-distinct-strings",
+      "program": [
+        {"sql": "CREATE TABLE t (s TEXT);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('a'), ('b'), ('a'), ('c'), ('b');", "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(DISTINCT s) FROM t;", "expect": {"rows": [[3]]}}
+      ]
+    },
+    {
+      "name": "count-distinct-with-group-by",
+      "program": [
+        {"sql": "CREATE TABLE t (g INTEGER, v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10), (1, 10), (1, 20), (2, 30), (2, 30);", "expect": {"rows": []}},
+        {"sql": "SELECT g, COUNT(DISTINCT v) FROM t GROUP BY g ORDER BY g;", "expect": {"rows": [[1, 2], [2, 1]]}}
+      ]
+    },
+    {
+      "name": "min-string",
+      "program": [
+        {"sql": "CREATE TABLE t (s TEXT);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('banana'), ('apple'), ('cherry');", "expect": {"rows": []}},
+        {"sql": "SELECT MIN(s) FROM t;", "expect": {"rows": [["apple"]]}}
+      ]
+    },
+    {
+      "name": "max-string",
+      "program": [
+        {"sql": "CREATE TABLE t (s TEXT);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('banana'), ('apple'), ('cherry');", "expect": {"rows": []}},
+        {"sql": "SELECT MAX(s) FROM t;", "expect": {"rows": [["cherry"]]}}
+      ]
+    },
+    {
+      "name": "min-max-string-with-group-by",
+      "program": [
+        {"sql": "CREATE TABLE t (g INTEGER, s TEXT);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 'zebra'), (1, 'apple'), (2, 'mango'), (2, 'banana');", "expect": {"rows": []}},
+        {"sql": "SELECT g, MIN(s), MAX(s) FROM t GROUP BY g ORDER BY g;", "expect": {"rows": [[1, "apple", "zebra"], [2, "banana", "mango"]]}}
+      ]
+    },
+    {
+      "name": "min-ignores-null",
+      "program": [
+        {"sql": "CREATE TABLE t (v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL), (5), (NULL), (3), (NULL);", "expect": {"rows": []}},
+        {"sql": "SELECT MIN(v) FROM t;", "expect": {"rows": [[3]]}}
+      ]
+    },
+    {
+      "name": "sum-distinct-basic",
+      "description": "DISTINCT machinery applies to SUM as well.",
+      "program": [
+        {"sql": "CREATE TABLE t (v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (1), (2), (2), (3);", "expect": {"rows": []}},
+        {"sql": "SELECT SUM(DISTINCT v) FROM t;", "expect": {"rows": [[6]]}}
+      ]
+    }
+  ]
+}

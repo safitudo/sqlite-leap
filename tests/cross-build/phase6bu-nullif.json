@@ -1,0 +1,108 @@
+{
+  "phase": "6bu",
+  "description": "Phase 6bu gate — NULLIF(x, y) scalar builtin. Returns NULL if x is NULL or x equals y under same-tier equality (no numeric-vs-text coercion); else returns x. Rides OP_SCALAR2 as SCALAR2_NULLIF. No new opcode, no new invariant. Cross-corroboration origin: random/expr full-corpus gate on 2026-04-20 surfaced NULLIF as the single largest COMPILE_UNKNOWN_FUNCTION bucket on both C and Rust. Mainline-SQLite semantics verified via sqlite3 :memory: on 2026-04-20 for every literal case below.",
+  "cases": [
+    {
+      "name": "nullif-equal-ints",
+      "description": "x == y (same integer) -> NULL.",
+      "program": [
+        {"sql": "SELECT NULLIF(5, 5);", "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "nullif-unequal-ints",
+      "description": "x != y -> x.",
+      "program": [
+        {"sql": "SELECT NULLIF(5, 7);", "expect": {"rows": [[5]]}}
+      ]
+    },
+    {
+      "name": "nullif-null-first",
+      "description": "x is NULL -> NULL (NULL-in on first arg short-circuits to NULL).",
+      "program": [
+        {"sql": "SELECT NULLIF(NULL, 5);", "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "nullif-null-second",
+      "description": "y is NULL, x is non-NULL -> x (comparison with NULL is not-equal under our rule; x is returned).",
+      "program": [
+        {"sql": "SELECT NULLIF(5, NULL);", "expect": {"rows": [[5]]}}
+      ]
+    },
+    {
+      "name": "nullif-both-null",
+      "description": "x is NULL -> NULL (first-arg short-circuit; matches mainline NULLIF(NULL, NULL)=NULL).",
+      "program": [
+        {"sql": "SELECT NULLIF(NULL, NULL);", "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "nullif-text-match",
+      "description": "Byte-equal text -> NULL.",
+      "program": [
+        {"sql": "SELECT NULLIF('foo', 'foo');", "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "nullif-text-unmatch",
+      "description": "Differing text -> x.",
+      "program": [
+        {"sql": "SELECT NULLIF('foo', 'bar');", "expect": {"rows": [["foo"]]}}
+      ]
+    },
+    {
+      "name": "nullif-numeric-text-no-coercion",
+      "description": "Numeric vs text: NOT equal under our same-tier rule (mirrors mainline SQLite on literal pairs). NULLIF(5, '5') = 5 — verified on mainline sqlite3 :memory:.",
+      "program": [
+        {"sql": "SELECT NULLIF(5, '5');", "expect": {"rows": [[5]]}}
+      ]
+    },
+    {
+      "name": "nullif-int-real-equal",
+      "description": "Same-tier numeric with cross-type value equality: 1 == 1.0 under SortValueEq -> NULL. Verified on mainline.",
+      "program": [
+        {"sql": "SELECT NULLIF(1, 1.0);", "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "nullif-in-expression",
+      "description": "NULLIF embedded in an aggregate expression: NULLIF(COUNT(*), 0) + 1 over a 3-row table. COUNT(*)=3, NULLIF(3,0)=3, 3+1=4.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (10), (20), (30);", "expect": {"rows": []}},
+        {"sql": "SELECT NULLIF(COUNT(*), 0) + 1 FROM t;", "expect": {"rows": [[4]]}}
+      ]
+    },
+    {
+      "name": "nullif-in-projection",
+      "description": "NULLIF in a row-at-a-time projection: rows where a=0 become NULL, others pass through.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (0), (1), (2);", "expect": {"rows": []}},
+        {"sql": "SELECT NULLIF(a, 0) FROM t ORDER BY a;", "expect": {"rows": [[null], [1], [2]]}}
+      ]
+    },
+    {
+      "name": "nullif-arg-count-mismatch-one",
+      "description": "NULLIF with only one argument -> COMPILE_SCALAR_ARG_COUNT_MISMATCH { function: NULLIF, expected: 2, got: 1 }.",
+      "program": [
+        {"sql": "SELECT NULLIF(5);", "expect": {"error": "COMPILE_SCALAR_ARG_COUNT_MISMATCH"}}
+      ]
+    },
+    {
+      "name": "nullif-arg-count-mismatch-three",
+      "description": "NULLIF with three arguments -> COMPILE_SCALAR_ARG_COUNT_MISMATCH.",
+      "program": [
+        {"sql": "SELECT NULLIF(1, 2, 3);", "expect": {"error": "COMPILE_SCALAR_ARG_COUNT_MISMATCH"}}
+      ]
+    },
+    {
+      "name": "nullif-star-rejected",
+      "description": "NULLIF with STAR as an argument -> COMPILE_SCALAR_ARG_MISMATCH { reason: star-not-allowed }.",
+      "program": [
+        {"sql": "SELECT NULLIF(*, 1);", "expect": {"error": "PARSE_UNEXPECTED_TOKEN"}}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,238 @@
+{
+  "phase": "6n",
+  "description": "Phase 6n gate — scalar subqueries (uncorrelated). Primary-expression LPAREN compound-select RPAREN. Must return exactly one column (compile check) and zero-or-one row (runtime); zero rows → Null, two+ rows → VDBE_SUBQUERY_MORE_THAN_ONE_ROW. No correlation — subquery columns resolve only against its own scope. All phase1..6m fixtures must stay green.",
+  "cases": [
+    {
+      "name": "subquery-literal",
+      "program": [
+        {"sql": "SELECT (SELECT 42);", "expect": {"rows": [[42]]}}
+      ]
+    },
+    {
+      "name": "subquery-scalar-max",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                   "expect": {"rows": []}},
+        {"sql": "SELECT (SELECT MAX(x) FROM t);",              "expect": {"rows": [[5]]}}
+      ]
+    },
+    {
+      "name": "subquery-scalar-min",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                   "expect": {"rows": []}},
+        {"sql": "SELECT (SELECT MIN(x) FROM t);",              "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "subquery-scalar-count",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (10);",                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (20);",                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (30);",                  "expect": {"rows": []}},
+        {"sql": "SELECT (SELECT COUNT(*) FROM t);",            "expect": {"rows": [[3]]}}
+      ]
+    },
+    {
+      "name": "subquery-empty-table-returns-null",
+      "description": "SELECT from empty table yields no rows → subquery value is Null.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                 "expect": {"rows": []}},
+        {"sql": "SELECT (SELECT x FROM t);",                   "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "subquery-single-row-value",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (42);",                  "expect": {"rows": []}},
+        {"sql": "SELECT (SELECT x FROM t);",                   "expect": {"rows": [[42]]}}
+      ]
+    },
+    {
+      "name": "subquery-two-rows-raises-error",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                   "expect": {"rows": []}},
+        {"sql": "SELECT (SELECT x FROM t);",                   "expect": {"error": {"name": "VDBE_SUBQUERY_MORE_THAN_ONE_ROW"}}}
+      ]
+    },
+    {
+      "name": "subquery-limit-1-constrains-to-single-row",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                   "expect": {"rows": []}},
+        {"sql": "SELECT (SELECT x FROM t LIMIT 1);",           "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "subquery-not-scalar-two-columns",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER, y INTEGER);",      "expect": {"rows": []}},
+        {"sql": "SELECT (SELECT x, y FROM t);",                "expect": {"error": {"name": "COMPILE_SUBQUERY_NOT_SCALAR", "fields": {"got_columns": 2}}}}
+      ]
+    },
+    {
+      "name": "subquery-not-scalar-star-projection",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER, c INTEGER);", "expect": {"rows": []}},
+        {"sql": "SELECT (SELECT * FROM t);",                          "expect": {"error": {"name": "COMPILE_SUBQUERY_NOT_SCALAR", "fields": {"got_columns": 3}}}}
+      ]
+    },
+    {
+      "name": "subquery-in-where-clause",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "CREATE TABLE u (y INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (10);",                           "expect": {"rows": []}},
+        {"sql": "INSERT INTO u VALUES (5);",                            "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = (SELECT y FROM u);",         "expect": {"rows": [[5]]}}
+      ]
+    },
+    {
+      "name": "subquery-in-arithmetic",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "CREATE TABLE u (y INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO u VALUES (100);",                          "expect": {"rows": []}},
+        {"sql": "SELECT x + (SELECT y FROM u) FROM t;",                 "expect": {"rows": [[101], [102]]}}
+      ]
+    },
+    {
+      "name": "subquery-in-projection",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                            "expect": {"rows": []}},
+        {"sql": "SELECT x, (SELECT MAX(x) FROM t) FROM t;",             "expect": {"rows": [[1, 3], [2, 3], [3, 3]]}}
+      ]
+    },
+    {
+      "name": "subquery-nested",
+      "description": "Scalar subquery inside another scalar subquery.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (10);",                           "expect": {"rows": []}},
+        {"sql": "SELECT (SELECT MAX(x) FROM t WHERE x < (SELECT MAX(x) FROM t));", "expect": {"rows": [[5]]}}
+      ]
+    },
+    {
+      "name": "subquery-with-where-no-match-returns-null",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                            "expect": {"rows": []}},
+        {"sql": "SELECT (SELECT x FROM t WHERE x > 100);",              "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "subquery-correlated-column-rejected",
+      "description": "Phase 6ag supersedes: correlated subqueries are now supported via the compiler-level scope stack. With an empty outer (`t`) the correlated subquery produces zero result rows.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "CREATE TABLE u (y INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "SELECT x, (SELECT y FROM u WHERE y = t.x) FROM t;",    "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "subquery-text-value",
+      "program": [
+        {"sql": "CREATE TABLE t (name TEXT);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('alice');",                      "expect": {"rows": []}},
+        {"sql": "SELECT (SELECT name FROM t);",                         "expect": {"rows": [["alice"]]}}
+      ]
+    },
+    {
+      "name": "subquery-returns-null-value",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL);",                         "expect": {"rows": []}},
+        {"sql": "SELECT (SELECT x FROM t);",                            "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "subquery-result-compared-with-null-yields-null",
+      "description": "Standard 3VL: Integer = Null → Null; WHERE Null is false.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "CREATE TABLE u (y INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                            "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = (SELECT y FROM u);",         "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "subquery-with-aggregate-and-group-by",
+      "program": [
+        {"sql": "CREATE TABLE sales (product TEXT, amount INTEGER);",                           "expect": {"rows": []}},
+        {"sql": "INSERT INTO sales VALUES ('apple', 10);",                                      "expect": {"rows": []}},
+        {"sql": "INSERT INTO sales VALUES ('apple', 20);",                                      "expect": {"rows": []}},
+        {"sql": "INSERT INTO sales VALUES ('banana', 5);",                                      "expect": {"rows": []}},
+        {"sql": "SELECT (SELECT SUM(amount) FROM sales WHERE product = 'apple');",              "expect": {"rows": [[30]]}}
+      ]
+    },
+    {
+      "name": "subquery-compound-select-union-all",
+      "description": "Subquery body can be a compound SELECT. Two cores emitting 1 row each → 2 rows → error.",
+      "program": [
+        {"sql": "SELECT (SELECT 1 UNION ALL SELECT 2);", "expect": {"error": {"name": "VDBE_SUBQUERY_MORE_THAN_ONE_ROW"}}}
+      ]
+    },
+    {
+      "name": "subquery-compound-select-union-all-via-limit-1",
+      "program": [
+        {"sql": "SELECT (SELECT 1 UNION ALL SELECT 2 LIMIT 1);", "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "subquery-paren-expression-still-works",
+      "description": "Parenthesized expression (not a subquery) must still parse. (5 + 3) is an expression; (SELECT ...) is a subquery.",
+      "program": [
+        {"sql": "SELECT (5 + 3);", "expect": {"rows": [[8]]}}
+      ]
+    },
+    {
+      "name": "subquery-with-scalar-function",
+      "program": [
+        {"sql": "CREATE TABLE t (s TEXT);",                             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('hello');",                      "expect": {"rows": []}},
+        {"sql": "SELECT (SELECT UPPER(s) FROM t);",                     "expect": {"rows": [["HELLO"]]}}
+      ]
+    },
+    {
+      "name": "subquery-with-cast",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (42);",                           "expect": {"rows": []}},
+        {"sql": "SELECT (SELECT CAST(x AS REAL) FROM t);",              "expect": {"rows": [[42.0]]}}
+      ]
+    },
+    {
+      "name": "subquery-evaluated-once-in-outer-loop",
+      "description": "Uncorrelated subquery result is the same for each outer row (cached). Not observable here except that no error fires despite multi-iteration outer.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "CREATE TABLE u (y INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO u VALUES (100);",                          "expect": {"rows": []}},
+        {"sql": "SELECT x, (SELECT y FROM u) FROM t;",                  "expect": {"rows": [[1, 100], [2, 100], [3, 100]]}}
+      ]
+    }
+  ]
+}

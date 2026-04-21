@@ -1,0 +1,32 @@
+[package]
+name = "turso-core-bench"
+version = "0.1.0"
+edition = "2021"
+publish = false
+# Minimal, engine-vs-engine harness for sqlite-leap's benchmark lanes.
+# Depends on the `turso_core` crate by path, NOT via crates.io — we pin to
+# the commit already vendored under bench/baselines/src/turso/, not a release.
+
+[[bin]]
+name = "turso-core-bench"
+path = "src/main.rs"
+
+[dependencies]
+# Default features: fs, uuid, time, json, series, encryption. Keep them all
+# because several code paths in turso_core reference uuid/json unconditionally
+# and the crate doesn't compile cleanly with feature subsets.
+turso_core = { path = "../src/turso/core" }
+
+# Match the aggressive size/perf profile the sqlite-leap Rust build uses so
+# we compare apples-to-apples at lane 5 / 6.
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
+debug = false
+
+# Force a dedicated workspace so we don't accidentally get pulled into a
+# parent workspace (there isn't one here, but be explicit).
+[workspace]

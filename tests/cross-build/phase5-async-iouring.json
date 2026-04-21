@@ -1,0 +1,72 @@
+{
+  "phase": "5-async-iouring",
+  "description": "Phase 5b gate — io_uring async I/O backend (Linux). Drives the disk backend with LEAP_IO_BACKEND=iouring so that commit durability (atomic-rename + fsync + dir-fsync) routes through the kernel io_uring submission/completion rings. Per spec/io-backend-iouring.spec.md § 'Test authority': every fixture that passes on the sync backend MUST pass byte-identically with io_uring active. This fixture inherits phase3d's step-kind vocabulary; the harness merely forces the env var at run time. SQ_CAPACITY = 128 (vs kqueue's 64), so the 1000-insert pipelined-write case exercises a deeper queue than phase5-async-kqueue. Cross-build equivalence between C and Rust is pinned by the expect blocks below. On non-Linux platforms the backend self-reports unavailable and storage falls back to the sync path, so the same cases pass transparently — this keeps CI green on macOS. Runtime validation of the io_uring-specific code path requires a real Linux host (or GitHub Actions); Docker-for-mac with Rosetta historically has io_uring-syscall issues, so container runs are COMPILE-VALIDATION only in the absence of a Linux CI run.",
+  "schema": {
+    "case": "inherits phase3d.json schema. No new fields.",
+    "env": "Harness sets LEAP_IO_BACKEND=iouring for every step; the async pager routes commit durability through io_backend_iouring on Linux."
+  },
+  "cases": [
+    {
+      "name": "disk-iouring-roundtrip-small",
+      "description": "io_uring backend: smallest observable roundtrip — CREATE, INSERT, close, reopen, SELECT. Same pass criterion as phase3d disk-normal-commit-survives-reopen but under the io_uring commit path.",
+      "backend": "disk",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (42);",   "expect": {"rows": []}},
+        {"reopen": true},
+        {"sql": "SELECT a FROM t;",             "expect": {"rows": [[42]]}}
+      ]
+    },
+    {
+      "name": "disk-iouring-multiple-commit-cycles",
+      "description": "Exercises the io_uring commit path across multiple close+reopen cycles. Each reopen must re-read bytes durably flushed via IORING_OP_FSYNC.",
+      "backend": "disk",
+      "program": [
+        {"sql": "CREATE TABLE a (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);",   "expect": {"rows": []}},
+        {"reopen": true},
+        {"sql": "INSERT INTO a VALUES (2);",   "expect": {"rows": []}},
+        {"reopen": true},
+        {"sql": "INSERT INTO a VALUES (3);",   "expect": {"rows": []}},
+        {"reopen": true},
+        {"sql": "SELECT x FROM a;",            "expect": {"rows": [[1],[2],[3]]}}
+      ]
+    },
+    {
+      "name": "disk-iouring-text-roundtrip",
+      "description": "TEXT values round-trip cleanly through the io_uring commit path — guards against buffer-lifecycle regressions in the pipelined IORING_OP_WRITE path (the Arc<Vec<u8>> must stay live until the CQE fires).",
+      "backend": "disk",
+      "program": [
+        {"sql": "CREATE TABLE t (s TEXT);",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('hello');", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('world');", "expect": {"rows": []}},
+        {"reopen": true},
+        {"sql": "SELECT s FROM t;",            "expect": {"rows": [["hello"],["world"]]}}
+      ]
+    },
+    {
+      "name": "disk-iouring-1000-inserts-roundtrip",
+      "description": "Task-required gate: 1000 INSERTs, reopen, verify all 1000 come back in order. Exercises the io_uring pager's pipelined IORING_OP_WRITE path (64 KiB chunks, depth = SQ/4 = 32) across a buffer that spans many ring generations. On io_uring the kernel enforces same-handle ordering via IOSQE_IO_LINK; any buffer-lifecycle or epoch-drop bug surfaces here as lost inserts or torn data.",
+      "backend": "disk",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"bulk_insert_int_range": {"table": "t", "start": 1, "count": 1000}, "expect": {"rows": []}},
+        {"reopen": true},
+        {"sql": "SELECT x FROM t;", "expect": {"rows_int_range": {"start": 1, "count": 1000}}}
+      ]
+    },
+    {
+      "name": "disk-iouring-concurrent-reads-after-commit",
+      "description": "After a commit through the io_uring path, multiple SELECTs in sequence re-read from the main DB file. Each open_read goes through IORING_OP_OPENAT and read loop through IORING_OP_READ. Verifies read-after-write visibility is honored (spec § 'Ordering invariants' #5 'No read past the current commit epoch').",
+      "backend": "disk",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"bulk_insert_int_range": {"table": "t", "start": 100, "count": 50}, "expect": {"rows": []}},
+        {"reopen": true},
+        {"sql": "SELECT x FROM t;", "expect": {"rows_int_range": {"start": 100, "count": 50}}},
+        {"sql": "SELECT x FROM t;", "expect": {"rows_int_range": {"start": 100, "count": 50}}},
+        {"sql": "SELECT x FROM t;", "expect": {"rows_int_range": {"start": 100, "count": 50}}}
+      ]
+    }
+  ]
+}

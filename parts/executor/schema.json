@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Executor part API",
+  "description": "Abstract API of the executor part. Phase 2b: execute(ast, storage) := vdbe.run(compile(ast, storage), storage). Phase 2c-1 adds EVAL_* errors to the propagated surface.",
+  "part": "executor",
+  "entry": {
+    "name": "execute",
+    "inputs": [
+      {"name": "ast",            "ref":  "../../schema/ast.schema.json"},
+      {"name": "storage_handle", "type": "handle", "description": "opaque mutable Database handle"}
+    ],
+    "outputs": {
+      "success": {"ref": "../../schema/result.schema.json"},
+      "errors": [
+        {"name": "STORAGE_TABLE_EXISTS",      "fields": {"table": {"type": "string"}}},
+        {"name": "STORAGE_TABLE_NOT_FOUND",   "fields": {"table": {"type": "string"}}},
+        {"name": "STORAGE_COLUMN_NOT_FOUND",  "fields": {"table": {"type": "string"}, "column": {"type": "string"}}},
+        {"name": "STORAGE_DUPLICATE_COLUMN",  "fields": {"table": {"type": "string"}, "column": {"type": "string"}}},
+        {"name": "STORAGE_ARITY_MISMATCH",    "fields": {"table": {"type": "string"}, "expected": {"type": "integer"}, "got": {"type": "integer"}}},
+        {"name": "STORAGE_TYPE_MISMATCH",     "fields": {"table": {"type": "string"}, "column": {"type": "string"}, "expected_type": {"enum": ["INTEGER", "TEXT"]}, "got_type": {"enum": ["INTEGER", "TEXT"]}}},
+        {"name": "EVAL_COLUMN_WITHOUT_TABLE", "fields": {"column": {"type": "string"}}},
+        {"name": "EVAL_DIVISION_BY_ZERO",     "fields": {}},
+        {"name": "EVAL_TYPE_ERROR",           "fields": {"op": {"type": "string"}, "left_type": {"type": "string"}, "right_type": {"type": "string"}, "operand_type": {"type": "string"}}}
+      ]
+    }
+  },
+  "note": "PARSE_UNEXPECTED_TOKEN is NOT emitted by the executor itself; it is surfaced from the parser. The executor's own error surface includes all STORAGE_* plus Phase 2c-1's EVAL_* conditions."
+}

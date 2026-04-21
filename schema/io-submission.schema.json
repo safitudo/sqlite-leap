@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sqlite-leap.dev/schema/io-submission.schema.json",
+  "title": "IO submission record",
+  "description": "Language-neutral description of an async I/O request submitted by the storage layer to the I/O backend. The backend accepts a queue of these records and emits io-completion records in response. No language-specific idioms (pointers, lifetimes, Result types) appear in this schema; each generator maps the record to an idiomatic in-memory shape in its target language.",
+  "type": "object",
+  "required": ["op", "user_data", "epoch"],
+  "properties": {
+    "op": {
+      "description": "Operation kind. The backend dispatches by this tag.",
+      "enum": [
+        "open_read",
+        "open_write",
+        "read",
+        "write",
+        "fsync",
+        "fsync_dir",
+        "close",
+        "rename",
+        "unlink",
+        "cancel"
+      ]
+    },
+    "user_data": {
+      "description": "Opaque token chosen by the submitter. The backend MUST echo it verbatim in the matching completion record. Encoded as an unsigned 64-bit integer; generators MAY narrow to a smaller int if the deployment cannot overflow.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "epoch": {
+      "description": "Monotonic session-epoch counter. Completions whose epoch is LESS than the current pager epoch MUST be dropped silently (they refer to a cancelled transaction or closed handle). See pager-async.spec.md § 'Cancellation semantics'.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "handle": {
+      "description": "Opaque file handle identifier. Required for: read, write, fsync, fsync_dir, close. Omitted for open_read, open_write, rename, unlink, cancel. Generators map this to a file descriptor (C), file object (Rust), or JS host handle (WASM).",
+      "type": "integer",
+      "minimum": 0
+    },
+    "path": {
+      "description": "Filesystem path, UTF-8. Required for: open_read, open_write, rename (source), unlink, fsync_dir. Omitted otherwise.",
+      "type": "string"
+    },
+    "new_path": {
+      "description": "Destination path for rename. Required only when op == 'rename'.",
+      "type": "string"
+    },
+    "create": {
+      "description": "Create file if absent. Applies to op == 'open_write' only.",
+      "type": "boolean"
+    },
+    "truncate": {
+      "description": "Truncate existing file to zero on open. Applies to op == 'open_write' only.",
+      "type": "boolean"
+    },
+    "offset": {
+      "description": "Byte offset in the file. Required for read and write.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "length": {
+      "description": "Byte count. Required for read and write. MUST equal the payload_buffer's capacity for a read and the payload_buffer's byte length for a write.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "payload_buffer_ref": {
+      "description": "Identifier of a backend-owned or submitter-owned buffer holding (for write) or receiving (for read) the bytes. The spec treats this as an opaque token; each generator binds it to a native buffer primitive (C: pointer + length; Rust: &mut [u8] or indexed buffer pool slot; WASM: memory region index). Lifecycle: caller guarantees the buffer is live from submission until the matching completion record is observed. Omitted for fsync, fsync_dir, close, rename, unlink, cancel.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "cancel_target": {
+      "description": "user_data of the submission to cancel. Required only when op == 'cancel'. If no in-flight submission carries this user_data, the cancel op completes with result_bytes = 0 and no error (idempotent).",
+      "type": "integer",
+      "minimum": 0
+    },
+    "datasync": {
+      "description": "Hint: data-only durability is sufficient (metadata need not be flushed). Applies to op == 'fsync'. Backends MAY ignore the hint. On Darwin, backends MUST NOT honour this hint — F_FULLFSYNC is required for crash durability regardless.",
+      "type": "boolean"
+    },
+    "link_prior": {
+      "description": "Ordering hint: this submission MUST complete only after the most recently submitted operation on the same handle. Backends use this to chain dependent ops (e.g., write-then-fsync). A backend MAY preserve same-handle order unconditionally and ignore the hint.",
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": { "properties": { "op": { "const": "read" } } },
+      "then": { "required": ["handle", "offset", "length", "payload_buffer_ref"] }
+    },
+    {
+      "if": { "properties": { "op": { "const": "write" } } },
+      "then": { "required": ["handle", "offset", "length", "payload_buffer_ref"] }
+    },
+    {
+      "if": { "properties": { "op": { "const": "fsync" } } },
+      "then": { "required": ["handle"] }
+    },
+    {
+      "if": { "properties": { "op": { "const": "close" } } },
+      "then": { "required": ["handle"] }
+    },
+    {
+      "if": { "properties": { "op": { "const": "fsync_dir" } } },
+      "then": { "required": ["path"] }
+    },
+    {
+      "if": { "properties": { "op": { "const": "open_read" } } },
+      "then": { "required": ["path"] }
+    },
+    {
+      "if": { "properties": { "op": { "const": "open_write" } } },
+      "then": { "required": ["path", "create", "truncate"] }
+    },
+    {
+      "if": { "properties": { "op": { "const": "rename" } } },
+      "then": { "required": ["path", "new_path"] }
+    },
+    {
+      "if": { "properties": { "op": { "const": "unlink" } } },
+      "then": { "required": ["path"] }
+    },
+    {
+      "if": { "properties": { "op": { "const": "cancel" } } },
+      "then": { "required": ["cancel_target"] }
+    }
+  ]
+}

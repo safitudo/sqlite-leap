@@ -1,0 +1,34 @@
+# Smoke: SELECT DISTINCT.
+
+statement ok
+CREATE TABLE t (a INTEGER, b TEXT)
+
+statement ok
+INSERT INTO t VALUES (1, 'x')
+
+statement ok
+INSERT INTO t VALUES (1, 'x')
+
+statement ok
+INSERT INTO t VALUES (1, 'y')
+
+statement ok
+INSERT INTO t VALUES (2, 'x')
+
+query I rowsort
+SELECT DISTINCT a FROM t
+----
+1
+2
+
+query IT rowsort
+SELECT DISTINCT a, b FROM t
+----
+1
+x
+1
+y
+2
+x
+
+# COUNT(DISTINCT ...) and derived-table FROM are deferred; coverage gap noted.

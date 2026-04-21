@@ -1,0 +1,155 @@
+{
+  "phase": "6x",
+  "description": "Phase 6x gate — LIKE / NOT LIKE pattern matching with % and _ wildcards. One new opcode kind Scalar2::Like (invariant 43, max_invariant=43). Algorithm per spec/sql-grammar.spec.md § 'Phase 6x'. All prior phase fixtures must stay green.",
+  "cases": [
+    {
+      "name": "like-exact-match",
+      "program": [
+        {"sql": "SELECT 'hello' LIKE 'hello';", "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "like-no-wildcard-no-match",
+      "program": [
+        {"sql": "SELECT 'hello' LIKE 'world';", "expect": {"rows": [[0]]}}
+      ]
+    },
+    {
+      "name": "like-percent-suffix",
+      "program": [
+        {"sql": "SELECT 'hello' LIKE 'hel%';", "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "like-percent-prefix",
+      "program": [
+        {"sql": "SELECT 'hello' LIKE '%llo';", "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "like-percent-middle",
+      "program": [
+        {"sql": "SELECT 'hello' LIKE 'h%o';", "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "like-percent-matches-empty",
+      "program": [
+        {"sql": "SELECT 'hello' LIKE 'hello%';", "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "like-percent-only",
+      "description": "Lone % matches any string including empty.",
+      "program": [
+        {"sql": "SELECT 'anything' LIKE '%';", "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "like-percent-only-empty-string",
+      "program": [
+        {"sql": "SELECT '' LIKE '%';", "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "like-underscore-single-char",
+      "program": [
+        {"sql": "SELECT 'cat' LIKE 'c_t';", "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "like-underscore-wrong-length",
+      "description": "_ matches exactly one character; 'cast' has 4 chars, 'c_t' requires 3.",
+      "program": [
+        {"sql": "SELECT 'cast' LIKE 'c_t';", "expect": {"rows": [[0]]}}
+      ]
+    },
+    {
+      "name": "like-mixed-wildcards",
+      "program": [
+        {"sql": "SELECT 'abcdef' LIKE 'a_c%f';", "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "like-case-sensitive",
+      "description": "LIKE is case-sensitive in v1 (no NOCASE collation).",
+      "program": [
+        {"sql": "SELECT 'Hello' LIKE 'hello';", "expect": {"rows": [[0]]}}
+      ]
+    },
+    {
+      "name": "like-empty-pattern-matches-empty",
+      "program": [
+        {"sql": "SELECT '' LIKE '';", "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "like-empty-pattern-non-empty-subject",
+      "program": [
+        {"sql": "SELECT 'hi' LIKE '';", "expect": {"rows": [[0]]}}
+      ]
+    },
+    {
+      "name": "not-like-match",
+      "program": [
+        {"sql": "SELECT 'hello' NOT LIKE 'hello';", "expect": {"rows": [[0]]}}
+      ]
+    },
+    {
+      "name": "not-like-no-match",
+      "program": [
+        {"sql": "SELECT 'hello' NOT LIKE 'world';", "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "like-null-subject-yields-null",
+      "description": "NULL LIKE 'pat' → Null. WHERE filters out.",
+      "program": [
+        {"sql": "CREATE TABLE t (a TEXT);",                     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL);",                  "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(*) FROM t WHERE a LIKE 'x';",      "expect": {"rows": [[0]]}}
+      ]
+    },
+    {
+      "name": "like-null-pattern-yields-null",
+      "program": [
+        {"sql": "CREATE TABLE t (a TEXT);",                       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('hi');",                    "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(*) FROM t WHERE a LIKE NULL;",       "expect": {"rows": [[0]]}}
+      ]
+    },
+    {
+      "name": "like-on-column",
+      "program": [
+        {"sql": "CREATE TABLE t (name TEXT);",                       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('alice');",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('albert');",                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('bob');",                      "expect": {"rows": []}},
+        {"sql": "SELECT name FROM t WHERE name LIKE 'al%' ORDER BY name;",  "expect": {"rows": [["albert"], ["alice"]]}}
+      ]
+    },
+    {
+      "name": "like-percent-escaped-via-literal-does-not-exist",
+      "description": "No ESCAPE in v1 — percent in pattern is ALWAYS a wildcard.",
+      "program": [
+        {"sql": "SELECT '50%' LIKE '50%';", "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "like-utf8-byte-exact",
+      "description": "Non-ASCII bytes match themselves byte-exactly; 'café' matches 'caf_' (the 'é' is 2 UTF-8 bytes so _ doesn't match it — this fixture pins the byte-level semantics).",
+      "program": [
+        {"sql": "SELECT 'café' LIKE 'caf_';", "expect": {"rows": [[0]]}}
+      ]
+    },
+    {
+      "name": "like-integer-subject-yields-null",
+      "description": "Non-Text operand (Integer) makes LIKE result Null — not an error per 3VL.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (42);",                        "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(*) FROM t WHERE a LIKE '4%';",         "expect": {"rows": [[0]]}}
+      ]
+    }
+  ]
+}

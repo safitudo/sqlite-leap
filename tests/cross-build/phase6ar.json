@@ -1,0 +1,91 @@
+{
+  "phase": "6ar",
+  "description": "Phase 6ar gate — INTEGER PRIMARY KEY (rowid aliasing) + AUTOINCREMENT. Critical for bidirectional file-format compat with mainline SQLite.",
+  "cases": [
+    {
+      "name": "int-pk-explicit-value",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER PRIMARY KEY, v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5, 100);",                       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (10, 200);",                      "expect": {"rows": []}},
+        {"sql": "SELECT id, v FROM t ORDER BY id;",                     "expect": {"rows": [[5, 100], [10, 200]]}}
+      ]
+    },
+    {
+      "name": "int-pk-auto-assigned",
+      "description": "Omitting the PK column auto-assigns smallest unused positive rowid.",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER PRIMARY KEY, v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (v) VALUES (100);",                      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (v) VALUES (200);",                      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (v) VALUES (300);",                      "expect": {"rows": []}},
+        {"sql": "SELECT id, v FROM t ORDER BY id;",                     "expect": {"rows": [[1, 100], [2, 200], [3, 300]]}}
+      ]
+    },
+    {
+      "name": "int-pk-duplicate-rejects",
+      "description": "Rowid-alias duplicate insert raises STORAGE_UNIQUE_VIOLATION (same error name as 9g's PK-duplicate path — unified 2026-04-20).",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER PRIMARY KEY, v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5, 100);",                       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5, 200);",                       "expect": {"error": "STORAGE_UNIQUE_VIOLATION"}}
+      ]
+    },
+    {
+      "name": "int-pk-null-value-auto-assigned",
+      "description": "INSERT with NULL for INT PK auto-assigns (matches SQLite behavior).",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER PRIMARY KEY, v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL, 100);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL, 200);",                    "expect": {"rows": []}},
+        {"sql": "SELECT id, v FROM t ORDER BY id;",                     "expect": {"rows": [[1, 100], [2, 200]]}}
+      ]
+    },
+    {
+      "name": "int-pk-autoincrement-explicit",
+      "description": "AUTOINCREMENT requested; after delete, auto-assigned id does NOT reuse deleted rowid.",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER PRIMARY KEY AUTOINCREMENT, v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (v) VALUES (100);",                                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (v) VALUES (200);",                                    "expect": {"rows": []}},
+        {"sql": "DELETE FROM t WHERE id = 2;",                                         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (v) VALUES (300);",                                     "expect": {"rows": []}},
+        {"sql": "SELECT id, v FROM t ORDER BY id;",                                   "expect": {"rows": [[1, 100], [3, 300]]}}
+      ]
+    },
+    {
+      "name": "int-pk-projection-star",
+      "description": "SELECT * from INT PK table returns id column with rowid value — projection-compat for file-format.",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER PRIMARY KEY, v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (7, 42);",                        "expect": {"rows": []}},
+        {"sql": "SELECT * FROM t;",                                     "expect": {"rows": [[7, 42]]}}
+      ]
+    },
+    {
+      "name": "non-integer-pk-accepted-via-9f",
+      "description": "Non-INTEGER PRIMARY KEY is NOT rejected by 6ar — it routes through the 9f auto-index path (2026-04-20 reconcile). Only the INTEGER PRIMARY KEY form triggers rowid-aliasing.",
+      "program": [
+        {"sql": "CREATE TABLE t (id TEXT PRIMARY KEY, v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('a', 100);",                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('b', 200);",                   "expect": {"rows": []}},
+        {"sql": "SELECT id, v FROM t ORDER BY id;",                   "expect": {"rows": [["a", 100], ["b", 200]]}}
+      ]
+    },
+    {
+      "name": "autoincrement-without-primary-key-rejected",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER AUTOINCREMENT);", "expect": {"error": "COMPILE_AUTOINCREMENT_WITHOUT_PRIMARY_KEY"}}
+      ]
+    },
+    {
+      "name": "int-pk-file-format-round-trip",
+      "description": "Write via LEAP, close, reopen — verify data intact (exercises the rowid-alias read path).",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER PRIMARY KEY, v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10), (2, 20), (3, 30);",      "expect": {"rows": []}},
+        {"sql": "SELECT id, v FROM t ORDER BY id;",                     "expect": {"rows": [[1, 10], [2, 20], [3, 30]]}}
+      ]
+    }
+  ]
+}

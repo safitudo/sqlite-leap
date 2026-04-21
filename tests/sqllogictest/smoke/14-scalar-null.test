@@ -1,0 +1,42 @@
+# Smoke: NULL-handling scalar functions — IFNULL, COALESCE.
+
+query I nosort
+SELECT IFNULL(NULL, 42)
+----
+42
+
+query I nosort
+SELECT IFNULL(10, 42)
+----
+10
+
+query T nosort
+SELECT IFNULL(NULL, 'default')
+----
+default
+
+query I nosort
+SELECT COALESCE(NULL, NULL, 99)
+----
+99
+
+query I nosort
+SELECT COALESCE(1, 2, 3)
+----
+1
+
+query T nosort
+SELECT COALESCE(NULL, NULL, NULL, 'last')
+----
+last
+
+# COALESCE must have at least 2 arguments
+statement error
+SELECT COALESCE(1)
+
+# IFNULL requires exactly 2
+statement error
+SELECT IFNULL(1)
+
+statement error
+SELECT IFNULL(1, 2, 3)

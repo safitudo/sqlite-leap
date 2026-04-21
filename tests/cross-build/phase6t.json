@@ -1,0 +1,200 @@
+{
+  "phase": "6t",
+  "description": "Phase 6t gate — transactions as SQL statements. BEGIN/COMMIT/ROLLBACK/END as top-level statements. BEGIN/COMMIT/END are semantic no-ops (empty-body program). ROLLBACK raises VDBE_ROLLBACK_NOT_SUPPORTED (pre-WAL, no journal to roll back to). Four new reserved keywords (BEGIN, COMMIT, ROLLBACK, END). One new opcode TxnRollback. No new invariants. max_invariant=28 unchanged. All phase1..6s fixtures must stay green.",
+  "cases": [
+    {
+      "name": "begin-basic",
+      "program": [
+        {"sql": "BEGIN;", "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "commit-basic",
+      "program": [
+        {"sql": "COMMIT;", "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "end-as-commit-synonym",
+      "program": [
+        {"sql": "END;", "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "rollback-raises",
+      "program": [
+        {"sql": "ROLLBACK;", "expect": {"error": {"name": "VDBE_ROLLBACK_NOT_SUPPORTED"}}}
+      ]
+    },
+    {
+      "name": "begin-case-insensitive",
+      "program": [
+        {"sql": "begin;", "expect": {"rows": []}},
+        {"sql": "BEGIN;", "expect": {"rows": []}},
+        {"sql": "BeGiN;", "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "commit-case-insensitive",
+      "program": [
+        {"sql": "commit;",   "expect": {"rows": []}},
+        {"sql": "COMMIT;",   "expect": {"rows": []}},
+        {"sql": "CoMmIt;",   "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "end-case-insensitive",
+      "program": [
+        {"sql": "end;", "expect": {"rows": []}},
+        {"sql": "END;", "expect": {"rows": []}},
+        {"sql": "EnD;", "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "rollback-case-insensitive",
+      "program": [
+        {"sql": "rollback;",   "expect": {"error": {"name": "VDBE_ROLLBACK_NOT_SUPPORTED"}}},
+        {"sql": "ROLLBACK;",   "expect": {"error": {"name": "VDBE_ROLLBACK_NOT_SUPPORTED"}}},
+        {"sql": "RoLlBaCk;",   "expect": {"error": {"name": "VDBE_ROLLBACK_NOT_SUPPORTED"}}}
+      ]
+    },
+    {
+      "name": "begin-insert-commit-sequence",
+      "description": "In the pre-WAL model, BEGIN and COMMIT are no-ops — INSERTs between them are immediately persisted. After COMMIT, rows are visible.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "BEGIN;",                      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",   "expect": {"rows": []}},
+        {"sql": "COMMIT;",                     "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t ORDER BY x;", "expect": {"rows": [[1], [2]]}}
+      ]
+    },
+    {
+      "name": "begin-insert-rollback-raises-but-data-persists",
+      "description": "ROLLBACK raises VDBE_ROLLBACK_NOT_SUPPORTED. Because our pre-WAL model has no journal, the INSERTs before ROLLBACK are already persisted and remain visible — this is a documented divergence from SQLite that will be corrected when WAL lands (Phase 4).",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "BEGIN;",                      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (10);",  "expect": {"rows": []}},
+        {"sql": "ROLLBACK;",                   "expect": {"error": {"name": "VDBE_ROLLBACK_NOT_SUPPORTED"}}},
+        {"sql": "SELECT x FROM t;",            "expect": {"rows": [[10]]}}
+      ]
+    },
+    {
+      "name": "begin-then-select-passes-through",
+      "program": [
+        {"sql": "BEGIN;",      "expect": {"rows": []}},
+        {"sql": "SELECT 42;",  "expect": {"rows": [[42]]}}
+      ]
+    },
+    {
+      "name": "commit-without-begin-no-op",
+      "description": "COMMIT with no preceding BEGIN is a no-op (documented divergence from SQLite, which would raise 'cannot commit - no transaction is active'). Phase 4 WAL rollout will re-pin this.",
+      "program": [
+        {"sql": "COMMIT;", "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "rollback-without-begin-still-raises",
+      "description": "Orphan ROLLBACK raises VDBE_ROLLBACK_NOT_SUPPORTED — the error is about capability (no journal), not about transaction state.",
+      "program": [
+        {"sql": "ROLLBACK;", "expect": {"error": {"name": "VDBE_ROLLBACK_NOT_SUPPORTED"}}}
+      ]
+    },
+    {
+      "name": "nested-begins-permitted",
+      "description": "Documented divergence: SQLite raises on nested BEGIN; sqlite-leap v1 permits it as no-op because there is no 'in-transaction' state to check.",
+      "program": [
+        {"sql": "BEGIN;", "expect": {"rows": []}},
+        {"sql": "BEGIN;", "expect": {"rows": []}},
+        {"sql": "BEGIN;", "expect": {"rows": []}},
+        {"sql": "COMMIT;", "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "begin-transaction-rejected",
+      "description": "Phase 6t does NOT accept `BEGIN TRANSACTION` — only the bare keyword. Modifier is a parse error.",
+      "program": [
+        {"sql": "BEGIN TRANSACTION;", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "IDENTIFIER"}}}}
+      ]
+    },
+    {
+      "name": "begin-deferred-rejected",
+      "program": [
+        {"sql": "BEGIN DEFERRED;", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "IDENTIFIER"}}}}
+      ]
+    },
+    {
+      "name": "commit-transaction-rejected",
+      "program": [
+        {"sql": "COMMIT TRANSACTION;", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "IDENTIFIER"}}}}
+      ]
+    },
+    {
+      "name": "rollback-to-savepoint-rejected",
+      "description": "Savepoints are a permanent non-goal of Phase 6t. `ROLLBACK TO foo` is a parse error at the `TO` / IDENTIFIER position (TO is not a reserved keyword so it lexes as an IDENTIFIER).",
+      "program": [
+        {"sql": "ROLLBACK TO sp1;", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "IDENTIFIER"}}}}
+      ]
+    },
+    {
+      "name": "begin-as-column-rejected",
+      "program": [
+        {"sql": "CREATE TABLE t (begin INTEGER);", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "KEYWORD_BEGIN"}}}}
+      ]
+    },
+    {
+      "name": "commit-as-column-rejected",
+      "program": [
+        {"sql": "CREATE TABLE t (commit INTEGER);", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "KEYWORD_COMMIT"}}}}
+      ]
+    },
+    {
+      "name": "rollback-as-column-rejected",
+      "program": [
+        {"sql": "CREATE TABLE t (rollback INTEGER);", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "KEYWORD_ROLLBACK"}}}}
+      ]
+    },
+    {
+      "name": "end-as-column-rejected",
+      "program": [
+        {"sql": "CREATE TABLE t (end INTEGER);", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "KEYWORD_END"}}}}
+      ]
+    },
+    {
+      "name": "begin-as-table-name-rejected",
+      "program": [
+        {"sql": "CREATE TABLE begin (x INTEGER);", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "KEYWORD_BEGIN"}}}}
+      ]
+    },
+    {
+      "name": "select-begin-column-rejected",
+      "description": "Cannot reference a column named `begin` either — it doesn't parse.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "SELECT begin FROM t;",        "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "KEYWORD_BEGIN"}}}}
+      ]
+    },
+    {
+      "name": "begin-missing-semicolon",
+      "description": "BEGIN must be followed by SEMICOLON or EOF.",
+      "program": [
+        {"sql": "BEGIN", "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "commit-missing-semicolon",
+      "program": [
+        {"sql": "COMMIT", "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "begin-empty-row-result",
+      "description": "BEGIN returns {rows: []} — empty rows list, NOT an 'no result' signal. Harness compares deeply.",
+      "program": [
+        {"sql": "BEGIN;", "expect": {"rows": []}}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,89 @@
+{
+  "phase": "6ae",
+  "description": "Phase 6ae gate — EXISTS / NOT EXISTS subquery predicates. Builds on 6ag scope stack. No new opcodes. max_invariant=43 unchanged.",
+  "cases": [
+    {
+      "name": "exists-non-empty-yields-1",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                                       "expect": {"rows": []}},
+        {"sql": "SELECT EXISTS (SELECT 1 FROM t);",                                "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "exists-empty-yields-0",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                                    "expect": {"rows": []}},
+        {"sql": "SELECT EXISTS (SELECT 1 FROM t);",                                "expect": {"rows": [[0]]}}
+      ]
+    },
+    {
+      "name": "not-exists-empty-yields-1",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                                    "expect": {"rows": []}},
+        {"sql": "SELECT NOT EXISTS (SELECT 1 FROM t);",                            "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "not-exists-non-empty-yields-0",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                                       "expect": {"rows": []}},
+        {"sql": "SELECT NOT EXISTS (SELECT 1 FROM t);",                            "expect": {"rows": [[0]]}}
+      ]
+    },
+    {
+      "name": "exists-with-null-row-still-yields-1",
+      "description": "EXISTS never propagates Null — rows are rows regardless of values.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL);",                                    "expect": {"rows": []}},
+        {"sql": "SELECT EXISTS (SELECT a FROM t WHERE a IS NULL);",                 "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "exists-in-where-clause",
+      "program": [
+        {"sql": "CREATE TABLE t1 (a INTEGER);",                                   "expect": {"rows": []}},
+        {"sql": "CREATE TABLE t2 (b INTEGER);",                                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t1 VALUES (1), (2), (3);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t2 VALUES (2);",                                      "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t1 WHERE EXISTS (SELECT 1 FROM t2 WHERE t2.b = t1.a) ORDER BY a;", "expect": {"rows": [[2]]}}
+      ]
+    },
+    {
+      "name": "not-exists-in-where-clause",
+      "program": [
+        {"sql": "CREATE TABLE t1 (a INTEGER);",                                   "expect": {"rows": []}},
+        {"sql": "CREATE TABLE t2 (b INTEGER);",                                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t1 VALUES (1), (2), (3);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t2 VALUES (2);",                                      "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t1 WHERE NOT EXISTS (SELECT 1 FROM t2 WHERE t2.b = t1.a) ORDER BY a;", "expect": {"rows": [[1], [3]]}}
+      ]
+    },
+    {
+      "name": "correlated-exists-in-projection",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2), (3);",                             "expect": {"rows": []}},
+        {"sql": "SELECT a, EXISTS (SELECT 1 FROM t AS x WHERE x.a = t.a * 2) FROM t ORDER BY a;", "expect": {"rows": [[1, 1], [2, 0], [3, 0]]}}
+      ]
+    },
+    {
+      "name": "exists-in-case",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (42);",                                      "expect": {"rows": []}},
+        {"sql": "SELECT CASE WHEN EXISTS (SELECT 1 FROM t) THEN 'yes' ELSE 'no' END;", "expect": {"rows": [["yes"]]}}
+      ]
+    },
+    {
+      "name": "exists-complex-subquery",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);",                         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10), (2, 20), (3, 30);",                  "expect": {"rows": []}},
+        {"sql": "SELECT EXISTS (SELECT 1 FROM t WHERE b > 15 ORDER BY a LIMIT 1);", "expect": {"rows": [[1]]}}
+      ]
+    }
+  ]
+}

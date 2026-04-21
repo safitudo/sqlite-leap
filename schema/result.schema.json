@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$id": "https://sqlite-leap/schema/result.schema.json",
+  "title": "Result",
+  "description": "A query result: zero or more rows, each a list of Values. Phase 1: exactly one row with exactly one Value.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["rows"],
+  "properties": {
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": {"$ref": "value.schema.json"}
+      }
+    }
+  }
+}

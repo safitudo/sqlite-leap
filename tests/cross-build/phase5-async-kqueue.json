@@ -1,0 +1,59 @@
+{
+  "phase": "5-async-kqueue",
+  "description": "Phase 5c gate — kqueue async I/O backend. Drives the disk backend with LEAP_IO_BACKEND=kqueue so that commit durability (atomic-rename + fsync + dir-fsync) runs through the worker-thread pool from io_backend_kqueue, with F_FULLFSYNC on Darwin. Per spec/io-backend-kqueue.spec.md § 'Test authority': every fixture that passes on the sync backend MUST pass byte-identically with the kqueue backend active. This fixture inherits phase3d's step-kind vocabulary and adds no new schema fields; the harness merely forces the env var at run time. The max-invariant case — 1000 INSERTs then reopen + SELECT count — is the async analogue of phase3d's minimal roundtrip and is the observable gate for both targets. Cross-build equivalence between C and Rust is pinned by the expect blocks below.",
+  "schema": {
+    "case": "inherits phase3d.json schema. No new fields.",
+    "env": "Harness sets LEAP_IO_BACKEND=kqueue for every step; the async pager routes commit durability through io_backend_kqueue."
+  },
+  "cases": [
+    {
+      "name": "disk-async-roundtrip-small",
+      "description": "Async backend: smallest observable roundtrip — CREATE, INSERT, close, reopen, SELECT. Same pass criterion as phase3d disk-normal-commit-survives-reopen but under the async commit path.",
+      "backend": "disk",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (42);",   "expect": {"rows": []}},
+        {"reopen": true},
+        {"sql": "SELECT a FROM t;",             "expect": {"rows": [[42]]}}
+      ]
+    },
+    {
+      "name": "disk-async-multiple-commit-cycles",
+      "description": "Exercises the async commit path across multiple close+reopen cycles. Each reopen must re-read bytes durably flushed via F_FULLFSYNC.",
+      "backend": "disk",
+      "program": [
+        {"sql": "CREATE TABLE a (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);",   "expect": {"rows": []}},
+        {"reopen": true},
+        {"sql": "INSERT INTO a VALUES (2);",   "expect": {"rows": []}},
+        {"reopen": true},
+        {"sql": "INSERT INTO a VALUES (3);",   "expect": {"rows": []}},
+        {"reopen": true},
+        {"sql": "SELECT x FROM a;",            "expect": {"rows": [[1],[2],[3]]}}
+      ]
+    },
+    {
+      "name": "disk-async-text-roundtrip",
+      "description": "TEXT values round-trip cleanly through the async commit path — guards against buffer-lifecycle regressions in the pipelined pwrite path.",
+      "backend": "disk",
+      "program": [
+        {"sql": "CREATE TABLE t (s TEXT);",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('hello');", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('world');", "expect": {"rows": []}},
+        {"reopen": true},
+        {"sql": "SELECT s FROM t;",            "expect": {"rows": [["hello"],["world"]]}}
+      ]
+    },
+    {
+      "name": "disk-async-1000-inserts-roundtrip",
+      "description": "Task-required gate: 1000 INSERTs, reopen, verify all 1000 come back in order. Exercises the async pager's pipelined pwrite path (64 KiB chunks, depth 16) across a buffer that spans multiple worker-queue generations.",
+      "backend": "disk",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"bulk_insert_int_range": {"table": "t", "start": 1, "count": 1000}, "expect": {"rows": []}},
+        {"reopen": true},
+        {"sql": "SELECT x FROM t;", "expect": {"rows_int_range": {"start": 1, "count": 1000}}}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+# Smoke: scalar subqueries.
+
+statement ok
+CREATE TABLE t (a INTEGER)
+
+statement ok
+INSERT INTO t VALUES (42)
+
+query I nosort
+SELECT (SELECT a FROM t)
+----
+42
+
+query I nosort
+SELECT (SELECT a FROM t) + 8
+----
+50
+
+# Subquery produces 0 rows → Null
+query T nosort
+SELECT (SELECT a FROM t WHERE a = 99)
+----
+NULL
+
+# Subquery with aggregate
+statement ok
+CREATE TABLE nums (n INTEGER)
+
+statement ok
+INSERT INTO nums VALUES (1)
+
+statement ok
+INSERT INTO nums VALUES (2)
+
+statement ok
+INSERT INTO nums VALUES (3)
+
+query I nosort
+SELECT (SELECT SUM(n) FROM nums)
+----
+6
+
+# Subquery rejected when producing >1 row
+statement error
+SELECT (SELECT n FROM nums)

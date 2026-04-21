@@ -1,0 +1,213 @@
+{
+  "phase": "6g",
+  "description": "Phase 6g gate — REAL (f64) value type. FLOAT_LITERAL tokenizer, Value::Real, cross-type numeric comparison, arithmetic promotion, CREATE TABLE REAL/FLOAT/DOUBLE labels, INT-promotes-to-REAL on insert into REAL column, SUM/MIN/MAX cross-type awareness. Serialization + round-trip with mainline is tested by tests/cross-build/roundtrip_real.py (separate from this in-memory harness).",
+  "cases": [
+    {
+      "name": "real-literal-in-projection",
+      "program": [
+        {"sql": "SELECT 3.14;", "expect": {"rows": [[3.14]]}}
+      ]
+    },
+    {
+      "name": "real-literal-exponent",
+      "program": [
+        {"sql": "SELECT 1e2;",    "expect": {"rows": [[100.0]]}},
+        {"sql": "SELECT 2.5e-2;", "expect": {"rows": [[0.025]]}}
+      ]
+    },
+    {
+      "name": "real-literal-leading-dot",
+      "program": [
+        {"sql": "SELECT .5;",     "expect": {"rows": [[0.5]]}}
+      ]
+    },
+    {
+      "name": "real-arithmetic-real-real",
+      "program": [
+        {"sql": "SELECT 1.5 + 2.5;",   "expect": {"rows": [[4.0]]}},
+        {"sql": "SELECT 10.0 / 4.0;",  "expect": {"rows": [[2.5]]}}
+      ]
+    },
+    {
+      "name": "real-arithmetic-int-real-promotion",
+      "program": [
+        {"sql": "SELECT 3 + 0.5;",   "expect": {"rows": [[3.5]]}},
+        {"sql": "SELECT 0.5 + 3;",   "expect": {"rows": [[3.5]]}},
+        {"sql": "SELECT 7 / 2.0;",   "expect": {"rows": [[3.5]]}},
+        {"sql": "SELECT 2.0 * 3;",   "expect": {"rows": [[6.0]]}}
+      ]
+    },
+    {
+      "name": "real-arithmetic-integer-division-unchanged",
+      "description": "7 / 2 as ints stays int (truncation) — promotion only kicks in when one operand is REAL.",
+      "program": [
+        {"sql": "SELECT 7 / 2;",     "expect": {"rows": [[3]]}}
+      ]
+    },
+    {
+      "name": "real-negate",
+      "program": [
+        {"sql": "SELECT 0 - 1.5;",   "expect": {"rows": [[-1.5]]}}
+      ]
+    },
+    {
+      "name": "create-table-real-basic",
+      "program": [
+        {"sql": "CREATE TABLE t (x REAL);",           "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1.5);",        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2.5);",        "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t;",                   "expect": {"rows": [[1.5], [2.5]]}}
+      ]
+    },
+    {
+      "name": "create-table-float-alias",
+      "program": [
+        {"sql": "CREATE TABLE t (x FLOAT);",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (0.25);",       "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t;",                   "expect": {"rows": [[0.25]]}}
+      ]
+    },
+    {
+      "name": "create-table-double-alias",
+      "program": [
+        {"sql": "CREATE TABLE t (x DOUBLE);",         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (42.0);",       "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t;",                   "expect": {"rows": [[42.0]]}}
+      ]
+    },
+    {
+      "name": "insert-int-into-real-column-promoted",
+      "description": "Inserting an INT into a REAL column promotes to REAL on store.",
+      "program": [
+        {"sql": "CREATE TABLE t (x REAL);",           "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",          "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t;",                   "expect": {"rows": [[5.0]]}}
+      ]
+    },
+    {
+      "name": "insert-real-into-integer-column-rejected",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1.5);",        "expect": {"error": {"name": "STORAGE_TYPE_MISMATCH", "fields": {"expected_type": "INTEGER", "got_type": "REAL"}}}}
+      ]
+    },
+    {
+      "name": "insert-real-into-text-column-rejected",
+      "program": [
+        {"sql": "CREATE TABLE t (x TEXT);",           "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1.5);",        "expect": {"error": {"name": "STORAGE_TYPE_MISMATCH", "fields": {"expected_type": "TEXT", "got_type": "REAL"}}}}
+      ]
+    },
+    {
+      "name": "real-null-values",
+      "program": [
+        {"sql": "CREATE TABLE t (x REAL);",           "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1.5);",        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2.5);",        "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t;",                   "expect": {"rows": [[1.5], [null], [2.5]]}}
+      ]
+    },
+    {
+      "name": "real-where-comparison",
+      "program": [
+        {"sql": "CREATE TABLE t (x REAL);",           "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1.0);",        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2.5);",        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3.0);",        "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x > 1.5;",     "expect": {"rows": [[2.5], [3.0]]}}
+      ]
+    },
+    {
+      "name": "real-cross-type-comparison",
+      "description": "REAL compared numerically to INT in WHERE.",
+      "program": [
+        {"sql": "CREATE TABLE t (x REAL);",           "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1.5);",        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2.0);",        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3.5);",        "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x > 2;",       "expect": {"rows": [[3.5]]}}
+      ]
+    },
+    {
+      "name": "real-order-by",
+      "program": [
+        {"sql": "CREATE TABLE t (x REAL);",           "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3.5);",        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1.5);",        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2.5);",        "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t ORDER BY x;",        "expect": {"rows": [[1.5], [2.5], [3.5]]}}
+      ]
+    },
+    {
+      "name": "sum-real",
+      "program": [
+        {"sql": "CREATE TABLE t (x REAL);",           "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1.5);",        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2.5);",        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3.0);",        "expect": {"rows": []}},
+        {"sql": "SELECT SUM(x) FROM t;",              "expect": {"rows": [[7.0]]}}
+      ]
+    },
+    {
+      "name": "min-max-real",
+      "program": [
+        {"sql": "CREATE TABLE t (x REAL);",           "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2.5);",        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1.5);",        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3.5);",        "expect": {"rows": []}},
+        {"sql": "SELECT MIN(x), MAX(x) FROM t;",      "expect": {"rows": [[1.5, 3.5]]}}
+      ]
+    },
+    {
+      "name": "real-arithmetic-with-null",
+      "program": [
+        {"sql": "CREATE TABLE t (a REAL, b REAL);",   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1.5, NULL);",  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2.0, 0.5);",   "expect": {"rows": []}},
+        {"sql": "SELECT a + b FROM t;",               "expect": {"rows": [[null], [2.5]]}}
+      ]
+    },
+    {
+      "name": "real-plus-text-type-mismatch",
+      "program": [
+        {"sql": "CREATE TABLE t (r REAL, s TEXT);",                           "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1.5, 'hi');",                          "expect": {"rows": []}},
+        {"sql": "SELECT r + s FROM t;",                                       "expect": {"error": {"name": "VDBE_TYPE_MISMATCH", "fields": {"operation": "add"}}}}
+      ]
+    },
+    {
+      "name": "integer-division-by-zero-yields-null",
+      "description": "Phase 6bv SQLite-compat (supersedes the original 6g `integer-division-by-zero-still-errors`): integer `1 / 0` returns NULL, not an error. Real-path divide-by-zero (IEEE) is unchanged — see real-div-zero cases in the phase6bv fixture.",
+      "program": [
+        {"sql": "SELECT 1 / 0;",                       "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "negative-real-literal-in-insert",
+      "program": [
+        {"sql": "CREATE TABLE t (x REAL);",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (-1.5);",        "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t;",                    "expect": {"rows": [[-1.5]]}}
+      ]
+    },
+    {
+      "name": "real-as-identifier-no-longer-works",
+      "program": [
+        {"sql": "CREATE TABLE t (real INTEGER);",      "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "KEYWORD_REAL"}}}}
+      ]
+    },
+    {
+      "name": "float-as-identifier-no-longer-works",
+      "program": [
+        {"sql": "CREATE TABLE t (float INTEGER);",     "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "KEYWORD_FLOAT"}}}}
+      ]
+    },
+    {
+      "name": "double-as-identifier-no-longer-works",
+      "program": [
+        {"sql": "CREATE TABLE t (double INTEGER);",    "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "KEYWORD_DOUBLE"}}}}
+      ]
+    }
+  ]
+}

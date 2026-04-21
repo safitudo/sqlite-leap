@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$id": "https://sqlite-leap/schema/program.schema.json",
+  "title": "Program",
+  "description": "A compiled VDBE program. See spec/vdbe-opcodes.spec.md § 'Well-formedness' for invariants every compiled program must satisfy.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["opcodes", "num_registers", "num_cursors", "num_sorters"],
+  "properties": {
+    "opcodes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "opcode.schema.json"},
+      "description": "Linear sequence of opcodes. Last element MUST be of kind 'Halt'."
+    },
+    "num_registers": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of register cells the program declares."
+    },
+    "num_cursors": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of cursor slots the program declares."
+    },
+    "num_sorters": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Phase 6b: number of sorter slots the program declares. 0 for programs without ORDER BY."
+    }
+  }
+}

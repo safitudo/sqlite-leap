@@ -1,0 +1,68 @@
+{
+  "phase": "6av",
+  "description": "Phase 6av gate — date/time functions: date(), time(), datetime(), julianday(), strftime() over ISO-8601 timestrings + day/hour/second modifiers.",
+  "cases": [
+    {
+      "name": "date-from-iso",
+      "program": [
+        {"sql": "SELECT date('2026-04-19');", "expect": {"rows": [["2026-04-19"]]}}
+      ]
+    },
+    {
+      "name": "time-from-iso-datetime",
+      "program": [
+        {"sql": "SELECT time('2026-04-19 14:30:45');", "expect": {"rows": [["14:30:45"]]}}
+      ]
+    },
+    {
+      "name": "datetime-from-iso",
+      "program": [
+        {"sql": "SELECT datetime('2026-04-19T14:30:45');", "expect": {"rows": [["2026-04-19 14:30:45"]]}}
+      ]
+    },
+    {
+      "name": "date-plus-days-modifier",
+      "program": [
+        {"sql": "SELECT date('2026-04-19', '+5 days');", "expect": {"rows": [["2026-04-24"]]}}
+      ]
+    },
+    {
+      "name": "date-minus-days-modifier",
+      "program": [
+        {"sql": "SELECT date('2026-04-19', '-10 days');", "expect": {"rows": [["2026-04-09"]]}}
+      ]
+    },
+    {
+      "name": "start-of-month",
+      "program": [
+        {"sql": "SELECT date('2026-04-19', 'start of month');", "expect": {"rows": [["2026-04-01"]]}}
+      ]
+    },
+    {
+      "name": "strftime-year-month",
+      "program": [
+        {"sql": "SELECT strftime('%Y-%m', '2026-04-19');", "expect": {"rows": [["2026-04"]]}}
+      ]
+    },
+    {
+      "name": "datetime-now-constant",
+      "description": "'now' is pinned to 2026-04-19 00:00:00 in v1 for determinism.",
+      "program": [
+        {"sql": "SELECT datetime('now');", "expect": {"rows": [["2026-04-19 00:00:00"]]}}
+      ]
+    },
+    {
+      "name": "null-propagates",
+      "program": [
+        {"sql": "SELECT date(NULL);", "expect": {"rows": [[null]]}},
+        {"sql": "SELECT datetime('2026-04-19', NULL);", "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "invalid-timestring-errors",
+      "program": [
+        {"sql": "SELECT date('not a date');", "expect": {"error": "RUNTIME_INVALID_TIMESTRING"}}
+      ]
+    }
+  ]
+}

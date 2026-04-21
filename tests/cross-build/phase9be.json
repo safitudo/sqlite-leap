@@ -1,0 +1,392 @@
+{
+  "phase": "9be",
+  "description": "Phase 9be gate — FUSED backfill + equality-index query planner. CREATE INDEX on populated table fills index B-tree (single-leaf only; STORAGE_PAGE_FULL on overflow). WHERE indexed_col = <const> uses index seek. 5 new VDBE opcodes: IdxOpenRead, IdxSeek, IdxNext, IdxRowid, TableSeekRowid. New invariants 29-33. max_invariant=33. Non-goals: DML maintenance (9c), range+ORDER BY (9d), multi-col WHERE (9d), splits (9d), UNIQUE (9g), PK auto (9f), DROP INDEX (9f). All phase1..9a fixtures must stay green.",
+  "cases": [
+    {
+      "name": "backfill-empty-table",
+      "description": "CREATE INDEX on empty table succeeds (zero cells to backfill).",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",     "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",     "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "backfill-one-row",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (42);",     "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",    "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 42;",   "expect": {"rows": [[42]]}}
+      ]
+    },
+    {
+      "name": "backfill-multiple-rows-equality-lookup",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",     "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",  "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 2 ORDER BY x;", "expect": {"rows": [[2], [2]]}}
+      ]
+    },
+    {
+      "name": "equality-lookup-no-match",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",    "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);", "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 99;", "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "equality-lookup-text-column",
+      "program": [
+        {"sql": "CREATE TABLE t (name TEXT);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('alice');",   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('bob');",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('alice');",   "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_name ON t (name);", "expect": {"rows": []}},
+        {"sql": "SELECT name FROM t WHERE name = 'alice';", "expect": {"rows": [["alice"], ["alice"]]}}
+      ]
+    },
+    {
+      "name": "equality-lookup-returns-other-columns-via-table-seek",
+      "description": "Index entry has the indexed col + rowid. Other columns are fetched from the table via TableSeekRowid.",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER, name TEXT, age INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 'alice', 30);",               "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 'bob', 40);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3, 'alice', 35);",               "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_name ON t (name);",                    "expect": {"rows": []}},
+        {"sql": "SELECT id, age FROM t WHERE name = 'alice' ORDER BY id;", "expect": {"rows": [[1, 30], [3, 35]]}}
+      ]
+    },
+    {
+      "name": "equality-lookup-star-projection",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER, y INTEGER);",  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 20);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 30);",             "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",               "expect": {"rows": []}},
+        {"sql": "SELECT * FROM t WHERE x = 1 ORDER BY y;",   "expect": {"rows": [[1, 10], [1, 30]]}}
+      ]
+    },
+    {
+      "name": "const-on-left-or-right-both-work",
+      "description": "`WHERE col = const` and `WHERE const = col` both qualify for the index.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",    "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);", "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 5;", "expect": {"rows": [[5]]}},
+        {"sql": "SELECT x FROM t WHERE 5 = x;", "expect": {"rows": [[5]]}}
+      ]
+    },
+    {
+      "name": "expression-constant-works-as-key",
+      "description": "The RHS doesn't have to be a bare literal — anything not depending on the table's columns qualifies.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",          "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",       "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 1 + 2;",   "expect": {"rows": [[3]]}}
+      ]
+    },
+    {
+      "name": "where-on-non-indexed-col-falls-back-to-scan",
+      "description": "No index on `y` — planner falls back to full-scan. Results still correct.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER, y INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 20);",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3, 10);",            "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",              "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE y = 10 ORDER BY x;", "expect": {"rows": [[1], [3]]}}
+      ]
+    },
+    {
+      "name": "no-indexes-at-all-still-works",
+      "description": "Pre-9be behaviour unchanged: tables with no indexes still full-scan correctly.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",    "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 1;", "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "multi-column-index-only-first-col-used",
+      "description": "Multi-column indexes exist, but 9be's planner only matches the first column. `WHERE y = k` where y is the second column of a (x, y) index does NOT use the index (falls back to full scan).",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER, y INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 100);",           "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 200);",           "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 300);",           "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_xy ON t (x, y);",          "expect": {"rows": []}},
+        {"sql": "SELECT x, y FROM t WHERE x = 1 ORDER BY y;", "expect": {"rows": [[1, 100], [1, 300]]}},
+        {"sql": "SELECT x, y FROM t WHERE y = 200;",          "expect": {"rows": [[2, 200]]}}
+      ]
+    },
+    {
+      "name": "stale-index-after-insert-does-not-see-new-row",
+      "description": "Phase 9c LIFTED the 9be-era limitation — INSERT after CREATE INDEX now maintains the index. Updated expected row set to the post-9c behaviour; name retained because builds are unified (the same binary runs 9be and 9c).",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",        "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",        "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 3;",     "expect": {"rows": [[3]]}},
+        {"sql": "SELECT x FROM t WHERE x = 99;",    "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t ORDER BY x;",      "expect": {"rows": [[1], [2], [3]]}}
+      ]
+    },
+    {
+      "name": "multiple-indexes-same-table-planner-picks-one",
+      "description": "Two indexes on the same table; WHERE on col with its own single-col index picks that one.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER, y INTEGER);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 100);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 200);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 300);",             "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",                "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_y ON t (y);",                "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 1 ORDER BY y;",   "expect": {"rows": [[1], [1]]}},
+        {"sql": "SELECT x FROM t WHERE y = 100;",             "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "equality-with-null-const-returns-nothing",
+      "description": "`WHERE x = NULL` is SQL semantics: always false (use `IS NULL`). Returns empty even if rows have NULL x.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",        "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",     "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = NULL;",  "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "equality-excludes-null-rows",
+      "description": "`WHERE x = 5` must NOT match rows where x is NULL (standard SQL 3VL). Index backfill includes NULL entries but seek skips them.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER, id INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5, 1);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL, 2);",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5, 3);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL, 4);",          "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",              "expect": {"rows": []}},
+        {"sql": "SELECT id FROM t WHERE x = 5 ORDER BY id;", "expect": {"rows": [[1], [3]]}}
+      ]
+    },
+    {
+      "name": "equality-results-match-full-scan-equivalence",
+      "description": "Baseline: with and without index, the query result set is identical (modulo ordering).",
+      "program": [
+        {"sql": "CREATE TABLE t1 (x INTEGER, n TEXT);", "expect": {"rows": []}},
+        {"sql": "CREATE TABLE t2 (x INTEGER, n TEXT);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t1 VALUES (1, 'a');",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t1 VALUES (2, 'b');",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t1 VALUES (1, 'c');",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t2 VALUES (1, 'a');",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t2 VALUES (2, 'b');",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t2 VALUES (1, 'c');",       "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t1 (x);",          "expect": {"rows": []}},
+        {"sql": "SELECT n FROM t1 WHERE x = 1 ORDER BY n;", "expect": {"rows": [["a"], ["c"]]}},
+        {"sql": "SELECT n FROM t2 WHERE x = 1 ORDER BY n;", "expect": {"rows": [["a"], ["c"]]}}
+      ]
+    },
+    {
+      "name": "backfill-with-null-values",
+      "description": "Backfill handles NULLs — they go into the index tree but sort first. SELECT WHERE = non-null doesn't match them (3VL).",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER, id INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL, 1);",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5, 2);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL, 3);",          "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",              "expect": {"rows": []}},
+        {"sql": "SELECT id FROM t WHERE x = 5;",             "expect": {"rows": [[2]]}}
+      ]
+    },
+    {
+      "name": "many-duplicates-for-same-key",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (7);",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (7);",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (7);",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (7);",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (7);",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (8);",    "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",  "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 7;", "expect": {"rows": [[7], [7], [7], [7], [7]]}}
+      ]
+    },
+    {
+      "name": "two-tables-with-indexes-independent",
+      "program": [
+        {"sql": "CREATE TABLE t1 (x INTEGER);",  "expect": {"rows": []}},
+        {"sql": "CREATE TABLE t2 (x INTEGER);",  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t1 VALUES (1);",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t1 VALUES (2);",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t2 VALUES (2);",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t2 VALUES (3);",    "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx1 ON t1 (x);",   "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx2 ON t2 (x);",   "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t1 WHERE x = 2;", "expect": {"rows": [[2]]}},
+        {"sql": "SELECT x FROM t2 WHERE x = 2;", "expect": {"rows": [[2]]}}
+      ]
+    },
+    {
+      "name": "where-comparing-two-columns-falls-back",
+      "description": "`WHERE x = y` depends on the table's row data, not qualifying for the index planner.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER, y INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 1);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 3);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5, 5);",             "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",              "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = y ORDER BY x;",  "expect": {"rows": [[1], [5]]}}
+      ]
+    },
+    {
+      "name": "equality-on-second-lookup-after-first-query",
+      "description": "Same index reused across multiple SELECTs.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",     "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",  "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 1;", "expect": {"rows": [[1]]}},
+        {"sql": "SELECT x FROM t WHERE x = 2;", "expect": {"rows": [[2]]}},
+        {"sql": "SELECT x FROM t WHERE x = 3;", "expect": {"rows": [[3]]}},
+        {"sql": "SELECT x FROM t WHERE x = 4;", "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "text-case-sensitive-equality",
+      "description": "TEXT comparison is byte-wise: 'Alice' ≠ 'alice'.",
+      "program": [
+        {"sql": "CREATE TABLE t (name TEXT);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('Alice');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('alice');",    "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_name ON t (name);", "expect": {"rows": []}},
+        {"sql": "SELECT name FROM t WHERE name = 'alice';", "expect": {"rows": [["alice"]]}}
+      ]
+    },
+    {
+      "name": "where-with-and-clause-uses-first-eq-if-indexed",
+      "description": "`WHERE x = 1 AND y = 2` — 9be planner can choose to use the index on x for equality and apply `y = 2` as a post-filter, OR fall back to full-scan. Either is acceptable as long as results match. Results here are small enough that ordering after the optional index scan is deterministic via ORDER BY.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER, y INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 2);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 3);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 2);",             "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",              "expect": {"rows": []}},
+        {"sql": "SELECT y FROM t WHERE x = 1 AND y = 2;",   "expect": {"rows": [[2]]}}
+      ]
+    },
+    {
+      "name": "where-with-or-clause-falls-back",
+      "description": "`WHERE x = 1 OR y = 2` — OR disqualifies the index (9be only handles bare equality). Falls back to full-scan.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER, y INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5, 2);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3, 3);",             "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",              "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 1 OR y = 2 ORDER BY x;", "expect": {"rows": [[1], [5]]}}
+      ]
+    },
+    {
+      "name": "equality-with-limit",
+      "description": "LIMIT after WHERE works with index-seek recipe.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",    "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);", "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 1 LIMIT 2;", "expect": {"rows": [[1], [1]]}}
+      ]
+    },
+    {
+      "name": "equality-with-order-by-independent-col",
+      "description": "ORDER BY on a column other than the indexed column works; results are collected then sorted.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER, y INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 30);",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 20);",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 5);",             "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",              "expect": {"rows": []}},
+        {"sql": "SELECT y FROM t WHERE x = 1 ORDER BY y;",  "expect": {"rows": [[10], [20], [30]]}}
+      ]
+    },
+    {
+      "name": "equality-aggregate-count",
+      "description": "COUNT(*) through index seek.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",    "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);", "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(*) FROM t WHERE x = 1;", "expect": {"rows": [[3]]}}
+      ]
+    },
+    {
+      "name": "moderate-backfill-succeeds-within-single-leaf",
+      "description": "A handful of rows backfill successfully into a single 0x0a page. Overflow behavior (STORAGE_PAGE_FULL + atomic abort) is verifiable externally via round-trip Python harness; in-harness we just confirm moderate backfill works.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER, note TEXT);",   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 'a');",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 'b');",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3, 'c');",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (4, 'd');",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5, 'e');",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (6, 'f');",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (7, 'g');",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (8, 'h');",            "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",               "expect": {"rows": []}},
+        {"sql": "SELECT note FROM t WHERE x = 5;",           "expect": {"rows": [["e"]]}}
+      ]
+    },
+    {
+      "name": "backfill-then-select-indexed-count",
+      "description": "After backfill, the total count over the indexed column (via index scan for a specific key) matches full-scan count.",
+      "program": [
+        {"sql": "CREATE TABLE t (cat TEXT, val INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('a', 1);",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('a', 2);",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('a', 3);",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('b', 1);",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('b', 2);",            "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_cat ON t (cat);",           "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(*) FROM t WHERE cat = 'a';",    "expect": {"rows": [[3]]}},
+        {"sql": "SELECT COUNT(*) FROM t WHERE cat = 'b';",    "expect": {"rows": [[2]]}},
+        {"sql": "SELECT SUM(val) FROM t WHERE cat = 'a';",    "expect": {"rows": [[6]]}}
+      ]
+    },
+    {
+      "name": "index-with-unique-keyword-still-no-enforcement",
+      "description": "9be gate: DML doesn't touch the index (stale-by-design) and backfill handles duplicates. Phase 9g lights up UNIQUE enforcement, which would turn the `CREATE UNIQUE INDEX` of the original fixture into a STORAGE_UNIQUE_BACKFILL_VIOLATION — retroactively invalidating this test's original shape. The test intent (backfill of duplicate keys + subsequent read) is preserved by switching to a non-UNIQUE index, which is unaffected by the 9g extension. The UNIQUE-keyword acceptance path now has dedicated coverage in `tests/cross-build/phase9g.json`.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",               "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",               "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",             "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 5;",             "expect": {"rows": [[5], [5]]}}
+      ]
+    }
+  ]
+}

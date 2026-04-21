@@ -1,0 +1,114 @@
+{
+  "phase": "6bp",
+  "description": "Phase 6bp gate — two post-6bo residuals from random corpus: (1) SELECT expressions and aggregates with no FROM clause, (2) Rust-only dedup-slot allocation bug in compile_joined_aggregated_no_group_by (SUM(DISTINCT) + multi-table FROM).",
+  "cases": [
+    {
+      "name": "select-literal-no-from",
+      "program": [
+        {"sql": "SELECT 1;", "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "select-expr-no-from",
+      "program": [
+        {"sql": "SELECT 2 + 3 * 4;", "expect": {"rows": [[14]]}}
+      ]
+    },
+    {
+      "name": "count-star-no-from",
+      "description": "COUNT(*) with no FROM counts one synthetic row: result is 1.",
+      "program": [
+        {"sql": "SELECT COUNT(*);", "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "sum-no-from",
+      "description": "SUM with no FROM aggregates over one synthetic row: SUM(5) → 5. Matches upstream corpus SUM(79) → 79.",
+      "program": [
+        {"sql": "SELECT SUM(5);", "expect": {"rows": [[5]]}}
+      ]
+    },
+    {
+      "name": "min-no-from",
+      "description": "MIN with no FROM returns the argument's value (one-element aggregate set).",
+      "program": [
+        {"sql": "SELECT MIN(-30);", "expect": {"rows": [[-30]]}}
+      ]
+    },
+    {
+      "name": "count-null-arg-no-from",
+      "description": "COUNT(expr) with no FROM: 1 if expr non-NULL, 0 if NULL. Standard NULL-skipping.",
+      "program": [
+        {"sql": "SELECT COUNT(NULL);", "expect": {"rows": [[0]]}}
+      ]
+    },
+    {
+      "name": "sum-null-arg-no-from",
+      "description": "SUM(NULL) with no FROM: aggregate set is empty after NULL-skipping, result is NULL.",
+      "program": [
+        {"sql": "SELECT SUM(NULL);", "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "coalesce-agg-no-from",
+      "description": "The shape that appears in random/expr: COALESCE(...aggregate..., fallback) with no FROM. Validates the end-to-end expression tree.",
+      "program": [
+        {"sql": "SELECT COALESCE(NULL, MIN(-30) * 45 * 77);", "expect": {"rows": [[-103950]]}}
+      ]
+    },
+    {
+      "name": "case-agg-no-from",
+      "description": "Minimal shape from random/expr/slt_good_0.test label-6.",
+      "program": [
+        {"sql": "SELECT 74 * - COALESCE(+ CASE - CASE WHEN NOT (NOT -79 >= NULL) THEN 48 END WHEN + + COUNT(*) THEN 6 END, MIN(-30) * 45 * 77) * -14;", "expect": {"rows": [[-107692200]]}}
+      ]
+    },
+    {
+      "name": "multi-col-no-from",
+      "description": "Two projection items with no FROM.",
+      "program": [
+        {"sql": "SELECT 1, 2, 3;", "expect": {"rows": [[1, 2, 3]]}}
+      ]
+    },
+    {
+      "name": "sum-distinct-multi-table",
+      "description": "Rust-only regression: SUM(DISTINCT …) + multi-table FROM previously panicked with 'index out of bounds: len is 0 but index is 0' at AggDedupReset. Both targets must now pass.",
+      "program": [
+        {"sql": "CREATE TABLE a (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (y INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (2);", "expect": {"rows": []}},
+        {"sql": "SELECT SUM(DISTINCT 5) FROM a, b;", "expect": {"rows": [[5]]}}
+      ]
+    },
+    {
+      "name": "count-distinct-cross-join",
+      "description": "Mirror of sum-distinct-multi-table with COUNT DISTINCT, aggregating real column values across the cross product.",
+      "program": [
+        {"sql": "CREATE TABLE a (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (y INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1), (1), (2);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (10);", "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(DISTINCT x) FROM a, b;", "expect": {"rows": [[2]]}}
+      ]
+    },
+    {
+      "name": "sum-distinct-cross-join-composed",
+      "description": "COUNT(*) and SUM(DISTINCT) together in one projection, matching the random-corpus label-2081 shape.",
+      "program": [
+        {"sql": "CREATE TABLE a (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (y INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (2);", "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(*) * -62 - SUM(DISTINCT 91) FROM a, b;", "expect": {"rows": [[-153]]}}
+      ]
+    },
+    {
+      "name": "multi-agg-nested-no-from",
+      "description": "Engine bug #110 regression: aggregate whose argument contains a CASE expression. In `compile_group_expr` the AggregateCall-resolution loop iterates `all_aggs` and compares `arg` via `aggregate_args_equal` / `expressions_equal`; prior to this fix `expressions_equal` lacked a `Case` arm, so the self-match failed and the AggregateCall fell through to the `unreachable!` panic 'AggregateCall should have been resolved above'. Minimal shape: SUM(CASE WHEN 1 THEN 2 END) with no FROM. Original trigger is random/expr/slt_good_0.test label-345 (`SELECT ... SUM(- CASE - - 32 WHEN - 53 THEN - 59 WHEN - + 66 * + 48 THEN + - 86 END) ...`). Equivalent `expressions_equal` gaps for `Glob` and `InSubquery` were patched at the same time for symmetry.",
+      "program": [
+        {"sql": "SELECT SUM(CASE WHEN 1 THEN 2 END);", "expect": {"rows": [[2]]}}
+      ]
+    }
+  ]
+}

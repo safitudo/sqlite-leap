@@ -1,0 +1,80 @@
+{
+  "phase": "6ad",
+  "description": "Phase 6ad gate — GLOB / NOT GLOB pattern matching. Unix-glob style wildcards: * ? [set] [!set]. Case-sensitive byte-level match over UTF-8.",
+  "cases": [
+    {
+      "name": "glob-star-any-sequence",
+      "program": [
+        {"sql": "CREATE TABLE t (s TEXT);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('apple'), ('banana'), ('avocado');", "expect": {"rows": []}},
+        {"sql": "SELECT s FROM t WHERE s GLOB 'a*' ORDER BY s;", "expect": {"rows": [["apple"], ["avocado"]]}}
+      ]
+    },
+    {
+      "name": "glob-question-single-char",
+      "program": [
+        {"sql": "CREATE TABLE t (s TEXT);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('cat'), ('car'), ('cart'), ('bat');", "expect": {"rows": []}},
+        {"sql": "SELECT s FROM t WHERE s GLOB 'ca?' ORDER BY s;", "expect": {"rows": [["car"], ["cat"]]}}
+      ]
+    },
+    {
+      "name": "glob-case-sensitive",
+      "description": "GLOB is case-sensitive (unlike LIKE).",
+      "program": [
+        {"sql": "CREATE TABLE t (s TEXT);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('Apple'), ('apple'), ('APPLE');", "expect": {"rows": []}},
+        {"sql": "SELECT s FROM t WHERE s GLOB 'a*' ORDER BY s;", "expect": {"rows": [["apple"]]}}
+      ]
+    },
+    {
+      "name": "glob-char-class",
+      "program": [
+        {"sql": "CREATE TABLE t (s TEXT);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('a1'), ('a2'), ('a3'), ('a9'), ('ax');", "expect": {"rows": []}},
+        {"sql": "SELECT s FROM t WHERE s GLOB 'a[123]' ORDER BY s;", "expect": {"rows": [["a1"], ["a2"], ["a3"]]}}
+      ]
+    },
+    {
+      "name": "glob-char-class-range",
+      "program": [
+        {"sql": "CREATE TABLE t (s TEXT);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('a0'), ('a5'), ('a9'), ('aa');", "expect": {"rows": []}},
+        {"sql": "SELECT s FROM t WHERE s GLOB 'a[0-9]' ORDER BY s;", "expect": {"rows": [["a0"], ["a5"], ["a9"]]}}
+      ]
+    },
+    {
+      "name": "glob-char-class-negated",
+      "program": [
+        {"sql": "CREATE TABLE t (s TEXT);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('a1'), ('a2'), ('ax'), ('ay');", "expect": {"rows": []}},
+        {"sql": "SELECT s FROM t WHERE s GLOB 'a[!0-9]' ORDER BY s;", "expect": {"rows": [["ax"], ["ay"]]}}
+      ]
+    },
+    {
+      "name": "glob-not-glob",
+      "program": [
+        {"sql": "CREATE TABLE t (s TEXT);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('apple'), ('banana'), ('cherry');", "expect": {"rows": []}},
+        {"sql": "SELECT s FROM t WHERE s NOT GLOB 'a*' ORDER BY s;", "expect": {"rows": [["banana"], ["cherry"]]}}
+      ]
+    },
+    {
+      "name": "glob-null-is-null",
+      "description": "GLOB with NULL on either side is NULL (3VL, like LIKE).",
+      "program": [
+        {"sql": "CREATE TABLE t (s TEXT);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('apple'), (NULL);", "expect": {"rows": []}},
+        {"sql": "SELECT s FROM t WHERE s GLOB NULL;", "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "glob-empty-pattern",
+      "program": [
+        {"sql": "CREATE TABLE t (s TEXT);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (''), ('a');", "expect": {"rows": []}},
+        {"sql": "SELECT s FROM t WHERE s GLOB '';", "expect": {"rows": [[""]]}}
+      ]
+    }
+  ]
+}

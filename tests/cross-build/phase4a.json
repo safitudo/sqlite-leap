@@ -1,0 +1,69 @@
+{
+  "phase": "4a",
+  "description": "Phase 4a gate — WAL read-side open protocol. Error paths + empty-WAL-unlink + no-WAL regression. Algorithm per spec/wal.spec.md § 'Phase 4a open protocol'. No new VDBE opcodes; max_invariant=42 unchanged. Frame-overlay behaviour (real committed frames with Fibonacci checksums and roundtrip with mainline) is tested out-of-band via tests/roundtrip_wal_readside.py (deferred). All prior phase fixtures must stay green.",
+  "schema": {
+    "case": "inherits phase3d.json schema plus two new fields:",
+    "preload_wal_hex": "string — optional, disk-only. Hex bytes (no prefix, no separators) written to <path>-wal BEFORE the first open. Harness writes EXACTLY these bytes (no padding). The open protocol MUST process the WAL per spec § 'Phase 4a open protocol' — either unlinking it on success (after checkpoint) or raising STORAGE_WAL_* on failure.",
+    "wal_absent_after_open": "bool — optional. If true, the test additionally asserts that <path>-wal does NOT exist on the filesystem at the point of this expect-block. Pins the unlink-after-checkpoint contract."
+  },
+  "cases": [
+    {
+      "name": "disk-no-wal-sidecar-regression",
+      "description": "Phase 3d regression — DB opens and mutates normally when no WAL sidecar is present.",
+      "backend": "disk",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (42);",   "expect": {"rows": []}},
+        {"reopen": true},
+        {"sql": "SELECT a FROM t;",             "expect": {"rows": [[42]]}}
+      ]
+    },
+    {
+      "name": "disk-empty-wal-sidecar-is-absorbed-and-unlinked",
+      "description": "WAL sidecar with a valid header and ZERO frames. Open succeeds; <path>-wal is unlinked post-open (zero-frame checkpoint = no DB bytes change, but WAL absorption still runs).",
+      "backend": "disk",
+      "preload_wal_hex": "377f0682002de218000010000000000000000000000000000000000000000000",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",  "expect": {"rows": [], "wal_absent_after_open": true}},
+        {"sql": "INSERT INTO t VALUES (1);",     "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t;",               "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "disk-wal-corrupt-magic-raises",
+      "description": "WAL header magic is 0xdeadbeef, not 0x377f0682. Open raises STORAGE_WAL_CORRUPT_HEADER.",
+      "backend": "disk",
+      "preload_wal_hex": "deadbeef002de218000010000000000000000000000000000000000000000000",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"error": {"name": "STORAGE_WAL_CORRUPT_HEADER"}}}
+      ]
+    },
+    {
+      "name": "disk-wal-wrong-page-size-raises",
+      "description": "WAL header page_size is 0x00000200 (=512) but main DB uses 4096. Open raises STORAGE_WAL_CORRUPT_HEADER.",
+      "backend": "disk",
+      "preload_wal_hex": "377f0682002de218000002000000000000000000000000000000000000000000",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"error": {"name": "STORAGE_WAL_CORRUPT_HEADER"}}}
+      ]
+    },
+    {
+      "name": "disk-wal-wrong-format-version-raises",
+      "description": "WAL header format version is 0x00000001, not 3007000. Open raises STORAGE_WAL_CORRUPT_HEADER.",
+      "backend": "disk",
+      "preload_wal_hex": "377f06820000000100001000000000000000000000000000000000000000000000",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"error": {"name": "STORAGE_WAL_CORRUPT_HEADER"}}}
+      ]
+    },
+    {
+      "name": "disk-wal-truncated-header-raises",
+      "description": "WAL file exists but is shorter than 32 bytes (16 bytes). Open raises STORAGE_WAL_CORRUPT_HEADER (insufficient header bytes).",
+      "backend": "disk",
+      "preload_wal_hex": "377f0682002de2180000100000000000",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"error": {"name": "STORAGE_WAL_CORRUPT_HEADER"}}}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+FROBNICATE FROM t;

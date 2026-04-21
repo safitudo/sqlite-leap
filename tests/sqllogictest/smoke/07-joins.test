@@ -1,0 +1,45 @@
+# Smoke: INNER and LEFT JOIN with ON clause + qualified column refs.
+
+statement ok
+CREATE TABLE customers (id INTEGER, name TEXT)
+
+statement ok
+INSERT INTO customers VALUES (1, 'alice')
+
+statement ok
+INSERT INTO customers VALUES (2, 'bob')
+
+statement ok
+INSERT INTO customers VALUES (3, 'carol')
+
+statement ok
+CREATE TABLE orders (id INTEGER, customer_id INTEGER, total INTEGER)
+
+statement ok
+INSERT INTO orders VALUES (100, 1, 50)
+
+statement ok
+INSERT INTO orders VALUES (101, 1, 75)
+
+statement ok
+INSERT INTO orders VALUES (102, 2, 200)
+
+query TI rowsort
+SELECT customers.name, orders.total FROM customers INNER JOIN orders ON customers.id = orders.customer_id
+----
+alice
+50
+alice
+75
+bob
+200
+
+query I nosort
+SELECT COUNT(*) FROM customers INNER JOIN orders ON customers.id = orders.customer_id
+----
+3
+
+query I nosort
+SELECT COUNT(*) FROM customers LEFT JOIN orders ON customers.id = orders.customer_id
+----
+4

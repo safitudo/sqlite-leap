@@ -1,0 +1,102 @@
+{
+  "phase": "6aj",
+  "description": "Phase 6aj gate — column alias (AS name) visible in GROUP BY / ORDER BY / HAVING. Matches SQLite's alias-resolution semantics.",
+  "cases": [
+    {
+      "name": "alias-in-order-by",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3, 1), (1, 2), (2, 3);", "expect": {"rows": []}},
+        {"sql": "SELECT a AS x FROM t ORDER BY x;", "expect": {"rows": [[1], [2], [3]]}}
+      ]
+    },
+    {
+      "name": "alias-in-group-by",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10), (1, 20), (2, 30);", "expect": {"rows": []}},
+        {"sql": "SELECT a AS grp, COUNT(*) FROM t GROUP BY grp ORDER BY grp;", "expect": {"rows": [[1, 2], [2, 1]]}}
+      ]
+    },
+    {
+      "name": "alias-in-having",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10), (1, 20), (2, 30);", "expect": {"rows": []}},
+        {"sql": "SELECT a AS grp, COUNT(*) AS cnt FROM t GROUP BY a HAVING cnt > 1 ORDER BY grp;", "expect": {"rows": [[1, 2]]}}
+      ]
+    },
+    {
+      "name": "alias-in-order-by-expr",
+      "description": "Alias of an expression (not just column ref) works in ORDER BY.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3), (1), (2);", "expect": {"rows": []}},
+        {"sql": "SELECT a * 10 AS scaled FROM t ORDER BY scaled;", "expect": {"rows": [[10], [20], [30]]}}
+      ]
+    },
+    {
+      "name": "alias-shadows-column-in-order-by",
+      "description": "When an alias has the same name as a real column, ORDER BY resolves to the alias (projection-level scope wins).",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 30), (2, 20), (3, 10);", "expect": {"rows": []}},
+        {"sql": "SELECT b AS a FROM t ORDER BY a;", "expect": {"rows": [[10], [20], [30]]}}
+      ]
+    },
+    {
+      "name": "alias-not-in-where",
+      "description": "WHERE is evaluated before projection; aliases are NOT visible there.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2), (3);", "expect": {"rows": []}},
+        {"sql": "SELECT a AS x FROM t WHERE x > 1;", "expect": {"error": "COMPILE_UNKNOWN_COLUMN"}}
+      ]
+    },
+    {
+      "name": "alias-ambiguous-if-duplicate",
+      "description": "Two projections with the same alias cannot be referenced from ORDER BY — ambiguous.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);", "expect": {"rows": []}},
+        {"sql": "SELECT a AS x, b AS x FROM t ORDER BY x;", "expect": {"error": "COMPILE_AMBIGUOUS_ALIAS"}}
+      ]
+    },
+    {
+      "name": "distinct-having-alias-shadows-column",
+      "description": "Task #92 regression — SELECT DISTINCT ... AS col_name ... HAVING col_name ... where the alias shadows a real column. Under DISTINCT, HAVING must resolve the shadowed name to the base-table column, not the aliased expression. Before the fix, leap-rust rewrote `+col1` to `+(-col1)` = -81 and kept the (24,81) group; leap-c correctly resolved `+col1` to 81 and filtered the group out.",
+      "program": [
+        {"sql": "CREATE TABLE tab0 (col0 INTEGER, col1 INTEGER, col2 INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO tab0 VALUES (83, 0, 38), (26, 0, 79), (43, 81, 24);", "expect": {"rows": []}},
+        {"sql": "SELECT DISTINCT -col1 AS col1 FROM tab0 GROUP BY col2, col1 HAVING NOT AVG(DISTINCT -col2) <= (+col1);", "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "distinct-having-base-col-wins",
+      "description": "Task #92 regression (minimized) — the shadow-collision rule applies to simple HAVING comparisons too. `HAVING x > 0` with alias `-x AS x` under DISTINCT must compare the BASE x (positive input values), not the aliased -x.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (10), (20);", "expect": {"rows": []}},
+        {"sql": "SELECT DISTINCT -x AS x FROM t GROUP BY x HAVING x > 0 ORDER BY x;", "expect": {"rows": [[-20], [-10]]}}
+      ]
+    },
+    {
+      "name": "non-distinct-having-alias-still-wins",
+      "description": "Task #92 regression — without DISTINCT, HAVING continues to resolve to the output alias (matching leap-c's and mainline SQLite's non-DISTINCT behaviour). Asymmetry: DISTINCT triggers an accidental double-substitution in leap-c that collapses alias-shadow-column refs back to the base column. Rust mirrors that behaviour.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (10), (20);", "expect": {"rows": []}},
+        {"sql": "SELECT -x AS x FROM t GROUP BY x HAVING x > 0;", "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "distinct-having-non-shadowing-alias-unaffected",
+      "description": "Task #92 regression — the double-substitution is a no-op when the alias name does NOT collide with a base column. Here the alias `neg` never gets re-substituted because `-x` contains no bare ColumnRef named `neg`.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2), (3);", "expect": {"rows": []}},
+        {"sql": "SELECT DISTINCT -x AS neg FROM t GROUP BY x HAVING neg < -1 ORDER BY neg;", "expect": {"rows": [[-3], [-2]]}}
+      ]
+    }
+  ]
+}

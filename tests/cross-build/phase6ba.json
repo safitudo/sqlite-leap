@@ -1,0 +1,139 @@
+{
+  "phase": "6ba",
+  "description": "Phase 6ba gate — positional ORDER BY. Compile-time rewrite: integer-literal order-by-term refers to Nth projection column. No new opcodes. max_invariant=43 unchanged.",
+  "cases": [
+    {
+      "name": "positional-1-simple",
+      "description": "ORDER BY 1 sorts by 1st projection.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3, 1), (1, 2), (2, 3);",           "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t ORDER BY 1;",                            "expect": {"rows": [[1], [2], [3]]}}
+      ]
+    },
+    {
+      "name": "positional-2-second-projection",
+      "description": "ORDER BY 2 sorts by 2nd projection.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 30), (2, 10), (3, 20);",        "expect": {"rows": []}},
+        {"sql": "SELECT a, b FROM t ORDER BY 2;",                         "expect": {"rows": [[2, 10], [3, 20], [1, 30]]}}
+      ]
+    },
+    {
+      "name": "positional-desc",
+      "description": "ORDER BY 1 DESC.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (3), (2);",                    "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t ORDER BY 1 DESC;",                       "expect": {"rows": [[3], [2], [1]]}}
+      ]
+    },
+    {
+      "name": "positional-on-computed-projection",
+      "description": "ORDER BY 1 sorts by the computed expression, not the underlying column.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1000), (358), (1050), (490);",     "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t ORDER BY 1;",                            "expect": {"rows": [[358], [490], [1000], [1050]]}}
+      ]
+    },
+    {
+      "name": "positional-on-case-expression",
+      "description": "The original select1.test:94 shape: CASE expression in projection, ORDER BY 1 sorts the CASE result numerically.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER, c INTEGER);",      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (104,100,102), (115,118,119), (149,145,147);", "expect": {"rows": []}},
+        {"sql": "SELECT CASE WHEN c > 110 THEN a*2 ELSE b*10 END FROM t ORDER BY 1;", "expect": {"rows": [[230], [298], [1000]]}}
+      ]
+    },
+    {
+      "name": "positional-multi-term",
+      "description": "ORDER BY 1, 2 — two-term sort by projection 1 then 2.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 20), (1, 10), (2, 5);",         "expect": {"rows": []}},
+        {"sql": "SELECT a, b FROM t ORDER BY 1, 2;",                      "expect": {"rows": [[1, 10], [1, 20], [2, 5]]}}
+      ]
+    },
+    {
+      "name": "positional-with-column-ref-mixed",
+      "description": "ORDER BY 1, b — first positional then explicit column.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 30), (1, 10), (2, 5);",         "expect": {"rows": []}},
+        {"sql": "SELECT a, b FROM t ORDER BY 1, b;",                      "expect": {"rows": [[1, 10], [2, 5], [2, 30]]}}
+      ]
+    },
+    {
+      "name": "positional-out-of-range-high",
+      "description": "Compile error: position > projection count.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                            "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t ORDER BY 5;",                            "expect": {"error": "COMPILE_ORDER_BY_POSITION_OUT_OF_RANGE"}}
+      ]
+    },
+    {
+      "name": "positional-zero-rejected",
+      "description": "Compile error: position 0 (positions are 1-indexed).",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                            "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t ORDER BY 0;",                            "expect": {"error": "COMPILE_ORDER_BY_POSITION_OUT_OF_RANGE"}}
+      ]
+    },
+    {
+      "name": "not-positional-expression-stays-expression",
+      "description": "ORDER BY 1+0 is NOT positional (AST is BinaryOp, not IntLiteral). Evaluates as constant 1 per row → stable no-op, insertion order preserved.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3), (1), (2);",                    "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t ORDER BY 1+0;",                          "expect": {"rows": [[3], [1], [2]]}}
+      ]
+    },
+    {
+      "name": "not-positional-negative-stays-expression",
+      "description": "ORDER BY -1 is UnaryOp(Neg, Int(1)) — NOT positional. Evaluates as constant -1, no-op sort.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3), (1), (2);",                    "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t ORDER BY -1;",                           "expect": {"rows": [[3], [1], [2]]}}
+      ]
+    },
+    {
+      "name": "positional-with-aggregate-projection",
+      "description": "Aggregate in projection + ORDER BY 1 — sorts by the aggregate value across groups.",
+      "program": [
+        {"sql": "CREATE TABLE t (g INTEGER, v INTEGER);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1,10),(1,20),(2,5),(3,100),(3,50);", "expect": {"rows": []}},
+        {"sql": "SELECT g, SUM(v) FROM t GROUP BY g ORDER BY 2;",         "expect": {"rows": [[2, 5], [1, 30], [3, 150]]}}
+      ]
+    },
+    {
+      "name": "positional-with-limit",
+      "description": "ORDER BY 1 LIMIT — sort then limit.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5), (1), (3), (2), (4);",          "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t ORDER BY 1 LIMIT 3;",                    "expect": {"rows": [[1], [2], [3]]}}
+      ]
+    },
+    {
+      "name": "positional-with-star-projection",
+      "description": "SELECT * with positional ORDER BY — star expands to FROM-clause column list; ORDER BY N refers to the Nth declared column.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3, 100), (1, 300), (2, 200);",     "expect": {"rows": []}},
+        {"sql": "SELECT * FROM t ORDER BY 1;",                            "expect": {"rows": [[1, 300], [2, 200], [3, 100]]}},
+        {"sql": "SELECT * FROM t ORDER BY 2;",                            "expect": {"rows": [[3, 100], [2, 200], [1, 300]]}}
+      ]
+    },
+    {
+      "name": "positional-on-star-out-of-range",
+      "description": "SELECT * FROM t ORDER BY N where N > (number of declared columns) must raise COMPILE_ORDER_BY_POSITION_OUT_OF_RANGE.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);",                "expect": {"rows": []}},
+        {"sql": "SELECT * FROM t ORDER BY 5;",                            "expect": {"error": "COMPILE_ORDER_BY_POSITION_OUT_OF_RANGE"}}
+      ]
+    }
+  ]
+}

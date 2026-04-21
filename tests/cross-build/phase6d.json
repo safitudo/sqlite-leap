@@ -1,0 +1,230 @@
+{
+  "phase": "6d",
+  "description": "Phase 6d gate — GROUP BY + HAVING on aggregated SELECT. Single-key and multi-key grouping, HAVING filter on aggregated groups, interaction with ORDER BY / LIMIT / OFFSET, empty table handling, mixed aggregate + GROUP-BY-key projection. Compile-time rejection of bare columns not in GROUP BY, HAVING without GROUP BY, aggregates inside GROUP BY. All phase1..6c fixtures must stay green.",
+  "cases": [
+    {
+      "name": "group-by-single-key-count",
+      "program": [
+        {"sql": "CREATE TABLE t (k INTEGER, v INTEGER);",                         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);",                                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 20);",                                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 30);",                                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 40);",                                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 50);",                                  "expect": {"rows": []}},
+        {"sql": "SELECT k, COUNT(*) FROM t GROUP BY k ORDER BY k;",               "expect": {"rows": [[1, 3], [2, 2]]}}
+      ]
+    },
+    {
+      "name": "group-by-sum",
+      "program": [
+        {"sql": "CREATE TABLE t (k INTEGER, v INTEGER);",                         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);",                                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 20);",                                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 30);",                                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 40);",                                  "expect": {"rows": []}},
+        {"sql": "SELECT k, SUM(v) FROM t GROUP BY k ORDER BY k;",                 "expect": {"rows": [[1, 40], [2, 60]]}}
+      ]
+    },
+    {
+      "name": "group-by-min-max",
+      "program": [
+        {"sql": "CREATE TABLE t (k INTEGER, v INTEGER);",                         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);",                                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 5);",                                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 30);",                                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 7);",                                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 2);",                                   "expect": {"rows": []}},
+        {"sql": "SELECT k, MIN(v), MAX(v) FROM t GROUP BY k ORDER BY k;",         "expect": {"rows": [[1, 5, 30], [2, 2, 7]]}}
+      ]
+    },
+    {
+      "name": "group-by-two-keys",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER, v INTEGER);",               "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 1, 10);",                                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 2, 20);",                                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 1, 30);",                                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 1, 40);",                                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 1, 50);",                                "expect": {"rows": []}},
+        {"sql": "SELECT a, b, SUM(v) FROM t GROUP BY a, b ORDER BY a, b;",         "expect": {"rows": [[1, 1, 50], [1, 2, 20], [2, 1, 80]]}}
+      ]
+    },
+    {
+      "name": "group-by-with-where",
+      "description": "WHERE filters rows pre-aggregation; GROUP BY runs on the filtered set.",
+      "program": [
+        {"sql": "CREATE TABLE t (k INTEGER, v INTEGER);",                              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);",                                       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 20);",                                       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 30);",                                       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 40);",                                       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3, 50);",                                       "expect": {"rows": []}},
+        {"sql": "SELECT k, SUM(v) FROM t WHERE v > 15 GROUP BY k ORDER BY k;",         "expect": {"rows": [[1, 20], [2, 70], [3, 50]]}}
+      ]
+    },
+    {
+      "name": "group-by-empty-table",
+      "program": [
+        {"sql": "CREATE TABLE t (k INTEGER);",                                     "expect": {"rows": []}},
+        {"sql": "SELECT k, COUNT(*) FROM t GROUP BY k;",                           "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "group-by-single-group-only",
+      "description": "Every row has same key — one group.",
+      "program": [
+        {"sql": "CREATE TABLE t (k INTEGER, v INTEGER);",                           "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);",                                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 20);",                                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 30);",                                    "expect": {"rows": []}},
+        {"sql": "SELECT k, COUNT(*), SUM(v) FROM t GROUP BY k;",                    "expect": {"rows": [[1, 3, 60]]}}
+      ]
+    },
+    {
+      "name": "group-by-all-distinct",
+      "description": "Every row has a unique key — one group per row.",
+      "program": [
+        {"sql": "CREATE TABLE t (k INTEGER, v INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);",                                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 20);",                                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3, 30);",                                   "expect": {"rows": []}},
+        {"sql": "SELECT k, SUM(v) FROM t GROUP BY k ORDER BY k;",                  "expect": {"rows": [[1, 10], [2, 20], [3, 30]]}}
+      ]
+    },
+    {
+      "name": "group-by-null-key",
+      "description": "NULLs form their own group (treated as equal to each other for grouping).",
+      "program": [
+        {"sql": "CREATE TABLE t (k INTEGER, v INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL, 10);",                                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 20);",                                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL, 30);",                                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 40);",                                   "expect": {"rows": []}},
+        {"sql": "SELECT k, COUNT(*), SUM(v) FROM t GROUP BY k ORDER BY k;",        "expect": {"rows": [[null, 2, 40], [1, 2, 60]]}}
+      ]
+    },
+    {
+      "name": "having-basic",
+      "description": "HAVING filters groups post-aggregation.",
+      "program": [
+        {"sql": "CREATE TABLE t (k INTEGER, v INTEGER);",                                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);",                                             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 20);",                                             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 30);",                                             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3, 40);",                                             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3, 50);",                                             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3, 60);",                                             "expect": {"rows": []}},
+        {"sql": "SELECT k, COUNT(*) FROM t GROUP BY k HAVING COUNT(*) > 1 ORDER BY k;",      "expect": {"rows": [[1, 2], [3, 3]]}}
+      ]
+    },
+    {
+      "name": "having-with-sum",
+      "program": [
+        {"sql": "CREATE TABLE t (k INTEGER, v INTEGER);",                                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 5);",                                              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 10);",                                             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 20);",                                             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3, 100);",                                            "expect": {"rows": []}},
+        {"sql": "SELECT k, SUM(v) FROM t GROUP BY k HAVING SUM(v) >= 30 ORDER BY k;",        "expect": {"rows": [[2, 30], [3, 100]]}}
+      ]
+    },
+    {
+      "name": "having-references-group-key",
+      "description": "HAVING may reference the group-by key directly.",
+      "program": [
+        {"sql": "CREATE TABLE t (k INTEGER);",                                               "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                                                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                                                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                                                 "expect": {"rows": []}},
+        {"sql": "SELECT k, COUNT(*) FROM t GROUP BY k HAVING k > 1 ORDER BY k;",             "expect": {"rows": [[2, 1], [3, 1]]}}
+      ]
+    },
+    {
+      "name": "group-by-with-order-by-desc-by-aggregate",
+      "description": "ORDER BY may reference an aggregate result via repeated call.",
+      "program": [
+        {"sql": "CREATE TABLE t (k INTEGER, v INTEGER);",                                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);",                                             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 30);",                                             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3, 20);",                                             "expect": {"rows": []}},
+        {"sql": "SELECT k, SUM(v) FROM t GROUP BY k ORDER BY SUM(v) DESC;",                  "expect": {"rows": [[2, 30], [3, 20], [1, 10]]}}
+      ]
+    },
+    {
+      "name": "group-by-with-limit-offset",
+      "program": [
+        {"sql": "CREATE TABLE t (k INTEGER, v INTEGER);",                                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);",                                                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 20);",                                                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3, 30);",                                                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (4, 40);",                                                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5, 50);",                                                   "expect": {"rows": []}},
+        {"sql": "SELECT k, SUM(v) FROM t GROUP BY k ORDER BY k LIMIT 2 OFFSET 1;",                 "expect": {"rows": [[2, 20], [3, 30]]}}
+      ]
+    },
+    {
+      "name": "group-by-text-key",
+      "program": [
+        {"sql": "CREATE TABLE t (s TEXT, v INTEGER);",                                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('a', 10);",                                                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('b', 20);",                                                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('a', 30);",                                                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('b', 40);",                                                "expect": {"rows": []}},
+        {"sql": "SELECT s, SUM(v) FROM t GROUP BY s ORDER BY s;",                                 "expect": {"rows": [["a", 40], ["b", 60]]}}
+      ]
+    },
+    {
+      "name": "group-by-without-aggregate",
+      "description": "GROUP BY without any aggregate calls = implicit DISTINCT over the group keys.",
+      "program": [
+        {"sql": "CREATE TABLE t (k INTEGER);",                                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                                    "expect": {"rows": []}},
+        {"sql": "SELECT k FROM t GROUP BY k ORDER BY k;",                       "expect": {"rows": [[1], [2], [3]]}}
+      ]
+    },
+    {
+      "name": "compile-error-having-without-group-by",
+      "program": [
+        {"sql": "CREATE TABLE t (k INTEGER);",                                      "expect": {"rows": []}},
+        {"sql": "SELECT k FROM t HAVING k > 0;",                                    "expect": {"error": {"name": "COMPILE_HAVING_WITHOUT_GROUP_BY", "fields": {}}}}
+      ]
+    },
+    {
+      "name": "compile-error-aggregate-in-group-by",
+      "program": [
+        {"sql": "CREATE TABLE t (k INTEGER);",                                      "expect": {"rows": []}},
+        {"sql": "SELECT k FROM t GROUP BY SUM(k);",                                 "expect": {"error": {"name": "COMPILE_AGGREGATE_IN_NON_PROJECTION_CONTEXT", "fields": {"location": "group-by"}}}}
+      ]
+    },
+    {
+      "name": "parse-error-group-without-by",
+      "program": [
+        {"sql": "CREATE TABLE t (k INTEGER);",                                      "expect": {"rows": []}},
+        {"sql": "SELECT k FROM t GROUP k;",                                         "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "IDENTIFIER", "expected": ["KEYWORD_BY"]}}}}
+      ]
+    },
+    {
+      "name": "parse-error-group-by-empty",
+      "program": [
+        {"sql": "CREATE TABLE t (k INTEGER);",                                      "expect": {"rows": []}},
+        {"sql": "SELECT k FROM t GROUP BY;",                                        "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "SEMICOLON"}}}}
+      ]
+    },
+    {
+      "name": "group-as-identifier-no-longer-works",
+      "program": [
+        {"sql": "CREATE TABLE t (group INTEGER);",                                  "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "KEYWORD_GROUP"}}}}
+      ]
+    },
+    {
+      "name": "having-as-identifier-no-longer-works",
+      "program": [
+        {"sql": "CREATE TABLE t (having INTEGER);",                                 "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "KEYWORD_HAVING"}}}}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,243 @@
+{
+  "phase": "6e",
+  "description": "Phase 6e gate — two-table INNER JOIN and LEFT JOIN with ON clause. Qualified column refs (t.col), ambiguity handling, star projection over join, interaction with WHERE / ORDER BY / LIMIT / aggregates / GROUP BY. Naive nested-loop compilation — no new VDBE opcodes. All phase1..6d fixtures must stay green.",
+  "cases": [
+    {
+      "name": "inner-join-basic",
+      "description": "Each outer row has exactly one matching inner row.",
+      "program": [
+        {"sql": "CREATE TABLE a (id INTEGER, name TEXT);",                                     "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (aid INTEGER, v INTEGER);",                                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1, 'one');",                                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (2, 'two');",                                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (3, 'three');",                                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (1, 10);",                                               "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (2, 20);",                                               "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (3, 30);",                                               "expect": {"rows": []}},
+        {"sql": "SELECT a.id, a.name, b.v FROM a INNER JOIN b ON a.id = b.aid ORDER BY a.id;", "expect": {"rows": [[1, "one", 10], [2, "two", 20], [3, "three", 30]]}}
+      ]
+    },
+    {
+      "name": "plain-join-is-inner",
+      "description": "JOIN without INNER prefix is equivalent to INNER JOIN.",
+      "program": [
+        {"sql": "CREATE TABLE a (id INTEGER);",                                 "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (aid INTEGER, v INTEGER);",                     "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);",                                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (2);",                                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (1, 100);",                               "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (2, 200);",                               "expect": {"rows": []}},
+        {"sql": "SELECT a.id, b.v FROM a JOIN b ON a.id = b.aid ORDER BY a.id;", "expect": {"rows": [[1, 100], [2, 200]]}}
+      ]
+    },
+    {
+      "name": "inner-join-unmatched-rows-dropped",
+      "description": "Outer rows without a matching inner row are not emitted for INNER JOIN.",
+      "program": [
+        {"sql": "CREATE TABLE a (id INTEGER);",                                 "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (aid INTEGER);",                                "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);",                                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (2);",                                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (3);",                                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (2);",                                    "expect": {"rows": []}},
+        {"sql": "SELECT a.id FROM a INNER JOIN b ON a.id = b.aid ORDER BY a.id;", "expect": {"rows": [[2]]}}
+      ]
+    },
+    {
+      "name": "inner-join-multiple-inner-matches",
+      "description": "Cross product on duplicates — same outer row emits once per matching inner row.",
+      "program": [
+        {"sql": "CREATE TABLE a (id INTEGER);",                                                   "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (aid INTEGER, tag TEXT);",                                        "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);",                                                      "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (2);",                                                      "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (1, 'x');",                                                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (1, 'y');",                                                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (2, 'z');",                                                 "expect": {"rows": []}},
+        {"sql": "SELECT a.id, b.tag FROM a INNER JOIN b ON a.id = b.aid ORDER BY a.id, b.tag;",   "expect": {"rows": [[1, "x"], [1, "y"], [2, "z"]]}}
+      ]
+    },
+    {
+      "name": "left-join-basic",
+      "description": "LEFT JOIN emits unmatched outer rows with NULL inner columns.",
+      "program": [
+        {"sql": "CREATE TABLE a (id INTEGER);",                                               "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (aid INTEGER, v INTEGER);",                                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);",                                                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (2);",                                                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (3);",                                                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (2, 20);",                                              "expect": {"rows": []}},
+        {"sql": "SELECT a.id, b.v FROM a LEFT JOIN b ON a.id = b.aid ORDER BY a.id;",         "expect": {"rows": [[1, null], [2, 20], [3, null]]}}
+      ]
+    },
+    {
+      "name": "left-outer-join-equals-left-join",
+      "program": [
+        {"sql": "CREATE TABLE a (id INTEGER);",                                                    "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (aid INTEGER);",                                                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);",                                                       "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (2);",                                                       "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (1);",                                                       "expect": {"rows": []}},
+        {"sql": "SELECT a.id, b.aid FROM a LEFT OUTER JOIN b ON a.id = b.aid ORDER BY a.id;",      "expect": {"rows": [[1, 1], [2, null]]}}
+      ]
+    },
+    {
+      "name": "left-join-multiple-inner-matches",
+      "program": [
+        {"sql": "CREATE TABLE a (id INTEGER);",                                                 "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (aid INTEGER, v INTEGER);",                                     "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);",                                                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (2);",                                                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (1, 10);",                                                "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (1, 20);",                                                "expect": {"rows": []}},
+        {"sql": "SELECT a.id, b.v FROM a LEFT JOIN b ON a.id = b.aid ORDER BY a.id, b.v;",      "expect": {"rows": [[1, 10], [1, 20], [2, null]]}}
+      ]
+    },
+    {
+      "name": "left-join-all-unmatched",
+      "program": [
+        {"sql": "CREATE TABLE a (id INTEGER);",                                               "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (aid INTEGER);",                                              "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);",                                                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (2);",                                                  "expect": {"rows": []}},
+        {"sql": "SELECT a.id, b.aid FROM a LEFT JOIN b ON a.id = b.aid ORDER BY a.id;",       "expect": {"rows": [[1, null], [2, null]]}}
+      ]
+    },
+    {
+      "name": "join-with-where",
+      "description": "WHERE applied after join — filters rows post-join.",
+      "program": [
+        {"sql": "CREATE TABLE a (id INTEGER, tag TEXT);",                                               "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (aid INTEGER, v INTEGER);",                                             "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1, 'alpha');",                                                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (2, 'beta');",                                                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (1, 10);",                                                        "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (2, 20);",                                                        "expect": {"rows": []}},
+        {"sql": "SELECT a.tag, b.v FROM a JOIN b ON a.id = b.aid WHERE b.v > 15 ORDER BY a.id;",        "expect": {"rows": [["beta", 20]]}}
+      ]
+    },
+    {
+      "name": "join-unqualified-column-unambiguous",
+      "description": "Bare column name is legal if it's present in exactly one joined table.",
+      "program": [
+        {"sql": "CREATE TABLE a (id INTEGER, aname TEXT);",                            "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (id INTEGER, bname TEXT);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1, 'Alice');",                                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (1, 'Bob');",                                    "expect": {"rows": []}},
+        {"sql": "SELECT aname, bname FROM a JOIN b ON a.id = b.id;",                   "expect": {"rows": [["Alice", "Bob"]]}}
+      ]
+    },
+    {
+      "name": "join-star-projection",
+      "description": "SELECT * expands to all columns of all joined tables, in FROM order.",
+      "program": [
+        {"sql": "CREATE TABLE a (id INTEGER, tag TEXT);",                                                "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (aid INTEGER, v INTEGER);",                                              "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1, 'x');",                                                        "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (1, 100);",                                                        "expect": {"rows": []}},
+        {"sql": "SELECT * FROM a JOIN b ON a.id = b.aid;",                                               "expect": {"rows": [[1, "x", 1, 100]]}}
+      ]
+    },
+    {
+      "name": "join-with-aggregate",
+      "program": [
+        {"sql": "CREATE TABLE a (id INTEGER);",                                                    "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (aid INTEGER, v INTEGER);",                                        "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);",                                                       "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (2);",                                                       "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (3);",                                                       "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (1, 10);",                                                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (1, 20);",                                                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (2, 30);",                                                   "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(*), SUM(b.v) FROM a JOIN b ON a.id = b.aid;",                        "expect": {"rows": [[3, 60]]}}
+      ]
+    },
+    {
+      "name": "join-with-group-by",
+      "program": [
+        {"sql": "CREATE TABLE a (id INTEGER);",                                                              "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (aid INTEGER, v INTEGER);",                                                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);",                                                                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (2);",                                                                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (1, 10);",                                                             "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (1, 20);",                                                             "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (2, 30);",                                                             "expect": {"rows": []}},
+        {"sql": "SELECT a.id, SUM(b.v) FROM a JOIN b ON a.id = b.aid GROUP BY a.id ORDER BY a.id;",          "expect": {"rows": [[1, 30], [2, 30]]}}
+      ]
+    },
+    {
+      "name": "join-empty-outer",
+      "program": [
+        {"sql": "CREATE TABLE a (id INTEGER);",                              "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (aid INTEGER);",                             "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (1);",                                 "expect": {"rows": []}},
+        {"sql": "SELECT a.id, b.aid FROM a JOIN b ON a.id = b.aid;",         "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "join-empty-inner-inner-join",
+      "program": [
+        {"sql": "CREATE TABLE a (id INTEGER);",                              "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (aid INTEGER);",                             "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);",                                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (2);",                                 "expect": {"rows": []}},
+        {"sql": "SELECT a.id, b.aid FROM a JOIN b ON a.id = b.aid;",         "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "join-empty-inner-left-join",
+      "description": "LEFT JOIN with empty right side emits every outer row with NULL inners.",
+      "program": [
+        {"sql": "CREATE TABLE a (id INTEGER);",                                          "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (aid INTEGER);",                                         "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);",                                             "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (2);",                                             "expect": {"rows": []}},
+        {"sql": "SELECT a.id, b.aid FROM a LEFT JOIN b ON a.id = b.aid ORDER BY a.id;",  "expect": {"rows": [[1, null], [2, null]]}}
+      ]
+    },
+    {
+      "name": "compile-error-ambiguous-column",
+      "program": [
+        {"sql": "CREATE TABLE a (id INTEGER, name TEXT);",                            "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (id INTEGER, color TEXT);",                           "expect": {"rows": []}},
+        {"sql": "SELECT id FROM a JOIN b ON a.id = b.id;",                            "expect": {"error": {"name": "COMPILE_AMBIGUOUS_COLUMN", "fields": {"column": "id"}}}}
+      ]
+    },
+    {
+      "name": "compile-error-qualified-table-not-in-scope",
+      "program": [
+        {"sql": "CREATE TABLE a (id INTEGER);",                                       "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (aid INTEGER);",                                      "expect": {"rows": []}},
+        {"sql": "SELECT c.x FROM a JOIN b ON a.id = b.aid;",                          "expect": {"error": {"name": "COMPILE_TABLE_NOT_IN_SCOPE", "fields": {"table": "c"}}}}
+      ]
+    },
+    {
+      "name": "compile-error-qualified-column-not-found",
+      "program": [
+        {"sql": "CREATE TABLE a (id INTEGER);",                                       "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (aid INTEGER);",                                      "expect": {"rows": []}},
+        {"sql": "SELECT a.nonexistent FROM a JOIN b ON a.id = b.aid;",                "expect": {"error": {"name": "COMPILE_COLUMN_NOT_FOUND", "fields": {"table": "a", "column": "nonexistent"}}}}
+      ]
+    },
+    {
+      "name": "parse-error-join-without-on",
+      "program": [
+        {"sql": "CREATE TABLE a (id INTEGER);",                                       "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (aid INTEGER);",                                      "expect": {"rows": []}},
+        {"sql": "SELECT * FROM a JOIN b;",                                            "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"expected": ["KEYWORD_ON"]}}}}
+      ]
+    },
+    {
+      "name": "join-as-identifier-no-longer-works",
+      "program": [
+        {"sql": "CREATE TABLE t (join INTEGER);",                                     "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "KEYWORD_JOIN"}}}}
+      ]
+    },
+    {
+      "name": "on-as-identifier-no-longer-works",
+      "program": [
+        {"sql": "CREATE TABLE t (on INTEGER);",                                       "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "KEYWORD_ON"}}}}
+      ]
+    }
+  ]
+}

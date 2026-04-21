@@ -1,0 +1,276 @@
+{
+  "phase": "6p",
+  "description": "Phase 6p gate — compound SELECT INTERSECT and EXCEPT (both with dedup; no ALL variants). Two new reserved keywords. Left-to-right fold semantics: UNION/UNION ALL→OR, INTERSECT→AND, EXCEPT→AND NOT. Row equality per 6b/6g (NULL==NULL, cross-type numeric). All phase1..6o fixtures must stay green.",
+  "cases": [
+    {
+      "name": "intersect-basic",
+      "program": [
+        {"sql": "CREATE TABLE a (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (2);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (3);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (2);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (3);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (4);",                            "expect": {"rows": []}},
+        {"sql": "SELECT x FROM a INTERSECT SELECT x FROM b ORDER BY x;", "expect": {"rows": [[2], [3]]}}
+      ]
+    },
+    {
+      "name": "intersect-no-overlap",
+      "program": [
+        {"sql": "CREATE TABLE a (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (2);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (3);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (4);",                            "expect": {"rows": []}},
+        {"sql": "SELECT x FROM a INTERSECT SELECT x FROM b;",           "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "intersect-duplicates-within-core-dedup",
+      "description": "Duplicates within a core are deduped; INTERSECT is set semantics.",
+      "program": [
+        {"sql": "CREATE TABLE a (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (1);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (1);",                            "expect": {"rows": []}},
+        {"sql": "SELECT x FROM a INTERSECT SELECT x FROM b;",           "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "intersect-identical-inputs",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                            "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t INTERSECT SELECT x FROM t ORDER BY x;", "expect": {"rows": [[1], [2], [3]]}}
+      ]
+    },
+    {
+      "name": "intersect-multi-column",
+      "program": [
+        {"sql": "CREATE TABLE a (id INTEGER, name TEXT);",              "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (id INTEGER, name TEXT);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1, 'alice');",                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (2, 'bob');",                     "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (2, 'bob');",                     "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (3, 'carol');",                   "expect": {"rows": []}},
+        {"sql": "SELECT id, name FROM a INTERSECT SELECT id, name FROM b;", "expect": {"rows": [[2, "bob"]]}}
+      ]
+    },
+    {
+      "name": "intersect-nulls-equal",
+      "program": [
+        {"sql": "CREATE TABLE a (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (NULL);",                         "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (NULL);",                         "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (2);",                            "expect": {"rows": []}},
+        {"sql": "SELECT x FROM a INTERSECT SELECT x FROM b;",           "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "except-basic",
+      "program": [
+        {"sql": "CREATE TABLE a (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (2);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (3);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (2);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (4);",                            "expect": {"rows": []}},
+        {"sql": "SELECT x FROM a EXCEPT SELECT x FROM b ORDER BY x;",   "expect": {"rows": [[1], [3]]}}
+      ]
+    },
+    {
+      "name": "except-empty-right",
+      "program": [
+        {"sql": "CREATE TABLE a (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (2);",                            "expect": {"rows": []}},
+        {"sql": "SELECT x FROM a EXCEPT SELECT x FROM b ORDER BY x;",   "expect": {"rows": [[1], [2]]}}
+      ]
+    },
+    {
+      "name": "except-empty-left",
+      "program": [
+        {"sql": "CREATE TABLE a (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (1);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (2);",                            "expect": {"rows": []}},
+        {"sql": "SELECT x FROM a EXCEPT SELECT x FROM b;",              "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "except-identical-inputs",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                            "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t EXCEPT SELECT x FROM t;",              "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "except-duplicates-dedup",
+      "program": [
+        {"sql": "CREATE TABLE a (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (2);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (2);",                            "expect": {"rows": []}},
+        {"sql": "SELECT x FROM a EXCEPT SELECT x FROM b;",              "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "except-multi-column",
+      "program": [
+        {"sql": "CREATE TABLE a (id INTEGER, name TEXT);",              "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (id INTEGER, name TEXT);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1, 'alice');",                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (2, 'bob');",                     "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (2, 'bob');",                     "expect": {"rows": []}},
+        {"sql": "SELECT id, name FROM a EXCEPT SELECT id, name FROM b;", "expect": {"rows": [[1, "alice"]]}}
+      ]
+    },
+    {
+      "name": "except-nulls",
+      "program": [
+        {"sql": "CREATE TABLE a (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (NULL);",                         "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (NULL);",                         "expect": {"rows": []}},
+        {"sql": "SELECT x FROM a EXCEPT SELECT x FROM b;",              "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "intersect-arity-mismatch",
+      "program": [
+        {"sql": "CREATE TABLE a (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (x INTEGER, y INTEGER);",               "expect": {"rows": []}},
+        {"sql": "SELECT x FROM a INTERSECT SELECT x, y FROM b;",        "expect": {"error": {"name": "COMPILE_COMPOUND_ARITY_MISMATCH", "fields": {"expected": 1, "got": 2, "at_core": 2}}}}
+      ]
+    },
+    {
+      "name": "except-arity-mismatch",
+      "program": [
+        {"sql": "CREATE TABLE a (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (x INTEGER, y INTEGER);",               "expect": {"rows": []}},
+        {"sql": "SELECT x FROM a EXCEPT SELECT x, y FROM b;",           "expect": {"error": {"name": "COMPILE_COMPOUND_ARITY_MISMATCH", "fields": {"expected": 1, "got": 2, "at_core": 2}}}}
+      ]
+    },
+    {
+      "name": "intersect-all-rejected",
+      "program": [
+        {"sql": "SELECT 1 INTERSECT ALL SELECT 1;",                     "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "KEYWORD_ALL"}}}}
+      ]
+    },
+    {
+      "name": "except-all-rejected",
+      "program": [
+        {"sql": "SELECT 1 EXCEPT ALL SELECT 1;",                        "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "KEYWORD_ALL"}}}}
+      ]
+    },
+    {
+      "name": "intersect-keyword-reserved",
+      "program": [
+        {"sql": "CREATE TABLE t (intersect INTEGER);",                  "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "KEYWORD_INTERSECT"}}}}
+      ]
+    },
+    {
+      "name": "except-keyword-reserved",
+      "program": [
+        {"sql": "CREATE TABLE t (except INTEGER);",                     "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "KEYWORD_EXCEPT"}}}}
+      ]
+    },
+    {
+      "name": "three-core-intersect",
+      "program": [
+        {"sql": "CREATE TABLE a (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "CREATE TABLE c (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (2);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (3);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (2);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (3);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO c VALUES (2);",                            "expect": {"rows": []}},
+        {"sql": "SELECT x FROM a INTERSECT SELECT x FROM b INTERSECT SELECT x FROM c;", "expect": {"rows": [[2]]}}
+      ]
+    },
+    {
+      "name": "three-core-except",
+      "description": "Left-to-right: (A EXCEPT B) EXCEPT C = rows in A not in B not in C.",
+      "program": [
+        {"sql": "CREATE TABLE a (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "CREATE TABLE c (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (2);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (3);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (4);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (2);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO c VALUES (3);",                            "expect": {"rows": []}},
+        {"sql": "SELECT x FROM a EXCEPT SELECT x FROM b EXCEPT SELECT x FROM c ORDER BY x;", "expect": {"rows": [[1], [4]]}}
+      ]
+    },
+    {
+      "name": "intersect-with-order-by-and-limit",
+      "program": [
+        {"sql": "CREATE TABLE a (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (5);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (3);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (5);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (3);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (1);",                            "expect": {"rows": []}},
+        {"sql": "SELECT x FROM a INTERSECT SELECT x FROM b ORDER BY x LIMIT 2;", "expect": {"rows": [[1], [3]]}}
+      ]
+    },
+    {
+      "name": "except-with-where",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER, flag INTEGER);",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 0);",                         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 0);",                         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3, 1);",                         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (4, 1);",                         "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE flag = 0 EXCEPT SELECT x FROM t WHERE flag = 1 ORDER BY x;", "expect": {"rows": [[1], [2]]}}
+      ]
+    },
+    {
+      "name": "intersect-text",
+      "program": [
+        {"sql": "CREATE TABLE a (s TEXT);",                             "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (s TEXT);",                             "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES ('apple');",                      "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES ('banana');",                     "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES ('banana');",                     "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES ('cherry');",                     "expect": {"rows": []}},
+        {"sql": "SELECT s FROM a INTERSECT SELECT s FROM b;",           "expect": {"rows": [["banana"]]}}
+      ]
+    },
+    {
+      "name": "except-text",
+      "program": [
+        {"sql": "CREATE TABLE a (s TEXT);",                             "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (s TEXT);",                             "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES ('apple');",                      "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES ('banana');",                     "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES ('cherry');",                     "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES ('banana');",                     "expect": {"rows": []}},
+        {"sql": "SELECT s FROM a EXCEPT SELECT s FROM b ORDER BY s;",   "expect": {"rows": [["apple"], ["cherry"]]}}
+      ]
+    }
+  ]
+}

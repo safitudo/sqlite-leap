@@ -1,0 +1,418 @@
+{
+  "phase": "2c-2",
+  "description": "Phase 2c-2 gate — WHERE clause and logical operators (AND / OR / NOT). Covers row filtering, SQL 3VL, truthiness, type errors raised by the WHERE gate, parse errors around WHERE, and the reservation of AND/OR/NOT/WHERE as keywords. Every case must pass on BOTH C and Rust builds with byte-identical outputs on success cases. phase1.json, phase2a.json, phase2b.json, phase2c1.json remain in force and MUST stay green.",
+  "cases": [
+    {
+      "name": "where-true-literal",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",   "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE 1;",    "expect": {"rows": [[1], [2], [3]]}}
+      ]
+    },
+    {
+      "name": "where-false-literal",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",   "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE 0;",    "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "where-null-literal",
+      "description": "NULL in WHERE is UNKNOWN, which excludes the row.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",   "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE NULL;", "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "where-eq-simple",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",       "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 2;",    "expect": {"rows": [[2]]}}
+      ]
+    },
+    {
+      "name": "where-ne",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",       "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x != 2;",   "expect": {"rows": [[1], [3]]}}
+      ]
+    },
+    {
+      "name": "where-lt",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (4);",       "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x < 3;",    "expect": {"rows": [[1], [2]]}}
+      ]
+    },
+    {
+      "name": "where-ge",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (9);",       "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x >= 5;",   "expect": {"rows": [[5], [9]]}}
+      ]
+    },
+    {
+      "name": "where-arithmetic-condition",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",            "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x + 1 = 3;",     "expect": {"rows": [[2]]}}
+      ]
+    },
+    {
+      "name": "where-text-eq",
+      "program": [
+        {"sql": "CREATE TABLE t (name TEXT);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('alice');",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('bob');",               "expect": {"rows": []}},
+        {"sql": "SELECT name FROM t WHERE name = 'bob';",      "expect": {"rows": [["bob"]]}}
+      ]
+    },
+    {
+      "name": "where-star-projection",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER, y INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 20);",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3, 30);",          "expect": {"rows": []}},
+        {"sql": "SELECT * FROM t WHERE x > 1;",           "expect": {"rows": [[2, 20], [3, 30]]}}
+      ]
+    },
+    {
+      "name": "where-empty-table-no-rows",
+      "description": "A WHERE on an empty table trivially produces zero rows, no errors, even with a type-incompatible condition — the condition never evaluates.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",    "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE 'abc';",   "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "where-no-rows-match",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",       "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 99;",   "expect": {"rows": []}}
+      ]
+    },
+
+    {
+      "name": "where-and-both-true",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",               "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (4);",                 "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x > 1 AND x < 4;",    "expect": {"rows": [[2], [3]]}}
+      ]
+    },
+    {
+      "name": "where-and-short-circuit-false",
+      "description": "When one AND operand is 0 (FALSE), result is 0 regardless of the other operand's truthiness — filter excludes all rows.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",              "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE 1 AND 0;",         "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "where-or-one-true",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",              "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE 0 OR 1;",          "expect": {"rows": [[1], [2]]}}
+      ]
+    },
+    {
+      "name": "where-or-disjunction",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                    "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 1 OR x = 3;",        "expect": {"rows": [[1], [3]]}}
+      ]
+    },
+    {
+      "name": "where-not-true",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",              "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE NOT 1;",           "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "where-not-false",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",              "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE NOT 0;",           "expect": {"rows": [[1], [2]]}}
+      ]
+    },
+    {
+      "name": "where-not-of-comparison",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE NOT x = 2;",         "expect": {"rows": [[1], [3]]}}
+      ]
+    },
+    {
+      "name": "where-double-negation",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",                "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE NOT NOT 1;",         "expect": {"rows": [[5]]}}
+      ]
+    },
+    {
+      "name": "where-precedence-and-binds-tighter-than-or",
+      "description": "1 OR 0 AND 0 must parse as 1 OR (0 AND 0) = 1 OR 0 = 1 → all rows.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (7);",              "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE 1 OR 0 AND 0;",    "expect": {"rows": [[7]]}}
+      ]
+    },
+    {
+      "name": "where-precedence-not-binds-tighter-than-and",
+      "description": "NOT 0 AND 1 must parse as (NOT 0) AND 1 = 1 AND 1 = 1 → all rows.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (7);",              "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE NOT 0 AND 1;",     "expect": {"rows": [[7]]}}
+      ]
+    },
+    {
+      "name": "where-complex-multi-conditions",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (4);",                                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",                                "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x > 1 AND NOT (x = 3) AND x < 5;",   "expect": {"rows": [[2], [4]]}}
+      ]
+    },
+
+    {
+      "name": "where-3vl-and-null-and-false",
+      "description": "3VL: NULL AND 0 = 0 (FALSE). Row excluded.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",               "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                 "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE NULL AND 0;",         "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "where-3vl-or-null-or-true",
+      "description": "3VL: NULL OR 1 = 1 (TRUE). Row included.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",               "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                 "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE NULL OR 1;",          "expect": {"rows": [[1], [2]]}}
+      ]
+    },
+    {
+      "name": "where-3vl-and-null-and-true",
+      "description": "3VL: NULL AND 1 = NULL (UNKNOWN). Row excluded.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",               "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                 "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE NULL AND 1;",         "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "where-3vl-or-null-or-false",
+      "description": "3VL: NULL OR 0 = NULL (UNKNOWN). Row excluded.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",               "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                 "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE NULL OR 0;",          "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "where-not-null",
+      "description": "NOT NULL = NULL (UNKNOWN). Row excluded.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",               "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                 "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE NOT NULL;",           "expect": {"rows": []}}
+      ]
+    },
+
+    {
+      "name": "where-null-column-excluded",
+      "description": "A row with NULL in the tested column produces NULL comparison, which excludes the row.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",               "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                 "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x > 1;",              "expect": {"rows": [[3]]}}
+      ]
+    },
+    {
+      "name": "where-multi-column-comparison",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 2);",           "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5, 3);",           "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (4, 4);",           "expect": {"rows": []}},
+        {"sql": "SELECT a, b FROM t WHERE a < b;",        "expect": {"rows": [[1, 2]]}}
+      ]
+    },
+
+    {
+      "name": "where-text-operand-type-error",
+      "description": "A non-empty table with a TEXT-valued WHERE raises EVAL_TYPE_ERROR with op=WHERE on the first evaluated row.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",          "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE 'abc';",       "expect": {"error": {"name": "EVAL_TYPE_ERROR", "fields": {"op": "WHERE", "operand_type": "TEXT"}}}}
+      ]
+    },
+    {
+      "name": "where-and-text-type-error",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",               "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE 'abc' AND 1;",      "expect": {"error": {"name": "EVAL_TYPE_ERROR", "fields": {"op": "AND", "left_type": "TEXT", "right_type": "INTEGER"}}}}
+      ]
+    },
+    {
+      "name": "where-or-text-type-error",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",               "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE 1 OR 'abc';",       "expect": {"error": {"name": "EVAL_TYPE_ERROR", "fields": {"op": "OR", "left_type": "INTEGER", "right_type": "TEXT"}}}}
+      ]
+    },
+    {
+      "name": "where-not-text-type-error",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",               "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE NOT 'abc';",        "expect": {"error": {"name": "EVAL_TYPE_ERROR", "fields": {"op": "NOT", "operand_type": "TEXT"}}}}
+      ]
+    },
+
+    {
+      "name": "parse-where-without-from",
+      "description": "WHERE without a preceding FROM is a parse error at KEYWORD_WHERE with the normal end-of-projection expected set.",
+      "program": [{"sql": "SELECT 1 WHERE 1;", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "KEYWORD_WHERE", "pos": 9, "expected": ["SEMICOLON", "EOF", "COMMA", "KEYWORD_FROM"]}}}}]
+    },
+    {
+      "name": "parse-where-empty-expression",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",       "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE;",            "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "SEMICOLON", "pos": 21, "expected": ["INTEGER_LITERAL", "STRING_LITERAL", "KEYWORD_NULL", "IDENTIFIER", "MINUS", "LPAREN", "KEYWORD_NOT"]}}}}
+      ]
+    },
+    {
+      "name": "parse-trailing-and",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",          "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x AND;",         "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "SEMICOLON", "pos": 27, "expected": ["INTEGER_LITERAL", "STRING_LITERAL", "KEYWORD_NULL", "IDENTIFIER", "MINUS", "LPAREN", "KEYWORD_NOT"]}}}}
+      ]
+    },
+    {
+      "name": "parse-trailing-not",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",          "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE NOT;",           "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "SEMICOLON", "pos": 25, "expected": ["INTEGER_LITERAL", "STRING_LITERAL", "KEYWORD_NULL", "IDENTIFIER", "MINUS", "LPAREN", "KEYWORD_NOT"]}}}}
+      ]
+    },
+    {
+      "name": "keyword-and-cannot-be-identifier",
+      "description": "The case-insensitive word 'and' tokenizes as KEYWORD_AND, so using it as a table name is a parse error at CREATE TABLE.",
+      "program": [{"sql": "CREATE TABLE and (x INTEGER);", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "KEYWORD_AND", "pos": 13, "expected": ["IDENTIFIER"]}}}}]
+    },
+    {
+      "name": "keyword-where-case-insensitive",
+      "description": "WHERE is recognized case-insensitively (tokenizer rule), so 'wHeRe' acts identically to 'WHERE'.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",         "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t wHeRe x = 5;",      "expect": {"rows": [[5]]}}
+      ]
+    },
+
+    {
+      "name": "where-column-not-found-compile-time",
+      "description": "An unknown column in WHERE raises STORAGE_COLUMN_NOT_FOUND at compile time (same name/fields as at storage).",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",              "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE nope = 1;",          "expect": {"error": {"name": "STORAGE_COLUMN_NOT_FOUND", "fields": {"table": "t", "column": "nope"}}}}
+      ]
+    },
+    {
+      "name": "projection-error-wins-over-where-error",
+      "description": "When both projection and WHERE reference missing columns, projection's column-not-found is raised first (source-order precedence).",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                "expect": {"rows": []}},
+        {"sql": "SELECT bad FROM t WHERE worse = 1;",         "expect": {"error": {"name": "STORAGE_COLUMN_NOT_FOUND", "fields": {"table": "t", "column": "bad"}}}}
+      ]
+    },
+
+    {
+      "name": "not-in-projection",
+      "description": "NOT works as an expression in projection context too, not just WHERE.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (0);",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL);",       "expect": {"rows": []}},
+        {"sql": "SELECT NOT x FROM t;",               "expect": {"rows": [[1], [0], [null]]}}
+      ]
+    },
+    {
+      "name": "and-or-in-projection",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER, y INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 0);",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (0, 0);",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 1);",            "expect": {"rows": []}},
+        {"sql": "SELECT x AND y, x OR y FROM t;",          "expect": {"rows": [[0, 1], [0, 0], [1, 1]]}}
+      ]
+    },
+    {
+      "name": "and-or-null-in-projection",
+      "description": "AND/OR with NULL operand follow 3VL — NULL propagates when neither FALSE-dominates (AND) nor TRUE-dominates (OR).",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                      "expect": {"rows": []}},
+        {"sql": "SELECT NULL AND 1, NULL AND 0, NULL OR 1, NULL OR 0 FROM t;", "expect": {"rows": [[null, 0, 1, null]]}}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,109 @@
+{
+  "phase": "6w",
+  "description": "Phase 6w gate — multi-row INSERT VALUES. No new VDBE opcodes; max_invariant=42 unchanged. Algorithm per spec/sql-grammar.spec.md § 'Phase 6w'. All prior phase fixtures must stay green. Byte-identical cross-build on result rows.",
+  "cases": [
+    {
+      "name": "single-tuple-regression",
+      "description": "Single-tuple INSERT (existing behavior) must continue to work.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (42);",      "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t;",                 "expect": {"rows": [[42]]}}
+      ]
+    },
+    {
+      "name": "two-tuples",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2);",              "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t ORDER BY a;",                  "expect": {"rows": [[1], [2]]}}
+      ]
+    },
+    {
+      "name": "three-tuples-ordered",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3), (1), (2);",         "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t ORDER BY a;",                  "expect": {"rows": [[1], [2], [3]]}}
+      ]
+    },
+    {
+      "name": "multi-column-multi-tuple",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b TEXT);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 'x'), (2, 'y'), (3, 'z');",      "expect": {"rows": []}},
+        {"sql": "SELECT a, b FROM t ORDER BY a;",                           "expect": {"rows": [[1, "x"], [2, "y"], [3, "z"]]}}
+      ]
+    },
+    {
+      "name": "multi-tuple-with-expressions",
+      "description": "Each tuple element may be an arbitrary expression.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);",                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1 + 1, 2 * 3), (0 - 5, 10 / 2);",   "expect": {"rows": []}},
+        {"sql": "SELECT a, b FROM t ORDER BY a;",                           "expect": {"rows": [[-5, 5], [2, 6]]}}
+      ]
+    },
+    {
+      "name": "multi-tuple-with-null",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (NULL), (3);",          "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(*) FROM t;",                          "expect": {"rows": [[3]]}},
+        {"sql": "SELECT COUNT(*) FROM t WHERE a IS NULL;",          "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "column-count-mismatch-rejects",
+      "description": "Any tuple with wrong column count errors with COMPILE_INSERT_COLUMN_COUNT_MISMATCH.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);",               "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 2), (3);",                     "expect": {"error": {"name": "COMPILE_INSERT_COLUMN_COUNT_MISMATCH"}}}
+      ]
+    },
+    {
+      "name": "mid-sequence-unique-violation-is-non-atomic",
+      "description": "Pre-WAL: when tuple K violates UNIQUE, tuples 1..K-1 remain inserted. Documented non-atomicity per Phase 9g caveat.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER UNIQUE);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2), (1);",                    "expect": {"error": {"name": "STORAGE_UNIQUE_VIOLATION"}}},
+        {"sql": "SELECT a FROM t ORDER BY a;",                            "expect": {"rows": [[1], [2]]}}
+      ]
+    },
+    {
+      "name": "ten-tuples-large-batch",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                                                        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);",            "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(*) FROM t;",                                                             "expect": {"rows": [[10]]}},
+        {"sql": "SELECT SUM(a) FROM t;",                                                                "expect": {"rows": [[55]]}}
+      ]
+    },
+    {
+      "name": "empty-tuple-list-rejected",
+      "description": "Parse error — no initial tuple is grammatically invalid.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES;",        "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN"}}}
+      ]
+    },
+    {
+      "name": "trailing-comma-rejected",
+      "description": "Parse error — trailing comma after last tuple.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2),;",   "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN"}}}
+      ]
+    },
+    {
+      "name": "multi-tuple-into-indexed-table-maintains-index",
+      "description": "Phase 9c DML maintenance interaction: indexes stay live across the multi-row insert.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                                    "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx ON t(a);",                                        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2), (3);",                               "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t WHERE a = 2;",                                      "expect": {"rows": [[2]]}}
+      ]
+    }
+  ]
+}

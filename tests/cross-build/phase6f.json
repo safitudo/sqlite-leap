@@ -1,0 +1,177 @@
+{
+  "phase": "6f",
+  "description": "Phase 6f gate — SELECT DISTINCT projection dedup. Single-column and multi-column, NULL equivalence, interaction with WHERE / ORDER BY / LIMIT / GROUP BY / JOINs, mixed type dedup. No new opcodes. All phase1..6e fixtures must stay green.",
+  "cases": [
+    {
+      "name": "distinct-single-column-dupes",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",               "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                 "expect": {"rows": []}},
+        {"sql": "SELECT DISTINCT x FROM t;",                 "expect": {"rows": [[1], [2], [3]]}}
+      ]
+    },
+    {
+      "name": "distinct-no-dupes-passthrough",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",               "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                 "expect": {"rows": []}},
+        {"sql": "SELECT DISTINCT x FROM t;",                 "expect": {"rows": [[1], [2], [3]]}}
+      ]
+    },
+    {
+      "name": "distinct-empty-table",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",               "expect": {"rows": []}},
+        {"sql": "SELECT DISTINCT x FROM t;",                 "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "distinct-multi-column",
+      "description": "Dedup is over the FULL projection tuple.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 20);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 10);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 20);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 20);",             "expect": {"rows": []}},
+        {"sql": "SELECT DISTINCT a, b FROM t;",              "expect": {"rows": [[1, 10], [1, 20], [2, 10], [2, 20]]}}
+      ]
+    },
+    {
+      "name": "distinct-text",
+      "program": [
+        {"sql": "CREATE TABLE t (s TEXT);",                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('apple');",           "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('banana');",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('apple');",           "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('cherry');",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('banana');",          "expect": {"rows": []}},
+        {"sql": "SELECT DISTINCT s FROM t;",                 "expect": {"rows": [["apple"], ["banana"], ["cherry"]]}}
+      ]
+    },
+    {
+      "name": "distinct-nulls-dedup-to-one",
+      "description": "NULLs are equal-for-dedup — multiple NULL-rows reduce to one NULL.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",               "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL);",              "expect": {"rows": []}},
+        {"sql": "SELECT DISTINCT x FROM t;",                 "expect": {"rows": [[null], [1], [2]]}}
+      ]
+    },
+    {
+      "name": "distinct-with-where",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (4);",                          "expect": {"rows": []}},
+        {"sql": "SELECT DISTINCT x FROM t WHERE x > 1;",              "expect": {"rows": [[2], [3], [4]]}}
+      ]
+    },
+    {
+      "name": "distinct-with-order-by-desc",
+      "description": "ORDER BY applies after DISTINCT — output is in ORDER BY order.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                          "expect": {"rows": []}},
+        {"sql": "SELECT DISTINCT x FROM t ORDER BY x DESC;",          "expect": {"rows": [[3], [2], [1]]}}
+      ]
+    },
+    {
+      "name": "distinct-with-limit-offset",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (4);",                                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                                   "expect": {"rows": []}},
+        {"sql": "SELECT DISTINCT x FROM t ORDER BY x LIMIT 2 OFFSET 1;",       "expect": {"rows": [[2], [3]]}}
+      ]
+    },
+    {
+      "name": "distinct-star-projection",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b TEXT);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 'a');",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 'b');",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 'a');",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3, 'c');",            "expect": {"rows": []}},
+        {"sql": "SELECT DISTINCT * FROM t;",                 "expect": {"rows": [[1, "a"], [2, "b"], [3, "c"]]}}
+      ]
+    },
+    {
+      "name": "distinct-with-group-by",
+      "description": "GROUP BY → aggregation → DISTINCT on the group-result tuples.",
+      "program": [
+        {"sql": "CREATE TABLE t (k INTEGER, v INTEGER);",                                           "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);",                                                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 20);",                                                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 10);",                                                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 20);",                                                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3, 10);",                                                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3, 20);",                                                    "expect": {"rows": []}},
+        {"sql": "SELECT DISTINCT SUM(v) FROM t GROUP BY k;",                                        "expect": {"rows": [[30]]}}
+      ]
+    },
+    {
+      "name": "distinct-with-join",
+      "program": [
+        {"sql": "CREATE TABLE a (id INTEGER);",                                                     "expect": {"rows": []}},
+        {"sql": "CREATE TABLE b (aid INTEGER, tag TEXT);",                                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (1);",                                                        "expect": {"rows": []}},
+        {"sql": "INSERT INTO a VALUES (2);",                                                        "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (1, 'x');",                                                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (1, 'x');",                                                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO b VALUES (2, 'y');",                                                   "expect": {"rows": []}},
+        {"sql": "SELECT DISTINCT b.tag FROM a JOIN b ON a.id = b.aid;",                             "expect": {"rows": [["x"], ["y"]]}}
+      ]
+    },
+    {
+      "name": "distinct-all-one-value",
+      "description": "All rows identical — DISTINCT returns one row.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",               "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (42);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (42);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (42);",                "expect": {"rows": []}},
+        {"sql": "SELECT DISTINCT x FROM t;",                 "expect": {"rows": [[42]]}}
+      ]
+    },
+    {
+      "name": "distinct-on-aggregated-degenerate",
+      "description": "DISTINCT on aggregated-no-GROUP-BY SELECT is no-op (one row anyway).",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",               "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                 "expect": {"rows": []}},
+        {"sql": "SELECT DISTINCT COUNT(*) FROM t;",          "expect": {"rows": [[3]]}}
+      ]
+    },
+    {
+      "name": "distinct-as-identifier-no-longer-works",
+      "program": [
+        {"sql": "CREATE TABLE t (distinct INTEGER);",        "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "KEYWORD_DISTINCT"}}}}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,1962 @@
+[linux-bench] out: /repo/bench/results/2026-04-20-linux-x86_64.csv
+[linux-bench] log: /repo/bench/results/2026-04-20-linux-x86_64.log
+[linux-bench] uname: Linux 2442f19ded6d 6.6.12-linuxkit #1 SMP Fri Jan 19 08:53:17 UTC 2024 x86_64 GNU/Linux
+[linux-bench] glibc: ldd (Debian GLIBC 2.36-9+deb12u13) 2.36
+[linux-bench] rustc: rustc 1.82.0 (f6e511eec 2024-10-15)
+[linux-bench] cc:    cc (Debian 12.2.0-14+deb12u1) 12.2.0
+[linux-bench] hyperfine: hyperfine 1.18.0
+[linux-bench] === build src-c ===
+mkdir -p obj
+mkdir -p bin
+cc -std=c11 -Wall -Wextra -O2 -g -c common.c -o obj/common.o
+cc -std=c11 -Wall -Wextra -O2 -g -c tokenizer.c -o obj/tokenizer.o
+cc -std=c11 -Wall -Wextra -O2 -g -c parser.c -o obj/parser.o
+cc -std=c11 -Wall -Wextra -O2 -g -c storage.c -o obj/storage.o
+cc -std=c11 -Wall -Wextra -O2 -g -c compiler.c -o obj/compiler.o
+cc -std=c11 -Wall -Wextra -O2 -g -c vdbe.c -o obj/vdbe.o
+cc -std=c11 -Wall -Wextra -O2 -g -c executor.c -o obj/executor.o
+cc -std=c11 -Wall -Wextra -O2 -g -c json.c -o obj/json.o
+cc -std=c11 -Wall -Wextra -O2 -g -c harness.c -o obj/harness.o
+cc -std=c11 -Wall -Wextra -O2 -g -c md5.c -o obj/md5.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase1_main.c -o obj/phase1_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase2a_main.c -o obj/phase2a_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase2b_main.c -o obj/phase2b_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase2c1_main.c -o obj/phase2c1_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase2c2_main.c -o obj/phase2c2_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase2c3_main.c -o obj/phase2c3_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase3a_main.c -o obj/phase3a_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase3b_main.c -o obj/phase3b_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase3d_main.c -o obj/phase3d_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase4a_main.c -o obj/phase4a_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6a_main.c -o obj/phase6a_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6b_main.c -o obj/phase6b_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6c_main.c -o obj/phase6c_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6d_main.c -o obj/phase6d_main.o
+storage.c: In function 'parse_sqlite_schema_and_tables':
+storage.c:3561:13: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3561 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |             ^~~
+vdbe.c: In function 'dt_parse_timestring':
+storage.c:3561:74: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3561 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                          ^~~~
+storage.c:3572:13: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3572 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |             ^~~
+vdbe.c:495:5: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+  495 |     if (*cur != '-') return dt_err_invalid(err, orig); cur++;
+      |     ^~
+vdbe.c:495:56: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+  495 |     if (*cur != '-') return dt_err_invalid(err, orig); cur++;
+      |                                                        ^~~
+storage.c:3572:74: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3572 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                          ^~~~
+vdbe.c:497:5: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+  497 |     if (*cur != '-') return dt_err_invalid(err, orig); cur++;
+      |     ^~
+vdbe.c:497:56: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+  497 |     if (*cur != '-') return dt_err_invalid(err, orig); cur++;
+      |                                                        ^~~
+storage.c:3578:13: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3578 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |             ^~~
+storage.c:3578:74: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3578 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                          ^~~~
+vdbe.c:508:9: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+  508 |         if (*cur != ':') return dt_err_invalid(err, orig); cur++;
+      |         ^~
+vdbe.c:508:60: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+  508 |         if (*cur != ':') return dt_err_invalid(err, orig); cur++;
+      |                                                            ^~~
+storage.c:3583:13: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3583 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |             ^~~
+storage.c:3583:74: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3583 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                          ^~~~
+storage.c:3590:13: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3590 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |             ^~~
+storage.c:3590:74: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3590 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                          ^~~~
+storage.c:3602:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3602 |                 for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                 ^~~
+storage.c:3602:78: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3602 |                 for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                              ^~~~
+storage.c:3612:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3612 |                 for (size_t kk = 0; kk < i_ncols; kk++) free(i_cols[kk]); free(i_cols);
+      |                 ^~~
+storage.c:3612:75: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3612 |                 for (size_t kk = 0; kk < i_ncols; kk++) free(i_cols[kk]); free(i_cols);
+      |                                                                           ^~~~
+storage.c:3613:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3613 |                 for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                 ^~~
+storage.c:3613:78: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3613 |                 for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                              ^~~~
+storage.c:3621:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3621 |                 for (size_t kk = 0; kk < i_ncols; kk++) free(i_cols[kk]); free(i_cols);
+      |                 ^~~
+storage.c:3621:75: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3621 |                 for (size_t kk = 0; kk < i_ncols; kk++) free(i_cols[kk]); free(i_cols);
+      |                                                                           ^~~~
+storage.c:3622:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3622 |                 for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                 ^~~
+storage.c:3622:78: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3622 |                 for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                              ^~~~
+storage.c:3638:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3638 |                 for (size_t kk = 0; kk < i_ncols; kk++) free(i_cols[kk]); free(i_cols);
+      |                 ^~~
+storage.c:3638:75: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3638 |                 for (size_t kk = 0; kk < i_ncols; kk++) free(i_cols[kk]); free(i_cols);
+      |                                                                           ^~~~
+storage.c:3639:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3639 |                 for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                 ^~~
+storage.c:3639:78: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3639 |                 for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                              ^~~~
+storage.c:3661:13: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3661 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |             ^~~
+storage.c:3661:74: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3661 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                          ^~~~
+storage.c:3667:13: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3667 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |             ^~~
+storage.c:3667:74: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3667 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                          ^~~~
+storage.c:3678:13: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3678 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |             ^~~
+storage.c:3678:74: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3678 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                          ^~~~
+storage.c:3696:13: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3696 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |             ^~~
+storage.c:3696:74: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3696 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                          ^~~~
+storage.c:3704:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3704 |                 for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                 ^~~
+storage.c:3704:78: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3704 |                 for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                              ^~~~
+storage.c:3721:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3721 |                 for (size_t jj = 0; jj < r.n; jj++) v_free(&r.vals[jj]); free(r.vals);
+      |                 ^~~
+storage.c:3721:74: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3721 |                 for (size_t jj = 0; jj < r.n; jj++) v_free(&r.vals[jj]); free(r.vals);
+      |                                                                          ^~~~
+storage.c:3723:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3723 |                 for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                 ^~~
+storage.c:3723:78: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3723 |                 for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                              ^~~~
+storage.c:3738:9: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3738 |         for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |         ^~~
+storage.c:3738:70: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3738 |         for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                      ^~~~
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6e_main.c -o obj/phase6e_main.o
+storage.c: In function 'walk_index_tree_page':
+storage.c:4424:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 4424 |                 for (size_t k = 0; k < r.n; k++) v_free(&r.vals[k]); free(r.vals);
+      |                 ^~~
+storage.c:4424:70: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 4424 |                 for (size_t k = 0; k < r.n; k++) v_free(&r.vals[k]); free(r.vals);
+      |                                                                      ^~~~
+storage.c:4431:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 4431 |                 for (size_t k = 0; k < r.n; k++) v_free(&r.vals[k]); free(r.vals);
+      |                 ^~~
+storage.c:4431:70: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 4431 |                 for (size_t k = 0; k < r.n; k++) v_free(&r.vals[k]); free(r.vals);
+      |                                                                      ^~~~
+storage.c:4513:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 4513 |                 for (size_t k = 0; k < r.n; k++) v_free(&r.vals[k]); free(r.vals);
+      |                 ^~~
+storage.c:4513:70: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 4513 |                 for (size_t k = 0; k < r.n; k++) v_free(&r.vals[k]); free(r.vals);
+      |                                                                      ^~~~
+storage.c:4519:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 4519 |                 for (size_t k = 0; k < r.n; k++) v_free(&r.vals[k]); free(r.vals);
+      |                 ^~~
+storage.c:4519:70: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 4519 |                 for (size_t k = 0; k < r.n; k++) v_free(&r.vals[k]); free(r.vals);
+      |                                                                      ^~~~
+storage.c: In function 'serialise_db':
+storage.c:4965:9: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 4965 |         for (size_t i = 0; i < r.n; i++) v_free(&r.vals[i]); free(r.vals);
+      |         ^~~
+storage.c:4965:62: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 4965 |         for (size_t i = 0; i < r.n; i++) v_free(&r.vals[i]); free(r.vals);
+      |                                                              ^~~~
+storage.c:4974:9: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 4974 |         for (size_t i = 0; i < r.n; i++) v_free(&r.vals[i]); free(r.vals);
+      |         ^~~
+storage.c:4974:62: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 4974 |         for (size_t i = 0; i < r.n; i++) v_free(&r.vals[i]); free(r.vals);
+      |                                                              ^~~~
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6f_main.c -o obj/phase6f_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6g_main.c -o obj/phase6g_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6h_main.c -o obj/phase6h_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6i_main.c -o obj/phase6i_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6j_main.c -o obj/phase6j_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6k_main.c -o obj/phase6k_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6l_main.c -o obj/phase6l_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6m_main.c -o obj/phase6m_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6n_main.c -o obj/phase6n_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6o_main.c -o obj/phase6o_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6p_main.c -o obj/phase6p_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6q_main.c -o obj/phase6q_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6r_main.c -o obj/phase6r_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6s_main.c -o obj/phase6s_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6t_main.c -o obj/phase6t_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6u_main.c -o obj/phase6u_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6v_main.c -o obj/phase6v_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6w_main.c -o obj/phase6w_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6x_main.c -o obj/phase6x_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6y_main.c -o obj/phase6y_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6aa_main.c -o obj/phase6aa_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ab_main.c -o obj/phase6ab_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ac_main.c -o obj/phase6ac_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ad_main.c -o obj/phase6ad_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ae_main.c -o obj/phase6ae_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6af_main.c -o obj/phase6af_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ag_main.c -o obj/phase6ag_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ah_main.c -o obj/phase6ah_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ai_main.c -o obj/phase6ai_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6aj_main.c -o obj/phase6aj_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ak_main.c -o obj/phase6ak_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6al_main.c -o obj/phase6al_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6am_main.c -o obj/phase6am_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ao_main.c -o obj/phase6ao_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ap_main.c -o obj/phase6ap_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6aq_main.c -o obj/phase6aq_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ar_main.c -o obj/phase6ar_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6as_main.c -o obj/phase6as_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6at_main.c -o obj/phase6at_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6au_main.c -o obj/phase6au_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6av_main.c -o obj/phase6av_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6aw_main.c -o obj/phase6aw_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ax_main.c -o obj/phase6ax_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ay_main.c -o obj/phase6ay_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6az_main.c -o obj/phase6az_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ba_main.c -o obj/phase6ba_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bb_main.c -o obj/phase6bb_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bc_main.c -o obj/phase6bc_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bd_main.c -o obj/phase6bd_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6be_main.c -o obj/phase6be_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bf_main.c -o obj/phase6bf_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bg_main.c -o obj/phase6bg_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bh_main.c -o obj/phase6bh_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bi_main.c -o obj/phase6bi_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bj_main.c -o obj/phase6bj_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bk_main.c -o obj/phase6bk_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bl_main.c -o obj/phase6bl_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bn_main.c -o obj/phase6bn_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bo_main.c -o obj/phase6bo_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bp_main.c -o obj/phase6bp_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bq_main.c -o obj/phase6bq_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bu_main.c -o obj/phase6bu_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bv_main.c -o obj/phase6bv_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase9a_main.c -o obj/phase9a_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase9be_main.c -o obj/phase9be_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase9c_main.c -o obj/phase9c_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase9d_main.c -o obj/phase9d_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase9f_main.c -o obj/phase9f_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase9g_main.c -o obj/phase9g_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c sqlite_leap_cli_main.c -o obj/sqlite_leap_cli_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c sqllogictest_main.c -o obj/sqllogictest_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c fuzz_parse_main.c -o obj/fuzz_parse_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c fuzz_exec_main.c -o obj/fuzz_exec_main.o
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase1_main.o   -o bin/phase1-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase2a_main.o  -o bin/phase2a-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase2b_main.o  -o bin/phase2b-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase2c1_main.o -o bin/phase2c1-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase2c2_main.o -o bin/phase2c2-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase2c3_main.o -o bin/phase2c3-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase3a_main.o  -o bin/phase3a-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase3b_main.o  -o bin/phase3b-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase3d_main.o  -o bin/phase3d-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase4a_main.o  -o bin/phase4a-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6a_main.o  -o bin/phase6a-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6b_main.o  -o bin/phase6b-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6c_main.o  -o bin/phase6c-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6d_main.o  -o bin/phase6d-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6e_main.o  -o bin/phase6e-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6f_main.o  -o bin/phase6f-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6g_main.o  -o bin/phase6g-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6h_main.o  -o bin/phase6h-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6i_main.o  -o bin/phase6i-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6j_main.o  -o bin/phase6j-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6k_main.o  -o bin/phase6k-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6l_main.o  -o bin/phase6l-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6m_main.o  -o bin/phase6m-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6n_main.o  -o bin/phase6n-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6o_main.o  -o bin/phase6o-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6p_main.o  -o bin/phase6p-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6q_main.o  -o bin/phase6q-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6r_main.o  -o bin/phase6r-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6s_main.o  -o bin/phase6s-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6t_main.o  -o bin/phase6t-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6u_main.o  -o bin/phase6u-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6v_main.o  -o bin/phase6v-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6w_main.o  -o bin/phase6w-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6x_main.o  -o bin/phase6x-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6y_main.o  -o bin/phase6y-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6aa_main.o -o bin/phase6aa-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ab_main.o -o bin/phase6ab-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ac_main.o -o bin/phase6ac-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ad_main.o -o bin/phase6ad-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ae_main.o -o bin/phase6ae-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6af_main.o -o bin/phase6af-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ag_main.o -o bin/phase6ag-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ah_main.o -o bin/phase6ah-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ai_main.o -o bin/phase6ai-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6aj_main.o -o bin/phase6aj-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ak_main.o -o bin/phase6ak-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6al_main.o -o bin/phase6al-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6am_main.o -o bin/phase6am-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ao_main.o -o bin/phase6ao-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ap_main.o -o bin/phase6ap-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6aq_main.o -o bin/phase6aq-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ar_main.o -o bin/phase6ar-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6as_main.o -o bin/phase6as-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6at_main.o -o bin/phase6at-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6au_main.o -o bin/phase6au-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6av_main.o -o bin/phase6av-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6aw_main.o -o bin/phase6aw-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ax_main.o -o bin/phase6ax-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ay_main.o -o bin/phase6ay-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6az_main.o -o bin/phase6az-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ba_main.o -o bin/phase6ba-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bb_main.o -o bin/phase6bb-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bc_main.o -o bin/phase6bc-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bd_main.o -o bin/phase6bd-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6be_main.o -o bin/phase6be-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bf_main.o -o bin/phase6bf-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bg_main.o -o bin/phase6bg-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bh_main.o -o bin/phase6bh-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bi_main.o -o bin/phase6bi-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bj_main.o -o bin/phase6bj-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bk_main.o -o bin/phase6bk-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bl_main.o -o bin/phase6bl-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bn_main.o -o bin/phase6bn-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bo_main.o -o bin/phase6bo-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bp_main.o -o bin/phase6bp-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bq_main.o -o bin/phase6bq-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bu_main.o -o bin/phase6bu-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bv_main.o -o bin/phase6bv-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase9a_main.o  -o bin/phase9a-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase9be_main.o -o bin/phase9be-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase9c_main.o  -o bin/phase9c-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase9d_main.o  -o bin/phase9d-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase9f_main.o  -o bin/phase9f-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase9g_main.o  -o bin/phase9g-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/sqlite_leap_cli_main.o -o bin/sqlite-leap-cli
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/sqllogictest_main.o -o bin/sqllogictest
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/fuzz_parse_main.o -o bin/fuzz-parse
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/fuzz_exec_main.o -o bin/fuzz-exec
+[linux-bench] src-c build OK
+[linux-bench] === build src-rust ===
+   Compiling sqlite-leap v0.1.0 (/tmp/sqlite-leap-bench-1/src-rust)
+    Finished `release` profile [optimized] target(s) in 1m 28s
+[linux-bench] src-rust build OK
+[linux-bench] === fetch+build mainline SQLite baseline ===
+[baselines] downloading https://sqlite.org/2024/sqlite-amalgamation-3450300.zip
+[baselines] building mainline SQLite with cc -O2
+[baselines] built /tmp/sqlite-leap-bench-1/bench/baselines/bin/sqlite-mainline (  File: "/tmp/sqlite-leap-bench-1/bench/baselines/bin/sqlite-mainline"
+    ID: 4fc304607da391c5 Namelen: 255     Type: overlayfs
+Block size: 4096       Fundamental block size: 4096
+Blocks: Total: 144102000  Free: 112316855  Available: 104988553
+Inodes: Total: 36626432   Free: 31651651
+1233632 bytes)
+[baselines] done
+[linux-bench] baseline OK
+[linux-bench] === sqllogictest smoke (203-case) ===
+PASS 01-literals.test:4 statement
+PASS 01-literals.test:7 query
+PASS 01-literals.test:12 query
+PASS 01-literals.test:17 query
+PASS 01-literals.test:22 query
+PASS 01-literals.test:27 query
+PASS 01-literals.test:32 query
+PASS 01-literals.test:37 query
+PASS 01-literals.test:42 query
+PASS 01-literals.test:47 query
+PASS 01-literals.test:53 query
+FILE 01-literals.test passed=11 failed=0 skipped=0 total=11
+PASS 02-create-insert-select.test:3 statement
+PASS 02-create-insert-select.test:6 statement
+PASS 02-create-insert-select.test:9 statement
+PASS 02-create-insert-select.test:12 statement
+PASS 02-create-insert-select.test:15 query
+PASS 02-create-insert-select.test:25 query
+PASS 02-create-insert-select.test:35 query
+FILE 02-create-insert-select.test passed=7 failed=0 skipped=0 total=7
+PASS 03-where-clauses.test:3 statement
+PASS 03-where-clauses.test:6 statement
+PASS 03-where-clauses.test:9 statement
+PASS 03-where-clauses.test:12 statement
+PASS 03-where-clauses.test:15 statement
+PASS 03-where-clauses.test:18 statement
+PASS 03-where-clauses.test:21 query
+PASS 03-where-clauses.test:26 query
+PASS 03-where-clauses.test:34 query
+PASS 03-where-clauses.test:41 query
+PASS 03-where-clauses.test:48 query
+PASS 03-where-clauses.test:54 query
+FILE 03-where-clauses.test passed=12 failed=0 skipped=0 total=12
+PASS 04-errors.test:3 statement
+PASS 04-errors.test:6 statement
+PASS 04-errors.test:9 statement
+PASS 04-errors.test:12 statement
+PASS 04-errors.test:15 statement
+PASS 04-errors.test:19 statement
+PASS 04-errors.test:23 statement
+FILE 04-errors.test passed=7 failed=0 skipped=0 total=7
+PASS 05-aggregates.test:3 statement
+PASS 05-aggregates.test:6 statement
+PASS 05-aggregates.test:9 statement
+PASS 05-aggregates.test:12 statement
+PASS 05-aggregates.test:15 statement
+PASS 05-aggregates.test:18 statement
+PASS 05-aggregates.test:21 query
+PASS 05-aggregates.test:26 query
+PASS 05-aggregates.test:31 query
+PASS 05-aggregates.test:36 query
+PASS 05-aggregates.test:41 query
+PASS 05-aggregates.test:46 query
+PASS 05-aggregates.test:56 query
+FILE 05-aggregates.test passed=13 failed=0 skipped=0 total=13
+PASS 06-index.test:3 statement
+PASS 06-index.test:6 statement
+PASS 06-index.test:9 statement
+PASS 06-index.test:12 statement
+PASS 06-index.test:15 statement
+PASS 06-index.test:19 query
+PASS 06-index.test:26 query
+PASS 06-index.test:33 statement
+PASS 06-index.test:36 query
+PASS 06-index.test:42 statement
+PASS 06-index.test:45 statement
+PASS 06-index.test:49 statement
+PASS 06-index.test:52 query
+FILE 06-index.test passed=13 failed=0 skipped=0 total=13
+PASS 07-joins.test:3 statement
+PASS 07-joins.test:6 statement
+PASS 07-joins.test:9 statement
+PASS 07-joins.test:12 statement
+PASS 07-joins.test:15 statement
+PASS 07-joins.test:18 statement
+PASS 07-joins.test:21 statement
+PASS 07-joins.test:24 statement
+PASS 07-joins.test:27 query
+PASS 07-joins.test:37 query
+PASS 07-joins.test:42 query
+FILE 07-joins.test passed=11 failed=0 skipped=0 total=11
+PASS 08-compound-select.test:3 query
+PASS 08-compound-select.test:10 query
+PASS 08-compound-select.test:16 statement
+PASS 08-compound-select.test:19 statement
+PASS 08-compound-select.test:22 statement
+PASS 08-compound-select.test:25 statement
+PASS 08-compound-select.test:28 statement
+PASS 08-compound-select.test:31 statement
+PASS 08-compound-select.test:34 statement
+PASS 08-compound-select.test:37 statement
+PASS 08-compound-select.test:40 query
+PASS 08-compound-select.test:46 query
+PASS 08-compound-select.test:51 query
+FILE 08-compound-select.test passed=13 failed=0 skipped=0 total=13
+PASS 09-subqueries.test:3 statement
+PASS 09-subqueries.test:6 statement
+PASS 09-subqueries.test:9 query
+PASS 09-subqueries.test:14 query
+PASS 09-subqueries.test:20 query
+PASS 09-subqueries.test:26 statement
+PASS 09-subqueries.test:29 statement
+PASS 09-subqueries.test:32 statement
+PASS 09-subqueries.test:35 statement
+PASS 09-subqueries.test:38 query
+PASS 09-subqueries.test:44 statement
+FILE 09-subqueries.test passed=11 failed=0 skipped=0 total=11
+PASS 10-order-limit.test:3 statement
+PASS 10-order-limit.test:6 statement
+PASS 10-order-limit.test:9 statement
+PASS 10-order-limit.test:12 statement
+PASS 10-order-limit.test:15 query
+PASS 10-order-limit.test:22 query
+PASS 10-order-limit.test:29 query
+PASS 10-order-limit.test:36 query
+PASS 10-order-limit.test:42 query
+PASS 10-order-limit.test:47 query
+FILE 10-order-limit.test passed=10 failed=0 skipped=0 total=10
+PASS 11-distinct.test:3 statement
+PASS 11-distinct.test:6 statement
+PASS 11-distinct.test:9 statement
+PASS 11-distinct.test:12 statement
+PASS 11-distinct.test:15 statement
+PASS 11-distinct.test:18 query
+PASS 11-distinct.test:24 query
+FILE 11-distinct.test passed=7 failed=0 skipped=0 total=7
+PASS 12-scalar-string.test:3 query
+PASS 12-scalar-string.test:8 query
+PASS 12-scalar-string.test:13 query
+PASS 12-scalar-string.test:18 query
+PASS 12-scalar-string.test:23 query
+PASS 12-scalar-string.test:28 query
+PASS 12-scalar-string.test:33 query
+PASS 12-scalar-string.test:39 query
+PASS 12-scalar-string.test:45 query
+PASS 12-scalar-string.test:50 query
+FILE 12-scalar-string.test passed=10 failed=0 skipped=0 total=10
+PASS 13-scalar-numeric.test:3 query
+PASS 13-scalar-numeric.test:8 query
+PASS 13-scalar-numeric.test:13 query
+PASS 13-scalar-numeric.test:18 query
+PASS 13-scalar-numeric.test:23 query
+FILE 13-scalar-numeric.test passed=5 failed=0 skipped=0 total=5
+PASS 14-scalar-null.test:3 query
+PASS 14-scalar-null.test:8 query
+PASS 14-scalar-null.test:13 query
+PASS 14-scalar-null.test:18 query
+PASS 14-scalar-null.test:23 query
+PASS 14-scalar-null.test:28 query
+PASS 14-scalar-null.test:34 statement
+PASS 14-scalar-null.test:38 statement
+PASS 14-scalar-null.test:41 statement
+FILE 14-scalar-null.test passed=9 failed=0 skipped=0 total=9
+PASS 15-cast.test:3 query
+PASS 15-cast.test:8 query
+PASS 15-cast.test:13 query
+PASS 15-cast.test:18 query
+PASS 15-cast.test:23 query
+PASS 15-cast.test:31 query
+PASS 15-cast.test:36 query
+PASS 15-cast.test:41 query
+PASS 15-cast.test:47 query
+PASS 15-cast.test:52 query
+PASS 15-cast.test:58 query
+FILE 15-cast.test passed=11 failed=0 skipped=0 total=11
+PASS 16-concat.test:3 query
+PASS 16-concat.test:8 query
+PASS 16-concat.test:14 query
+PASS 16-concat.test:19 query
+PASS 16-concat.test:25 query
+FILE 16-concat.test passed=5 failed=0 skipped=0 total=5
+PASS 17-update-delete.test:3 statement
+PASS 17-update-delete.test:6 statement
+PASS 17-update-delete.test:9 statement
+PASS 17-update-delete.test:12 statement
+PASS 17-update-delete.test:15 statement
+PASS 17-update-delete.test:18 query
+PASS 17-update-delete.test:28 statement
+PASS 17-update-delete.test:31 query
+PASS 17-update-delete.test:40 statement
+PASS 17-update-delete.test:43 query
+PASS 17-update-delete.test:49 statement
+PASS 17-update-delete.test:52 statement
+PASS 17-update-delete.test:55 query
+FILE 17-update-delete.test passed=13 failed=0 skipped=0 total=13
+PASS 18-between.test:3 statement
+PASS 18-between.test:6 statement
+PASS 18-between.test:9 statement
+PASS 18-between.test:12 statement
+PASS 18-between.test:15 statement
+PASS 18-between.test:18 statement
+PASS 18-between.test:21 query
+PASS 18-between.test:29 query
+PASS 18-between.test:35 query
+PASS 18-between.test:40 statement
+PASS 18-between.test:43 statement
+PASS 18-between.test:46 statement
+PASS 18-between.test:49 statement
+PASS 18-between.test:52 statement
+PASS 18-between.test:55 query
+FILE 18-between.test passed=15 failed=0 skipped=0 total=15
+PASS 19-primary-key.test:4 statement
+PASS 19-primary-key.test:7 statement
+PASS 19-primary-key.test:10 statement
+PASS 19-primary-key.test:13 query
+PASS 19-primary-key.test:22 statement
+PASS 19-primary-key.test:26 statement
+PASS 19-primary-key.test:29 statement
+PASS 19-primary-key.test:32 statement
+PASS 19-primary-key.test:35 statement
+PASS 19-primary-key.test:38 query
+FILE 19-primary-key.test passed=10 failed=0 skipped=0 total=10
+PASS 20-transactions.test:3 statement
+PASS 20-transactions.test:6 statement
+PASS 20-transactions.test:9 statement
+PASS 20-transactions.test:12 statement
+PASS 20-transactions.test:15 query
+PASS 20-transactions.test:21 statement
+PASS 20-transactions.test:24 statement
+PASS 20-transactions.test:27 statement
+PASS 20-transactions.test:30 query
+PASS 20-transactions.test:37 statement
+FILE 20-transactions.test passed=10 failed=0 skipped=0 total=10
+SUMMARY sqllogictest target=c passed=203 failed=0 skipped=0 total=203
+[linux-bench] smoke C: pass
+PASS 01-literals.test:4 statement
+PASS 01-literals.test:7 query
+PASS 01-literals.test:12 query
+PASS 01-literals.test:17 query
+PASS 01-literals.test:22 query
+PASS 01-literals.test:27 query
+PASS 01-literals.test:32 query
+PASS 01-literals.test:37 query
+PASS 01-literals.test:42 query
+PASS 01-literals.test:47 query
+PASS 01-literals.test:53 query
+FILE 01-literals.test passed=11 failed=0 skipped=0 total=11
+PASS 02-create-insert-select.test:3 statement
+PASS 02-create-insert-select.test:6 statement
+PASS 02-create-insert-select.test:9 statement
+PASS 02-create-insert-select.test:12 statement
+PASS 02-create-insert-select.test:15 query
+[linux-bench] smoke Rust: fail
+[linux-bench] === lanes 1, 5, 6 ===
+[linux-bench] bench/lanes/01-cold-start/run.sh --target sqlite-leap-c
+  cold-start,sqlite-leap-c,0.023118528,seconds,2026-04-21T01:44:52Z
+[linux-bench] bench/lanes/01-cold-start/run.sh --target sqlite-leap-rust
+  cold-start,sqlite-leap-rust,0.032274515,seconds,2026-04-21T01:44:55Z
+[linux-bench] bench/lanes/01-cold-start/run.sh --target sqlite-mainline
+  cold-start,sqlite-mainline,0.062640287,seconds,2026-04-21T01:44:59Z
+[linux-bench] bench/lanes/05-binary-size/run.sh --target sqlite-leap-c
+  binary-size,sqlite-leap-c,424536,bytes,2026-04-21T01:45:00Z
+[linux-bench] bench/lanes/05-binary-size/run.sh --target sqlite-leap-rust
+  binary-size,sqlite-leap-rust,1346016,bytes,2026-04-21T01:45:00Z
+[linux-bench] bench/lanes/05-binary-size/run.sh --target sqlite-mainline
+  binary-size,sqlite-mainline,1233632,bytes,2026-04-21T01:45:00Z
+[linux-bench] bench/lanes/06-memory-footprint/run.sh --target sqlite-leap-c
+  memory-footprint,sqlite-leap-c,5033984,bytes,2026-04-21T01:45:01Z
+[linux-bench] bench/lanes/06-memory-footprint/run.sh --target sqlite-leap-rust
+  memory-footprint,sqlite-leap-rust,5672960,bytes,2026-04-21T01:45:02Z
+[linux-bench] bench/lanes/06-memory-footprint/run.sh --target sqlite-mainline
+  memory-footprint,sqlite-mainline,6057984,bytes,2026-04-21T01:45:03Z
+[linux-bench] === lanes 2, 3, 4 (harness-integrity-bug; recorded as NA,pending-harness-fix) ===
+[linux-bench] out: /repo/bench/results/2026-04-20-linux-x86_64.csv
+[linux-bench] log: /repo/bench/results/2026-04-20-linux-x86_64.log
+[linux-bench] uname: Linux a3c9a32cd1d5 6.6.12-linuxkit #1 SMP Fri Jan 19 08:53:17 UTC 2024 x86_64 GNU/Linux
+[linux-bench] glibc: ldd (Debian GLIBC 2.36-9+deb12u13) 2.36
+[linux-bench] rustc: rustc 1.82.0 (f6e511eec 2024-10-15)
+[linux-bench] cc:    cc (Debian 12.2.0-14+deb12u1) 12.2.0
+[linux-bench] hyperfine: hyperfine 1.18.0
+[linux-bench] === build src-c ===
+mkdir -p obj
+mkdir -p bin
+cc -std=c11 -Wall -Wextra -O2 -g -c common.c -o obj/common.o
+cc -std=c11 -Wall -Wextra -O2 -g -c tokenizer.c -o obj/tokenizer.o
+cc -std=c11 -Wall -Wextra -O2 -g -c parser.c -o obj/parser.o
+cc -std=c11 -Wall -Wextra -O2 -g -c storage.c -o obj/storage.o
+cc -std=c11 -Wall -Wextra -O2 -g -c compiler.c -o obj/compiler.o
+cc -std=c11 -Wall -Wextra -O2 -g -c vdbe.c -o obj/vdbe.o
+cc -std=c11 -Wall -Wextra -O2 -g -c executor.c -o obj/executor.o
+cc -std=c11 -Wall -Wextra -O2 -g -c json.c -o obj/json.o
+cc -std=c11 -Wall -Wextra -O2 -g -c harness.c -o obj/harness.o
+cc -std=c11 -Wall -Wextra -O2 -g -c md5.c -o obj/md5.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase1_main.c -o obj/phase1_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase2a_main.c -o obj/phase2a_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase2b_main.c -o obj/phase2b_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase2c1_main.c -o obj/phase2c1_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase2c2_main.c -o obj/phase2c2_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase2c3_main.c -o obj/phase2c3_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase3a_main.c -o obj/phase3a_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase3b_main.c -o obj/phase3b_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase3d_main.c -o obj/phase3d_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase4a_main.c -o obj/phase4a_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6a_main.c -o obj/phase6a_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6b_main.c -o obj/phase6b_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6c_main.c -o obj/phase6c_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6d_main.c -o obj/phase6d_main.o
+vdbe.c: In function 'dt_parse_timestring':
+vdbe.c:495:5: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+  495 |     if (*cur != '-') return dt_err_invalid(err, orig); cur++;
+      |     ^~
+vdbe.c:495:56: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+  495 |     if (*cur != '-') return dt_err_invalid(err, orig); cur++;
+      |                                                        ^~~
+vdbe.c:497:5: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+  497 |     if (*cur != '-') return dt_err_invalid(err, orig); cur++;
+      |     ^~
+vdbe.c:497:56: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+  497 |     if (*cur != '-') return dt_err_invalid(err, orig); cur++;
+      |                                                        ^~~
+vdbe.c:508:9: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+  508 |         if (*cur != ':') return dt_err_invalid(err, orig); cur++;
+      |         ^~
+vdbe.c:508:60: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+  508 |         if (*cur != ':') return dt_err_invalid(err, orig); cur++;
+      |                                                            ^~~
+storage.c: In function 'parse_sqlite_schema_and_tables':
+storage.c:3561:13: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3561 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |             ^~~
+storage.c:3561:74: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3561 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                          ^~~~
+storage.c:3572:13: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3572 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |             ^~~
+storage.c:3572:74: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3572 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                          ^~~~
+storage.c:3578:13: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3578 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |             ^~~
+storage.c:3578:74: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3578 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                          ^~~~
+storage.c:3583:13: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3583 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |             ^~~
+storage.c:3583:74: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3583 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                          ^~~~
+storage.c:3590:13: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3590 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |             ^~~
+storage.c:3590:74: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3590 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                          ^~~~
+storage.c:3602:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3602 |                 for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                 ^~~
+storage.c:3602:78: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3602 |                 for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                              ^~~~
+storage.c:3612:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3612 |                 for (size_t kk = 0; kk < i_ncols; kk++) free(i_cols[kk]); free(i_cols);
+      |                 ^~~
+storage.c:3612:75: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3612 |                 for (size_t kk = 0; kk < i_ncols; kk++) free(i_cols[kk]); free(i_cols);
+      |                                                                           ^~~~
+storage.c:3613:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3613 |                 for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                 ^~~
+storage.c:3613:78: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3613 |                 for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                              ^~~~
+storage.c:3621:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3621 |                 for (size_t kk = 0; kk < i_ncols; kk++) free(i_cols[kk]); free(i_cols);
+      |                 ^~~
+storage.c:3621:75: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3621 |                 for (size_t kk = 0; kk < i_ncols; kk++) free(i_cols[kk]); free(i_cols);
+      |                                                                           ^~~~
+storage.c:3622:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3622 |                 for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                 ^~~
+storage.c:3622:78: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3622 |                 for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                              ^~~~
+storage.c:3638:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3638 |                 for (size_t kk = 0; kk < i_ncols; kk++) free(i_cols[kk]); free(i_cols);
+      |                 ^~~
+storage.c:3638:75: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3638 |                 for (size_t kk = 0; kk < i_ncols; kk++) free(i_cols[kk]); free(i_cols);
+      |                                                                           ^~~~
+storage.c:3639:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3639 |                 for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                 ^~~
+storage.c:3639:78: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3639 |                 for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                              ^~~~
+storage.c:3661:13: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3661 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |             ^~~
+storage.c:3661:74: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3661 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                          ^~~~
+storage.c:3667:13: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3667 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |             ^~~
+storage.c:3667:74: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3667 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                          ^~~~
+storage.c:3678:13: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3678 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |             ^~~
+storage.c:3678:74: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3678 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                          ^~~~
+storage.c:3696:13: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3696 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |             ^~~
+storage.c:3696:74: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3696 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                          ^~~~
+storage.c:3704:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3704 |                 for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                 ^~~
+storage.c:3704:78: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3704 |                 for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                              ^~~~
+storage.c:3721:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3721 |                 for (size_t jj = 0; jj < r.n; jj++) v_free(&r.vals[jj]); free(r.vals);
+      |                 ^~~
+storage.c:3721:74: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3721 |                 for (size_t jj = 0; jj < r.n; jj++) v_free(&r.vals[jj]); free(r.vals);
+      |                                                                          ^~~~
+storage.c:3723:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3723 |                 for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                 ^~~
+storage.c:3723:78: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3723 |                 for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                              ^~~~
+storage.c:3738:9: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3738 |         for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |         ^~~
+storage.c:3738:70: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3738 |         for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                      ^~~~
+storage.c: In function 'walk_index_tree_page':
+storage.c:4424:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 4424 |                 for (size_t k = 0; k < r.n; k++) v_free(&r.vals[k]); free(r.vals);
+      |                 ^~~
+storage.c:4424:70: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 4424 |                 for (size_t k = 0; k < r.n; k++) v_free(&r.vals[k]); free(r.vals);
+      |                                                                      ^~~~
+storage.c:4431:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 4431 |                 for (size_t k = 0; k < r.n; k++) v_free(&r.vals[k]); free(r.vals);
+      |                 ^~~
+storage.c:4431:70: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 4431 |                 for (size_t k = 0; k < r.n; k++) v_free(&r.vals[k]); free(r.vals);
+      |                                                                      ^~~~
+storage.c:4513:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 4513 |                 for (size_t k = 0; k < r.n; k++) v_free(&r.vals[k]); free(r.vals);
+      |                 ^~~
+storage.c:4513:70: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 4513 |                 for (size_t k = 0; k < r.n; k++) v_free(&r.vals[k]); free(r.vals);
+      |                                                                      ^~~~
+storage.c:4519:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 4519 |                 for (size_t k = 0; k < r.n; k++) v_free(&r.vals[k]); free(r.vals);
+      |                 ^~~
+storage.c:4519:70: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 4519 |                 for (size_t k = 0; k < r.n; k++) v_free(&r.vals[k]); free(r.vals);
+      |                                                                      ^~~~
+storage.c: In function 'serialise_db':
+storage.c:4965:9: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 4965 |         for (size_t i = 0; i < r.n; i++) v_free(&r.vals[i]); free(r.vals);
+      |         ^~~
+storage.c:4965:62: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 4965 |         for (size_t i = 0; i < r.n; i++) v_free(&r.vals[i]); free(r.vals);
+      |                                                              ^~~~
+storage.c:4974:9: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 4974 |         for (size_t i = 0; i < r.n; i++) v_free(&r.vals[i]); free(r.vals);
+      |         ^~~
+storage.c:4974:62: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 4974 |         for (size_t i = 0; i < r.n; i++) v_free(&r.vals[i]); free(r.vals);
+      |                                                              ^~~~
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6e_main.c -o obj/phase6e_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6f_main.c -o obj/phase6f_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6g_main.c -o obj/phase6g_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6h_main.c -o obj/phase6h_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6i_main.c -o obj/phase6i_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6j_main.c -o obj/phase6j_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6k_main.c -o obj/phase6k_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6l_main.c -o obj/phase6l_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6m_main.c -o obj/phase6m_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6n_main.c -o obj/phase6n_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6o_main.c -o obj/phase6o_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6p_main.c -o obj/phase6p_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6q_main.c -o obj/phase6q_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6r_main.c -o obj/phase6r_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6s_main.c -o obj/phase6s_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6t_main.c -o obj/phase6t_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6u_main.c -o obj/phase6u_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6v_main.c -o obj/phase6v_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6w_main.c -o obj/phase6w_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6x_main.c -o obj/phase6x_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6y_main.c -o obj/phase6y_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6aa_main.c -o obj/phase6aa_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ab_main.c -o obj/phase6ab_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ac_main.c -o obj/phase6ac_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ad_main.c -o obj/phase6ad_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ae_main.c -o obj/phase6ae_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6af_main.c -o obj/phase6af_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ag_main.c -o obj/phase6ag_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ah_main.c -o obj/phase6ah_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ai_main.c -o obj/phase6ai_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6aj_main.c -o obj/phase6aj_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ak_main.c -o obj/phase6ak_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6al_main.c -o obj/phase6al_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6am_main.c -o obj/phase6am_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ao_main.c -o obj/phase6ao_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ap_main.c -o obj/phase6ap_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6aq_main.c -o obj/phase6aq_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ar_main.c -o obj/phase6ar_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6as_main.c -o obj/phase6as_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6at_main.c -o obj/phase6at_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6au_main.c -o obj/phase6au_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6av_main.c -o obj/phase6av_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6aw_main.c -o obj/phase6aw_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ax_main.c -o obj/phase6ax_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ay_main.c -o obj/phase6ay_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6az_main.c -o obj/phase6az_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ba_main.c -o obj/phase6ba_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bb_main.c -o obj/phase6bb_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bc_main.c -o obj/phase6bc_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bd_main.c -o obj/phase6bd_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6be_main.c -o obj/phase6be_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bf_main.c -o obj/phase6bf_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bg_main.c -o obj/phase6bg_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bh_main.c -o obj/phase6bh_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bi_main.c -o obj/phase6bi_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bj_main.c -o obj/phase6bj_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bk_main.c -o obj/phase6bk_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bl_main.c -o obj/phase6bl_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bn_main.c -o obj/phase6bn_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bo_main.c -o obj/phase6bo_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bp_main.c -o obj/phase6bp_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bq_main.c -o obj/phase6bq_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bu_main.c -o obj/phase6bu_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bv_main.c -o obj/phase6bv_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase9a_main.c -o obj/phase9a_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase9be_main.c -o obj/phase9be_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase9c_main.c -o obj/phase9c_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase9d_main.c -o obj/phase9d_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase9f_main.c -o obj/phase9f_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase9g_main.c -o obj/phase9g_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c sqlite_leap_cli_main.c -o obj/sqlite_leap_cli_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c sqllogictest_main.c -o obj/sqllogictest_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c fuzz_parse_main.c -o obj/fuzz_parse_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c fuzz_exec_main.c -o obj/fuzz_exec_main.o
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase1_main.o   -o bin/phase1-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase2a_main.o  -o bin/phase2a-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase2b_main.o  -o bin/phase2b-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase2c1_main.o -o bin/phase2c1-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase2c2_main.o -o bin/phase2c2-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase2c3_main.o -o bin/phase2c3-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase3a_main.o  -o bin/phase3a-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase3b_main.o  -o bin/phase3b-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase3d_main.o  -o bin/phase3d-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase4a_main.o  -o bin/phase4a-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6a_main.o  -o bin/phase6a-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6b_main.o  -o bin/phase6b-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6c_main.o  -o bin/phase6c-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6d_main.o  -o bin/phase6d-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6e_main.o  -o bin/phase6e-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6f_main.o  -o bin/phase6f-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6g_main.o  -o bin/phase6g-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6h_main.o  -o bin/phase6h-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6i_main.o  -o bin/phase6i-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6j_main.o  -o bin/phase6j-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6k_main.o  -o bin/phase6k-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6l_main.o  -o bin/phase6l-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6m_main.o  -o bin/phase6m-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6n_main.o  -o bin/phase6n-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6o_main.o  -o bin/phase6o-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6p_main.o  -o bin/phase6p-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6q_main.o  -o bin/phase6q-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6r_main.o  -o bin/phase6r-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6s_main.o  -o bin/phase6s-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6t_main.o  -o bin/phase6t-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6u_main.o  -o bin/phase6u-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6v_main.o  -o bin/phase6v-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6w_main.o  -o bin/phase6w-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6x_main.o  -o bin/phase6x-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6y_main.o  -o bin/phase6y-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6aa_main.o -o bin/phase6aa-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ab_main.o -o bin/phase6ab-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ac_main.o -o bin/phase6ac-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ad_main.o -o bin/phase6ad-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ae_main.o -o bin/phase6ae-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6af_main.o -o bin/phase6af-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ag_main.o -o bin/phase6ag-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ah_main.o -o bin/phase6ah-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ai_main.o -o bin/phase6ai-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6aj_main.o -o bin/phase6aj-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ak_main.o -o bin/phase6ak-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6al_main.o -o bin/phase6al-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6am_main.o -o bin/phase6am-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ao_main.o -o bin/phase6ao-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ap_main.o -o bin/phase6ap-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6aq_main.o -o bin/phase6aq-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ar_main.o -o bin/phase6ar-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6as_main.o -o bin/phase6as-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6at_main.o -o bin/phase6at-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6au_main.o -o bin/phase6au-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6av_main.o -o bin/phase6av-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6aw_main.o -o bin/phase6aw-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ax_main.o -o bin/phase6ax-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ay_main.o -o bin/phase6ay-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6az_main.o -o bin/phase6az-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ba_main.o -o bin/phase6ba-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bb_main.o -o bin/phase6bb-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bc_main.o -o bin/phase6bc-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bd_main.o -o bin/phase6bd-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6be_main.o -o bin/phase6be-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bf_main.o -o bin/phase6bf-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bg_main.o -o bin/phase6bg-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bh_main.o -o bin/phase6bh-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bi_main.o -o bin/phase6bi-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bj_main.o -o bin/phase6bj-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bk_main.o -o bin/phase6bk-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bl_main.o -o bin/phase6bl-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bn_main.o -o bin/phase6bn-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bo_main.o -o bin/phase6bo-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bp_main.o -o bin/phase6bp-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bq_main.o -o bin/phase6bq-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bu_main.o -o bin/phase6bu-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bv_main.o -o bin/phase6bv-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase9a_main.o  -o bin/phase9a-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase9be_main.o -o bin/phase9be-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase9c_main.o  -o bin/phase9c-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase9d_main.o  -o bin/phase9d-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase9f_main.o  -o bin/phase9f-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase9g_main.o  -o bin/phase9g-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/sqlite_leap_cli_main.o -o bin/sqlite-leap-cli
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/sqllogictest_main.o -o bin/sqllogictest
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/fuzz_parse_main.o -o bin/fuzz-parse
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/fuzz_exec_main.o -o bin/fuzz-exec
+[linux-bench] src-c build OK
+[linux-bench] === build src-rust ===
+   Compiling sqlite-leap v0.1.0 (/tmp/sqlite-leap-bench-1/src-rust)
+    Finished `release` profile [optimized] target(s) in 1m 27s
+[linux-bench] src-rust build OK
+[linux-bench] === fetch+build mainline SQLite baseline ===
+[baselines] downloading https://sqlite.org/2024/sqlite-amalgamation-3450300.zip
+[baselines] building mainline SQLite with cc -O2
+[baselines] built /tmp/sqlite-leap-bench-1/bench/baselines/bin/sqlite-mainline (  File: "/tmp/sqlite-leap-bench-1/bench/baselines/bin/sqlite-mainline"
+    ID: 66ab86f6dd229c87 Namelen: 255     Type: overlayfs
+Block size: 4096       Fundamental block size: 4096
+Blocks: Total: 144102000  Free: 112316762  Available: 104988460
+Inodes: Total: 36626432   Free: 31651650
+1233632 bytes)
+[baselines] done
+[linux-bench] baseline OK
+[linux-bench] === sqllogictest smoke (203-case) ===
+PASS 01-literals.test:4 statement
+PASS 01-literals.test:7 query
+PASS 01-literals.test:12 query
+PASS 01-literals.test:17 query
+PASS 01-literals.test:22 query
+PASS 01-literals.test:27 query
+PASS 01-literals.test:32 query
+PASS 01-literals.test:37 query
+PASS 01-literals.test:42 query
+PASS 01-literals.test:47 query
+PASS 01-literals.test:53 query
+FILE 01-literals.test passed=11 failed=0 skipped=0 total=11
+PASS 02-create-insert-select.test:3 statement
+PASS 02-create-insert-select.test:6 statement
+PASS 02-create-insert-select.test:9 statement
+PASS 02-create-insert-select.test:12 statement
+PASS 02-create-insert-select.test:15 query
+PASS 02-create-insert-select.test:25 query
+PASS 02-create-insert-select.test:35 query
+FILE 02-create-insert-select.test passed=7 failed=0 skipped=0 total=7
+PASS 03-where-clauses.test:3 statement
+PASS 03-where-clauses.test:6 statement
+PASS 03-where-clauses.test:9 statement
+PASS 03-where-clauses.test:12 statement
+PASS 03-where-clauses.test:15 statement
+PASS 03-where-clauses.test:18 statement
+PASS 03-where-clauses.test:21 query
+PASS 03-where-clauses.test:26 query
+PASS 03-where-clauses.test:34 query
+PASS 03-where-clauses.test:41 query
+PASS 03-where-clauses.test:48 query
+PASS 03-where-clauses.test:54 query
+FILE 03-where-clauses.test passed=12 failed=0 skipped=0 total=12
+PASS 04-errors.test:3 statement
+PASS 04-errors.test:6 statement
+PASS 04-errors.test:9 statement
+PASS 04-errors.test:12 statement
+PASS 04-errors.test:15 statement
+PASS 04-errors.test:19 statement
+PASS 04-errors.test:23 statement
+FILE 04-errors.test passed=7 failed=0 skipped=0 total=7
+PASS 05-aggregates.test:3 statement
+PASS 05-aggregates.test:6 statement
+PASS 05-aggregates.test:9 statement
+PASS 05-aggregates.test:12 statement
+PASS 05-aggregates.test:15 statement
+PASS 05-aggregates.test:18 statement
+PASS 05-aggregates.test:21 query
+PASS 05-aggregates.test:26 query
+PASS 05-aggregates.test:31 query
+PASS 05-aggregates.test:36 query
+PASS 05-aggregates.test:41 query
+PASS 05-aggregates.test:46 query
+PASS 05-aggregates.test:56 query
+FILE 05-aggregates.test passed=13 failed=0 skipped=0 total=13
+PASS 06-index.test:3 statement
+PASS 06-index.test:6 statement
+PASS 06-index.test:9 statement
+PASS 06-index.test:12 statement
+PASS 06-index.test:15 statement
+PASS 06-index.test:19 query
+PASS 06-index.test:26 query
+PASS 06-index.test:33 statement
+PASS 06-index.test:36 query
+PASS 06-index.test:42 statement
+PASS 06-index.test:45 statement
+PASS 06-index.test:49 statement
+PASS 06-index.test:52 query
+FILE 06-index.test passed=13 failed=0 skipped=0 total=13
+PASS 07-joins.test:3 statement
+PASS 07-joins.test:6 statement
+PASS 07-joins.test:9 statement
+PASS 07-joins.test:12 statement
+PASS 07-joins.test:15 statement
+PASS 07-joins.test:18 statement
+PASS 07-joins.test:21 statement
+PASS 07-joins.test:24 statement
+PASS 07-joins.test:27 query
+PASS 07-joins.test:37 query
+PASS 07-joins.test:42 query
+FILE 07-joins.test passed=11 failed=0 skipped=0 total=11
+PASS 08-compound-select.test:3 query
+PASS 08-compound-select.test:10 query
+PASS 08-compound-select.test:16 statement
+PASS 08-compound-select.test:19 statement
+PASS 08-compound-select.test:22 statement
+PASS 08-compound-select.test:25 statement
+PASS 08-compound-select.test:28 statement
+PASS 08-compound-select.test:31 statement
+PASS 08-compound-select.test:34 statement
+PASS 08-compound-select.test:37 statement
+PASS 08-compound-select.test:40 query
+PASS 08-compound-select.test:46 query
+PASS 08-compound-select.test:51 query
+FILE 08-compound-select.test passed=13 failed=0 skipped=0 total=13
+PASS 09-subqueries.test:3 statement
+PASS 09-subqueries.test:6 statement
+PASS 09-subqueries.test:9 query
+PASS 09-subqueries.test:14 query
+PASS 09-subqueries.test:20 query
+PASS 09-subqueries.test:26 statement
+PASS 09-subqueries.test:29 statement
+PASS 09-subqueries.test:32 statement
+PASS 09-subqueries.test:35 statement
+PASS 09-subqueries.test:38 query
+PASS 09-subqueries.test:44 statement
+FILE 09-subqueries.test passed=11 failed=0 skipped=0 total=11
+PASS 10-order-limit.test:3 statement
+PASS 10-order-limit.test:6 statement
+PASS 10-order-limit.test:9 statement
+PASS 10-order-limit.test:12 statement
+PASS 10-order-limit.test:15 query
+PASS 10-order-limit.test:22 query
+PASS 10-order-limit.test:29 query
+PASS 10-order-limit.test:36 query
+PASS 10-order-limit.test:42 query
+PASS 10-order-limit.test:47 query
+FILE 10-order-limit.test passed=10 failed=0 skipped=0 total=10
+PASS 11-distinct.test:3 statement
+PASS 11-distinct.test:6 statement
+PASS 11-distinct.test:9 statement
+PASS 11-distinct.test:12 statement
+PASS 11-distinct.test:15 statement
+PASS 11-distinct.test:18 query
+PASS 11-distinct.test:24 query
+FILE 11-distinct.test passed=7 failed=0 skipped=0 total=7
+PASS 12-scalar-string.test:3 query
+PASS 12-scalar-string.test:8 query
+PASS 12-scalar-string.test:13 query
+PASS 12-scalar-string.test:18 query
+PASS 12-scalar-string.test:23 query
+PASS 12-scalar-string.test:28 query
+PASS 12-scalar-string.test:33 query
+PASS 12-scalar-string.test:39 query
+PASS 12-scalar-string.test:45 query
+PASS 12-scalar-string.test:50 query
+FILE 12-scalar-string.test passed=10 failed=0 skipped=0 total=10
+PASS 13-scalar-numeric.test:3 query
+PASS 13-scalar-numeric.test:8 query
+PASS 13-scalar-numeric.test:13 query
+PASS 13-scalar-numeric.test:18 query
+PASS 13-scalar-numeric.test:23 query
+FILE 13-scalar-numeric.test passed=5 failed=0 skipped=0 total=5
+PASS 14-scalar-null.test:3 query
+PASS 14-scalar-null.test:8 query
+PASS 14-scalar-null.test:13 query
+PASS 14-scalar-null.test:18 query
+PASS 14-scalar-null.test:23 query
+PASS 14-scalar-null.test:28 query
+PASS 14-scalar-null.test:34 statement
+PASS 14-scalar-null.test:38 statement
+PASS 14-scalar-null.test:41 statement
+FILE 14-scalar-null.test passed=9 failed=0 skipped=0 total=9
+PASS 15-cast.test:3 query
+PASS 15-cast.test:8 query
+PASS 15-cast.test:13 query
+PASS 15-cast.test:18 query
+PASS 15-cast.test:23 query
+PASS 15-cast.test:31 query
+PASS 15-cast.test:36 query
+PASS 15-cast.test:41 query
+PASS 15-cast.test:47 query
+PASS 15-cast.test:52 query
+PASS 15-cast.test:58 query
+FILE 15-cast.test passed=11 failed=0 skipped=0 total=11
+PASS 16-concat.test:3 query
+PASS 16-concat.test:8 query
+PASS 16-concat.test:14 query
+PASS 16-concat.test:19 query
+PASS 16-concat.test:25 query
+FILE 16-concat.test passed=5 failed=0 skipped=0 total=5
+PASS 17-update-delete.test:3 statement
+PASS 17-update-delete.test:6 statement
+PASS 17-update-delete.test:9 statement
+PASS 17-update-delete.test:12 statement
+PASS 17-update-delete.test:15 statement
+PASS 17-update-delete.test:18 query
+PASS 17-update-delete.test:28 statement
+PASS 17-update-delete.test:31 query
+PASS 17-update-delete.test:40 statement
+PASS 17-update-delete.test:43 query
+PASS 17-update-delete.test:49 statement
+PASS 17-update-delete.test:52 statement
+PASS 17-update-delete.test:55 query
+FILE 17-update-delete.test passed=13 failed=0 skipped=0 total=13
+PASS 18-between.test:3 statement
+PASS 18-between.test:6 statement
+PASS 18-between.test:9 statement
+PASS 18-between.test:12 statement
+PASS 18-between.test:15 statement
+PASS 18-between.test:18 statement
+PASS 18-between.test:21 query
+PASS 18-between.test:29 query
+PASS 18-between.test:35 query
+PASS 18-between.test:40 statement
+PASS 18-between.test:43 statement
+PASS 18-between.test:46 statement
+PASS 18-between.test:49 statement
+PASS 18-between.test:52 statement
+PASS 18-between.test:55 query
+FILE 18-between.test passed=15 failed=0 skipped=0 total=15
+PASS 19-primary-key.test:4 statement
+PASS 19-primary-key.test:7 statement
+PASS 19-primary-key.test:10 statement
+PASS 19-primary-key.test:13 query
+PASS 19-primary-key.test:22 statement
+PASS 19-primary-key.test:26 statement
+PASS 19-primary-key.test:29 statement
+PASS 19-primary-key.test:32 statement
+PASS 19-primary-key.test:35 statement
+PASS 19-primary-key.test:38 query
+FILE 19-primary-key.test passed=10 failed=0 skipped=0 total=10
+PASS 20-transactions.test:3 statement
+PASS 20-transactions.test:6 statement
+PASS 20-transactions.test:9 statement
+PASS 20-transactions.test:12 statement
+PASS 20-transactions.test:15 query
+PASS 20-transactions.test:21 statement
+PASS 20-transactions.test:24 statement
+PASS 20-transactions.test:27 statement
+PASS 20-transactions.test:30 query
+PASS 20-transactions.test:37 statement
+FILE 20-transactions.test passed=10 failed=0 skipped=0 total=10
+SUMMARY sqllogictest target=c passed=203 failed=0 skipped=0 total=203
+[linux-bench] smoke C: pass
+PASS 01-literals.test:4 statement
+PASS 01-literals.test:7 query
+PASS 01-literals.test:12 query
+PASS 01-literals.test:17 query
+PASS 01-literals.test:22 query
+PASS 01-literals.test:27 query
+PASS 01-literals.test:32 query
+PASS 01-literals.test:37 query
+PASS 01-literals.test:42 query
+PASS 01-literals.test:47 query
+PASS 01-literals.test:53 query
+FILE 01-literals.test passed=11 failed=0 skipped=0 total=11
+PASS 02-create-insert-select.test:3 statement
+PASS 02-create-insert-select.test:6 statement
+PASS 02-create-insert-select.test:9 statement
+PASS 02-create-insert-select.test:12 statement
+PASS 02-create-insert-select.test:15 query
+[linux-bench] smoke Rust: fail
+[linux-bench] === lanes 1, 5, 6 ===
+[linux-bench] bench/lanes/01-cold-start/run.sh --target sqlite-leap-c
+  cold-start,sqlite-leap-c,0.025564361,seconds,2026-04-21T01:50:50Z
+[linux-bench] bench/lanes/01-cold-start/run.sh --target sqlite-leap-rust
+  cold-start,sqlite-leap-rust,0.034089643,seconds,2026-04-21T01:50:53Z
+[linux-bench] bench/lanes/01-cold-start/run.sh --target sqlite-mainline
+  cold-start,sqlite-mainline,0.068351480,seconds,2026-04-21T01:50:57Z
+[linux-bench] bench/lanes/05-binary-size/run.sh --target sqlite-leap-c
+  binary-size,sqlite-leap-c,424536,bytes,2026-04-21T01:50:58Z
+[linux-bench] bench/lanes/05-binary-size/run.sh --target sqlite-leap-rust
+  binary-size,sqlite-leap-rust,1346016,bytes,2026-04-21T01:50:58Z
+[linux-bench] bench/lanes/05-binary-size/run.sh --target sqlite-mainline
+  binary-size,sqlite-mainline,1233632,bytes,2026-04-21T01:50:58Z
+[linux-bench] bench/lanes/06-memory-footprint/run.sh --target sqlite-leap-c
+  memory-footprint,sqlite-leap-c,5033984,bytes,2026-04-21T01:50:59Z
+[linux-bench] bench/lanes/06-memory-footprint/run.sh --target sqlite-leap-rust
+  memory-footprint,sqlite-leap-rust,5672960,bytes,2026-04-21T01:51:00Z
+[linux-bench] bench/lanes/06-memory-footprint/run.sh --target sqlite-mainline
+  memory-footprint,sqlite-mainline,6057984,bytes,2026-04-21T01:51:01Z
+[linux-bench] === lanes 2, 3, 4 (harness-integrity-bug; recorded as NA,pending-harness-fix) ===
+[linux-bench] out: /repo/bench/results/2026-04-20-linux-x86_64.csv
+[linux-bench] log: /repo/bench/results/2026-04-20-linux-x86_64.log
+[linux-bench] uname: Linux c108c2942556 6.6.12-linuxkit #1 SMP Fri Jan 19 08:53:17 UTC 2024 x86_64 GNU/Linux
+[linux-bench] glibc: ldd (Debian GLIBC 2.36-9+deb12u13) 2.36
+[linux-bench] rustc: rustc 1.82.0 (f6e511eec 2024-10-15)
+[linux-bench] cc:    cc (Debian 12.2.0-14+deb12u1) 12.2.0
+[linux-bench] hyperfine: hyperfine 1.18.0
+[linux-bench] === build src-c ===
+mkdir -p obj
+mkdir -p bin
+cc -std=c11 -Wall -Wextra -O2 -g -c common.c -o obj/common.o
+cc -std=c11 -Wall -Wextra -O2 -g -c tokenizer.c -o obj/tokenizer.o
+cc -std=c11 -Wall -Wextra -O2 -g -c parser.c -o obj/parser.o
+cc -std=c11 -Wall -Wextra -O2 -g -c storage.c -o obj/storage.o
+cc -std=c11 -Wall -Wextra -O2 -g -c compiler.c -o obj/compiler.o
+cc -std=c11 -Wall -Wextra -O2 -g -c vdbe.c -o obj/vdbe.o
+cc -std=c11 -Wall -Wextra -O2 -g -c executor.c -o obj/executor.o
+cc -std=c11 -Wall -Wextra -O2 -g -c json.c -o obj/json.o
+cc -std=c11 -Wall -Wextra -O2 -g -c harness.c -o obj/harness.o
+cc -std=c11 -Wall -Wextra -O2 -g -c md5.c -o obj/md5.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase1_main.c -o obj/phase1_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase2a_main.c -o obj/phase2a_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase2b_main.c -o obj/phase2b_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase2c1_main.c -o obj/phase2c1_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase2c2_main.c -o obj/phase2c2_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase2c3_main.c -o obj/phase2c3_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase3a_main.c -o obj/phase3a_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase3b_main.c -o obj/phase3b_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase3d_main.c -o obj/phase3d_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase4a_main.c -o obj/phase4a_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6a_main.c -o obj/phase6a_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6b_main.c -o obj/phase6b_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6c_main.c -o obj/phase6c_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6d_main.c -o obj/phase6d_main.o
+vdbe.c: In function 'dt_parse_timestring':
+vdbe.c:495:5: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+  495 |     if (*cur != '-') return dt_err_invalid(err, orig); cur++;
+      |     ^~
+vdbe.c:495:56: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+  495 |     if (*cur != '-') return dt_err_invalid(err, orig); cur++;
+      |                                                        ^~~
+vdbe.c:497:5: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+  497 |     if (*cur != '-') return dt_err_invalid(err, orig); cur++;
+      |     ^~
+vdbe.c:497:56: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+  497 |     if (*cur != '-') return dt_err_invalid(err, orig); cur++;
+      |                                                        ^~~
+vdbe.c:508:9: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+  508 |         if (*cur != ':') return dt_err_invalid(err, orig); cur++;
+      |         ^~
+vdbe.c:508:60: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+  508 |         if (*cur != ':') return dt_err_invalid(err, orig); cur++;
+      |                                                            ^~~
+storage.c: In function 'parse_sqlite_schema_and_tables':
+storage.c:3561:13: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3561 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |             ^~~
+storage.c:3561:74: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3561 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                          ^~~~
+storage.c:3572:13: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3572 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |             ^~~
+storage.c:3572:74: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3572 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                          ^~~~
+storage.c:3578:13: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3578 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |             ^~~
+storage.c:3578:74: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3578 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                          ^~~~
+storage.c:3583:13: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3583 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |             ^~~
+storage.c:3583:74: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3583 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                          ^~~~
+storage.c:3590:13: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3590 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |             ^~~
+storage.c:3590:74: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3590 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                          ^~~~
+storage.c:3602:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3602 |                 for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                 ^~~
+storage.c:3602:78: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3602 |                 for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                              ^~~~
+storage.c:3612:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3612 |                 for (size_t kk = 0; kk < i_ncols; kk++) free(i_cols[kk]); free(i_cols);
+      |                 ^~~
+storage.c:3612:75: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3612 |                 for (size_t kk = 0; kk < i_ncols; kk++) free(i_cols[kk]); free(i_cols);
+      |                                                                           ^~~~
+storage.c:3613:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3613 |                 for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                 ^~~
+storage.c:3613:78: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3613 |                 for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                              ^~~~
+storage.c:3621:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3621 |                 for (size_t kk = 0; kk < i_ncols; kk++) free(i_cols[kk]); free(i_cols);
+      |                 ^~~
+storage.c:3621:75: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3621 |                 for (size_t kk = 0; kk < i_ncols; kk++) free(i_cols[kk]); free(i_cols);
+      |                                                                           ^~~~
+storage.c:3622:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3622 |                 for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                 ^~~
+storage.c:3622:78: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3622 |                 for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                              ^~~~
+storage.c:3638:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3638 |                 for (size_t kk = 0; kk < i_ncols; kk++) free(i_cols[kk]); free(i_cols);
+      |                 ^~~
+storage.c:3638:75: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3638 |                 for (size_t kk = 0; kk < i_ncols; kk++) free(i_cols[kk]); free(i_cols);
+      |                                                                           ^~~~
+storage.c:3639:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3639 |                 for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                 ^~~
+storage.c:3639:78: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3639 |                 for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                              ^~~~
+storage.c:3661:13: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3661 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |             ^~~
+storage.c:3661:74: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3661 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                          ^~~~
+storage.c:3667:13: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3667 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |             ^~~
+storage.c:3667:74: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3667 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                          ^~~~
+storage.c:3678:13: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3678 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |             ^~~
+storage.c:3678:74: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3678 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                          ^~~~
+storage.c:3696:13: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3696 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |             ^~~
+storage.c:3696:74: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3696 |             for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                          ^~~~
+storage.c:3704:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3704 |                 for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                 ^~~
+storage.c:3704:78: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3704 |                 for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                              ^~~~
+storage.c:3721:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3721 |                 for (size_t jj = 0; jj < r.n; jj++) v_free(&r.vals[jj]); free(r.vals);
+      |                 ^~~
+storage.c:3721:74: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3721 |                 for (size_t jj = 0; jj < r.n; jj++) v_free(&r.vals[jj]); free(r.vals);
+      |                                                                          ^~~~
+storage.c:3723:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3723 |                 for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                 ^~~
+storage.c:3723:78: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3723 |                 for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                              ^~~~
+storage.c:3738:9: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 3738 |         for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |         ^~~
+storage.c:3738:70: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 3738 |         for (size_t jj = 0; jj < rec.n; jj++) v_free(&rec.vals[jj]); free(rec.vals);
+      |                                                                      ^~~~
+storage.c: In function 'walk_index_tree_page':
+storage.c:4424:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 4424 |                 for (size_t k = 0; k < r.n; k++) v_free(&r.vals[k]); free(r.vals);
+      |                 ^~~
+storage.c:4424:70: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 4424 |                 for (size_t k = 0; k < r.n; k++) v_free(&r.vals[k]); free(r.vals);
+      |                                                                      ^~~~
+storage.c:4431:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 4431 |                 for (size_t k = 0; k < r.n; k++) v_free(&r.vals[k]); free(r.vals);
+      |                 ^~~
+storage.c:4431:70: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 4431 |                 for (size_t k = 0; k < r.n; k++) v_free(&r.vals[k]); free(r.vals);
+      |                                                                      ^~~~
+storage.c:4513:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 4513 |                 for (size_t k = 0; k < r.n; k++) v_free(&r.vals[k]); free(r.vals);
+      |                 ^~~
+storage.c:4513:70: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 4513 |                 for (size_t k = 0; k < r.n; k++) v_free(&r.vals[k]); free(r.vals);
+      |                                                                      ^~~~
+storage.c:4519:17: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 4519 |                 for (size_t k = 0; k < r.n; k++) v_free(&r.vals[k]); free(r.vals);
+      |                 ^~~
+storage.c:4519:70: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 4519 |                 for (size_t k = 0; k < r.n; k++) v_free(&r.vals[k]); free(r.vals);
+      |                                                                      ^~~~
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6e_main.c -o obj/phase6e_main.o
+storage.c: In function 'serialise_db':
+storage.c:4965:9: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 4965 |         for (size_t i = 0; i < r.n; i++) v_free(&r.vals[i]); free(r.vals);
+      |         ^~~
+storage.c:4965:62: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 4965 |         for (size_t i = 0; i < r.n; i++) v_free(&r.vals[i]); free(r.vals);
+      |                                                              ^~~~
+storage.c:4974:9: warning: this 'for' clause does not guard... [-Wmisleading-indentation]
+ 4974 |         for (size_t i = 0; i < r.n; i++) v_free(&r.vals[i]); free(r.vals);
+      |         ^~~
+storage.c:4974:62: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'for'
+ 4974 |         for (size_t i = 0; i < r.n; i++) v_free(&r.vals[i]); free(r.vals);
+      |                                                              ^~~~
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6f_main.c -o obj/phase6f_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6g_main.c -o obj/phase6g_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6h_main.c -o obj/phase6h_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6i_main.c -o obj/phase6i_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6j_main.c -o obj/phase6j_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6k_main.c -o obj/phase6k_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6l_main.c -o obj/phase6l_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6m_main.c -o obj/phase6m_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6n_main.c -o obj/phase6n_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6o_main.c -o obj/phase6o_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6p_main.c -o obj/phase6p_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6q_main.c -o obj/phase6q_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6r_main.c -o obj/phase6r_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6s_main.c -o obj/phase6s_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6t_main.c -o obj/phase6t_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6u_main.c -o obj/phase6u_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6v_main.c -o obj/phase6v_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6w_main.c -o obj/phase6w_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6x_main.c -o obj/phase6x_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6y_main.c -o obj/phase6y_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6aa_main.c -o obj/phase6aa_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ab_main.c -o obj/phase6ab_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ac_main.c -o obj/phase6ac_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ad_main.c -o obj/phase6ad_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ae_main.c -o obj/phase6ae_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6af_main.c -o obj/phase6af_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ag_main.c -o obj/phase6ag_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ah_main.c -o obj/phase6ah_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ai_main.c -o obj/phase6ai_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6aj_main.c -o obj/phase6aj_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ak_main.c -o obj/phase6ak_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6al_main.c -o obj/phase6al_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6am_main.c -o obj/phase6am_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ao_main.c -o obj/phase6ao_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ap_main.c -o obj/phase6ap_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6aq_main.c -o obj/phase6aq_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ar_main.c -o obj/phase6ar_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6as_main.c -o obj/phase6as_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6at_main.c -o obj/phase6at_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6au_main.c -o obj/phase6au_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6av_main.c -o obj/phase6av_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6aw_main.c -o obj/phase6aw_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ax_main.c -o obj/phase6ax_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ay_main.c -o obj/phase6ay_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6az_main.c -o obj/phase6az_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6ba_main.c -o obj/phase6ba_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bb_main.c -o obj/phase6bb_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bc_main.c -o obj/phase6bc_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bd_main.c -o obj/phase6bd_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6be_main.c -o obj/phase6be_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bf_main.c -o obj/phase6bf_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bg_main.c -o obj/phase6bg_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bh_main.c -o obj/phase6bh_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bi_main.c -o obj/phase6bi_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bj_main.c -o obj/phase6bj_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bk_main.c -o obj/phase6bk_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bl_main.c -o obj/phase6bl_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bn_main.c -o obj/phase6bn_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bo_main.c -o obj/phase6bo_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bp_main.c -o obj/phase6bp_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bq_main.c -o obj/phase6bq_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bu_main.c -o obj/phase6bu_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase6bv_main.c -o obj/phase6bv_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase9a_main.c -o obj/phase9a_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase9be_main.c -o obj/phase9be_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase9c_main.c -o obj/phase9c_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase9d_main.c -o obj/phase9d_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase9f_main.c -o obj/phase9f_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c phase9g_main.c -o obj/phase9g_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c sqlite_leap_cli_main.c -o obj/sqlite_leap_cli_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c sqllogictest_main.c -o obj/sqllogictest_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c fuzz_parse_main.c -o obj/fuzz_parse_main.o
+cc -std=c11 -Wall -Wextra -O2 -g -c fuzz_exec_main.c -o obj/fuzz_exec_main.o
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase1_main.o   -o bin/phase1-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase2a_main.o  -o bin/phase2a-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase2b_main.o  -o bin/phase2b-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase2c1_main.o -o bin/phase2c1-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase2c2_main.o -o bin/phase2c2-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase2c3_main.o -o bin/phase2c3-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase3a_main.o  -o bin/phase3a-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase3b_main.o  -o bin/phase3b-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase3d_main.o  -o bin/phase3d-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase4a_main.o  -o bin/phase4a-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6a_main.o  -o bin/phase6a-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6b_main.o  -o bin/phase6b-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6c_main.o  -o bin/phase6c-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6d_main.o  -o bin/phase6d-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6e_main.o  -o bin/phase6e-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6f_main.o  -o bin/phase6f-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6g_main.o  -o bin/phase6g-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6h_main.o  -o bin/phase6h-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6i_main.o  -o bin/phase6i-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6j_main.o  -o bin/phase6j-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6k_main.o  -o bin/phase6k-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6l_main.o  -o bin/phase6l-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6m_main.o  -o bin/phase6m-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6n_main.o  -o bin/phase6n-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6o_main.o  -o bin/phase6o-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6p_main.o  -o bin/phase6p-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6q_main.o  -o bin/phase6q-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6r_main.o  -o bin/phase6r-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6s_main.o  -o bin/phase6s-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6t_main.o  -o bin/phase6t-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6u_main.o  -o bin/phase6u-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6v_main.o  -o bin/phase6v-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6w_main.o  -o bin/phase6w-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6x_main.o  -o bin/phase6x-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6y_main.o  -o bin/phase6y-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6aa_main.o -o bin/phase6aa-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ab_main.o -o bin/phase6ab-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ac_main.o -o bin/phase6ac-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ad_main.o -o bin/phase6ad-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ae_main.o -o bin/phase6ae-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6af_main.o -o bin/phase6af-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ag_main.o -o bin/phase6ag-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ah_main.o -o bin/phase6ah-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ai_main.o -o bin/phase6ai-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6aj_main.o -o bin/phase6aj-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ak_main.o -o bin/phase6ak-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6al_main.o -o bin/phase6al-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6am_main.o -o bin/phase6am-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ao_main.o -o bin/phase6ao-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ap_main.o -o bin/phase6ap-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6aq_main.o -o bin/phase6aq-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ar_main.o -o bin/phase6ar-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6as_main.o -o bin/phase6as-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6at_main.o -o bin/phase6at-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6au_main.o -o bin/phase6au-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6av_main.o -o bin/phase6av-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6aw_main.o -o bin/phase6aw-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ax_main.o -o bin/phase6ax-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ay_main.o -o bin/phase6ay-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6az_main.o -o bin/phase6az-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6ba_main.o -o bin/phase6ba-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bb_main.o -o bin/phase6bb-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bc_main.o -o bin/phase6bc-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bd_main.o -o bin/phase6bd-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6be_main.o -o bin/phase6be-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bf_main.o -o bin/phase6bf-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bg_main.o -o bin/phase6bg-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bh_main.o -o bin/phase6bh-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bi_main.o -o bin/phase6bi-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bj_main.o -o bin/phase6bj-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bk_main.o -o bin/phase6bk-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bl_main.o -o bin/phase6bl-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bn_main.o -o bin/phase6bn-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bo_main.o -o bin/phase6bo-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bp_main.o -o bin/phase6bp-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bq_main.o -o bin/phase6bq-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bu_main.o -o bin/phase6bu-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase6bv_main.o -o bin/phase6bv-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase9a_main.o  -o bin/phase9a-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase9be_main.o -o bin/phase9be-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase9c_main.o  -o bin/phase9c-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase9d_main.o  -o bin/phase9d-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase9f_main.o  -o bin/phase9f-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/phase9g_main.o  -o bin/phase9g-test
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/sqlite_leap_cli_main.o -o bin/sqlite-leap-cli
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/sqllogictest_main.o -o bin/sqllogictest
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/fuzz_parse_main.o -o bin/fuzz-parse
+cc -std=c11 -Wall -Wextra -O2 -g obj/common.o obj/tokenizer.o obj/parser.o obj/storage.o obj/compiler.o obj/vdbe.o obj/executor.o obj/json.o obj/harness.o obj/md5.o obj/fuzz_exec_main.o -o bin/fuzz-exec
+[linux-bench] src-c build OK
+[linux-bench] === build src-rust ===
+   Compiling sqlite-leap v0.1.0 (/tmp/sqlite-leap-bench-1/src-rust)
+    Finished `release` profile [optimized] target(s) in 1m 42s
+[linux-bench] src-rust build OK
+[linux-bench] === fetch+build mainline SQLite baseline ===
+[baselines] downloading https://sqlite.org/2024/sqlite-amalgamation-3450300.zip
+[baselines] building mainline SQLite with cc -O2
+[baselines] built /tmp/sqlite-leap-bench-1/bench/baselines/bin/sqlite-mainline (  File: "/tmp/sqlite-leap-bench-1/bench/baselines/bin/sqlite-mainline"
+    ID: da17078e0cee7b70 Namelen: 255     Type: overlayfs
+Block size: 4096       Fundamental block size: 4096
+Blocks: Total: 144102000  Free: 112316771  Available: 104988469
+Inodes: Total: 36626432   Free: 31651650
+1233632 bytes)
+[baselines] done
+[linux-bench] baseline OK
+[linux-bench] === sqllogictest smoke (203-case) ===
+PASS 01-literals.test:4 statement
+PASS 01-literals.test:7 query
+PASS 01-literals.test:12 query
+PASS 01-literals.test:17 query
+PASS 01-literals.test:22 query
+PASS 01-literals.test:27 query
+PASS 01-literals.test:32 query
+PASS 01-literals.test:37 query
+PASS 01-literals.test:42 query
+PASS 01-literals.test:47 query
+PASS 01-literals.test:53 query
+FILE 01-literals.test passed=11 failed=0 skipped=0 total=11
+PASS 02-create-insert-select.test:3 statement
+PASS 02-create-insert-select.test:6 statement
+PASS 02-create-insert-select.test:9 statement
+PASS 02-create-insert-select.test:12 statement
+PASS 02-create-insert-select.test:15 query
+PASS 02-create-insert-select.test:25 query
+PASS 02-create-insert-select.test:35 query
+FILE 02-create-insert-select.test passed=7 failed=0 skipped=0 total=7
+PASS 03-where-clauses.test:3 statement
+PASS 03-where-clauses.test:6 statement
+PASS 03-where-clauses.test:9 statement
+PASS 03-where-clauses.test:12 statement
+PASS 03-where-clauses.test:15 statement
+PASS 03-where-clauses.test:18 statement
+PASS 03-where-clauses.test:21 query
+PASS 03-where-clauses.test:26 query
+PASS 03-where-clauses.test:34 query
+PASS 03-where-clauses.test:41 query
+PASS 03-where-clauses.test:48 query
+PASS 03-where-clauses.test:54 query
+FILE 03-where-clauses.test passed=12 failed=0 skipped=0 total=12
+PASS 04-errors.test:3 statement
+PASS 04-errors.test:6 statement
+PASS 04-errors.test:9 statement
+PASS 04-errors.test:12 statement
+PASS 04-errors.test:15 statement
+PASS 04-errors.test:19 statement
+PASS 04-errors.test:23 statement
+FILE 04-errors.test passed=7 failed=0 skipped=0 total=7
+PASS 05-aggregates.test:3 statement
+PASS 05-aggregates.test:6 statement
+PASS 05-aggregates.test:9 statement
+PASS 05-aggregates.test:12 statement
+PASS 05-aggregates.test:15 statement
+PASS 05-aggregates.test:18 statement
+PASS 05-aggregates.test:21 query
+PASS 05-aggregates.test:26 query
+PASS 05-aggregates.test:31 query
+PASS 05-aggregates.test:36 query
+PASS 05-aggregates.test:41 query
+PASS 05-aggregates.test:46 query
+PASS 05-aggregates.test:56 query
+FILE 05-aggregates.test passed=13 failed=0 skipped=0 total=13
+PASS 06-index.test:3 statement
+PASS 06-index.test:6 statement
+PASS 06-index.test:9 statement
+PASS 06-index.test:12 statement
+PASS 06-index.test:15 statement
+PASS 06-index.test:19 query
+PASS 06-index.test:26 query
+PASS 06-index.test:33 statement
+PASS 06-index.test:36 query
+PASS 06-index.test:42 statement
+PASS 06-index.test:45 statement
+PASS 06-index.test:49 statement
+PASS 06-index.test:52 query
+FILE 06-index.test passed=13 failed=0 skipped=0 total=13
+PASS 07-joins.test:3 statement
+PASS 07-joins.test:6 statement
+PASS 07-joins.test:9 statement
+PASS 07-joins.test:12 statement
+PASS 07-joins.test:15 statement
+PASS 07-joins.test:18 statement
+PASS 07-joins.test:21 statement
+PASS 07-joins.test:24 statement
+PASS 07-joins.test:27 query
+PASS 07-joins.test:37 query
+PASS 07-joins.test:42 query
+FILE 07-joins.test passed=11 failed=0 skipped=0 total=11
+PASS 08-compound-select.test:3 query
+PASS 08-compound-select.test:10 query
+PASS 08-compound-select.test:16 statement
+PASS 08-compound-select.test:19 statement
+PASS 08-compound-select.test:22 statement
+PASS 08-compound-select.test:25 statement
+PASS 08-compound-select.test:28 statement
+PASS 08-compound-select.test:31 statement
+PASS 08-compound-select.test:34 statement
+PASS 08-compound-select.test:37 statement
+PASS 08-compound-select.test:40 query
+PASS 08-compound-select.test:46 query
+PASS 08-compound-select.test:51 query
+FILE 08-compound-select.test passed=13 failed=0 skipped=0 total=13
+PASS 09-subqueries.test:3 statement
+PASS 09-subqueries.test:6 statement
+PASS 09-subqueries.test:9 query
+PASS 09-subqueries.test:14 query
+PASS 09-subqueries.test:20 query
+PASS 09-subqueries.test:26 statement
+PASS 09-subqueries.test:29 statement
+PASS 09-subqueries.test:32 statement
+PASS 09-subqueries.test:35 statement
+PASS 09-subqueries.test:38 query
+PASS 09-subqueries.test:44 statement
+FILE 09-subqueries.test passed=11 failed=0 skipped=0 total=11
+PASS 10-order-limit.test:3 statement
+PASS 10-order-limit.test:6 statement
+PASS 10-order-limit.test:9 statement
+PASS 10-order-limit.test:12 statement
+PASS 10-order-limit.test:15 query
+PASS 10-order-limit.test:22 query
+PASS 10-order-limit.test:29 query
+PASS 10-order-limit.test:36 query
+PASS 10-order-limit.test:42 query
+PASS 10-order-limit.test:47 query
+FILE 10-order-limit.test passed=10 failed=0 skipped=0 total=10
+PASS 11-distinct.test:3 statement
+PASS 11-distinct.test:6 statement
+PASS 11-distinct.test:9 statement
+PASS 11-distinct.test:12 statement
+PASS 11-distinct.test:15 statement
+PASS 11-distinct.test:18 query
+PASS 11-distinct.test:24 query
+FILE 11-distinct.test passed=7 failed=0 skipped=0 total=7
+PASS 12-scalar-string.test:3 query
+PASS 12-scalar-string.test:8 query
+PASS 12-scalar-string.test:13 query
+PASS 12-scalar-string.test:18 query
+PASS 12-scalar-string.test:23 query
+PASS 12-scalar-string.test:28 query
+PASS 12-scalar-string.test:33 query
+PASS 12-scalar-string.test:39 query
+PASS 12-scalar-string.test:45 query
+PASS 12-scalar-string.test:50 query
+FILE 12-scalar-string.test passed=10 failed=0 skipped=0 total=10
+PASS 13-scalar-numeric.test:3 query
+PASS 13-scalar-numeric.test:8 query
+PASS 13-scalar-numeric.test:13 query
+PASS 13-scalar-numeric.test:18 query
+PASS 13-scalar-numeric.test:23 query
+FILE 13-scalar-numeric.test passed=5 failed=0 skipped=0 total=5
+PASS 14-scalar-null.test:3 query
+PASS 14-scalar-null.test:8 query
+PASS 14-scalar-null.test:13 query
+PASS 14-scalar-null.test:18 query
+PASS 14-scalar-null.test:23 query
+PASS 14-scalar-null.test:28 query
+PASS 14-scalar-null.test:34 statement
+PASS 14-scalar-null.test:38 statement
+PASS 14-scalar-null.test:41 statement
+FILE 14-scalar-null.test passed=9 failed=0 skipped=0 total=9
+PASS 15-cast.test:3 query
+PASS 15-cast.test:8 query
+PASS 15-cast.test:13 query
+PASS 15-cast.test:18 query
+PASS 15-cast.test:23 query
+PASS 15-cast.test:31 query
+PASS 15-cast.test:36 query
+PASS 15-cast.test:41 query
+PASS 15-cast.test:47 query
+PASS 15-cast.test:52 query
+PASS 15-cast.test:58 query
+FILE 15-cast.test passed=11 failed=0 skipped=0 total=11
+PASS 16-concat.test:3 query
+PASS 16-concat.test:8 query
+PASS 16-concat.test:14 query
+PASS 16-concat.test:19 query
+PASS 16-concat.test:25 query
+FILE 16-concat.test passed=5 failed=0 skipped=0 total=5
+PASS 17-update-delete.test:3 statement
+PASS 17-update-delete.test:6 statement
+PASS 17-update-delete.test:9 statement
+PASS 17-update-delete.test:12 statement
+PASS 17-update-delete.test:15 statement
+PASS 17-update-delete.test:18 query
+PASS 17-update-delete.test:28 statement
+PASS 17-update-delete.test:31 query
+PASS 17-update-delete.test:40 statement
+PASS 17-update-delete.test:43 query
+PASS 17-update-delete.test:49 statement
+PASS 17-update-delete.test:52 statement
+PASS 17-update-delete.test:55 query
+FILE 17-update-delete.test passed=13 failed=0 skipped=0 total=13
+PASS 18-between.test:3 statement
+PASS 18-between.test:6 statement
+PASS 18-between.test:9 statement
+PASS 18-between.test:12 statement
+PASS 18-between.test:15 statement
+PASS 18-between.test:18 statement
+PASS 18-between.test:21 query
+PASS 18-between.test:29 query
+PASS 18-between.test:35 query
+PASS 18-between.test:40 statement
+PASS 18-between.test:43 statement
+PASS 18-between.test:46 statement
+PASS 18-between.test:49 statement
+PASS 18-between.test:52 statement
+PASS 18-between.test:55 query
+FILE 18-between.test passed=15 failed=0 skipped=0 total=15
+PASS 19-primary-key.test:4 statement
+PASS 19-primary-key.test:7 statement
+PASS 19-primary-key.test:10 statement
+PASS 19-primary-key.test:13 query
+PASS 19-primary-key.test:22 statement
+PASS 19-primary-key.test:26 statement
+PASS 19-primary-key.test:29 statement
+PASS 19-primary-key.test:32 statement
+PASS 19-primary-key.test:35 statement
+PASS 19-primary-key.test:38 query
+FILE 19-primary-key.test passed=10 failed=0 skipped=0 total=10
+PASS 20-transactions.test:3 statement
+PASS 20-transactions.test:6 statement
+PASS 20-transactions.test:9 statement
+PASS 20-transactions.test:12 statement
+PASS 20-transactions.test:15 query
+PASS 20-transactions.test:21 statement
+PASS 20-transactions.test:24 statement
+PASS 20-transactions.test:27 statement
+PASS 20-transactions.test:30 query
+PASS 20-transactions.test:37 statement
+FILE 20-transactions.test passed=10 failed=0 skipped=0 total=10
+SUMMARY sqllogictest target=c passed=203 failed=0 skipped=0 total=203
+[linux-bench] smoke C: pass
+PASS 01-literals.test:4 statement
+PASS 01-literals.test:7 query
+PASS 01-literals.test:12 query
+PASS 01-literals.test:17 query
+PASS 01-literals.test:22 query
+PASS 01-literals.test:27 query
+PASS 01-literals.test:32 query
+PASS 01-literals.test:37 query
+PASS 01-literals.test:42 query
+PASS 01-literals.test:47 query
+PASS 01-literals.test:53 query
+FILE 01-literals.test passed=11 failed=0 skipped=0 total=11
+PASS 02-create-insert-select.test:3 statement
+PASS 02-create-insert-select.test:6 statement
+PASS 02-create-insert-select.test:9 statement
+PASS 02-create-insert-select.test:12 statement
+PASS 02-create-insert-select.test:15 query
+[linux-bench] smoke Rust: fail
+[linux-bench] === lanes 1, 5, 6 ===
+[linux-bench] bench/lanes/01-cold-start/run.sh --target sqlite-leap-c
+  cold-start,sqlite-leap-c,0.025044232,seconds,2026-04-21T01:54:27Z
+[linux-bench] bench/lanes/01-cold-start/run.sh --target sqlite-leap-rust
+  cold-start,sqlite-leap-rust,0.032487815,seconds,2026-04-21T01:54:30Z
+[linux-bench] bench/lanes/01-cold-start/run.sh --target sqlite-mainline
+  cold-start,sqlite-mainline,0.121704597,seconds,2026-04-21T01:54:37Z
+[linux-bench] bench/lanes/05-binary-size/run.sh --target sqlite-leap-c
+  binary-size,sqlite-leap-c,424536,bytes,2026-04-21T01:54:38Z
+[linux-bench] bench/lanes/05-binary-size/run.sh --target sqlite-leap-rust
+  binary-size,sqlite-leap-rust,1346016,bytes,2026-04-21T01:54:38Z
+[linux-bench] bench/lanes/05-binary-size/run.sh --target sqlite-mainline
+  binary-size,sqlite-mainline,1233632,bytes,2026-04-21T01:54:39Z
+[linux-bench] bench/lanes/06-memory-footprint/run.sh --target sqlite-leap-c
+  memory-footprint,sqlite-leap-c,5033984,bytes,2026-04-21T01:54:40Z
+[linux-bench] bench/lanes/06-memory-footprint/run.sh --target sqlite-leap-rust
+  memory-footprint,sqlite-leap-rust,5672960,bytes,2026-04-21T01:54:42Z
+[linux-bench] bench/lanes/06-memory-footprint/run.sh --target sqlite-mainline
+  memory-footprint,sqlite-mainline,6057984,bytes,2026-04-21T01:54:44Z
+[linux-bench] === lanes 2, 3, 4 (harness-integrity-bug; recorded as NA,pending-harness-fix) ===

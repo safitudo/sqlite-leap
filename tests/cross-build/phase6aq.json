@@ -1,0 +1,85 @@
+{
+  "phase": "6aq",
+  "description": "Phase 6aq gate — NATURAL JOIN and JOIN ... USING (col-list). Both desugar to JOIN ON.",
+  "cases": [
+    {
+      "name": "natural-join-one-shared-column",
+      "program": [
+        {"sql": "CREATE TABLE t1 (id INTEGER, name TEXT);", "expect": {"rows": []}},
+        {"sql": "CREATE TABLE t2 (id INTEGER, score INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t1 VALUES (1, 'a'), (2, 'b');", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t2 VALUES (1, 100), (2, 200);", "expect": {"rows": []}},
+        {"sql": "SELECT id, name, score FROM t1 NATURAL JOIN t2 ORDER BY id;", "expect": {"rows": [[1, "a", 100], [2, "b", 200]]}}
+      ]
+    },
+    {
+      "name": "natural-join-two-shared-columns",
+      "program": [
+        {"sql": "CREATE TABLE t1 (a INTEGER, b INTEGER, c INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE TABLE t2 (a INTEGER, b INTEGER, d INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t1 VALUES (1, 10, 100), (2, 20, 200);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t2 VALUES (1, 10, 999), (2, 99, 888);", "expect": {"rows": []}},
+        {"sql": "SELECT a, b, c, d FROM t1 NATURAL JOIN t2 ORDER BY a;", "expect": {"rows": [[1, 10, 100, 999]]}}
+      ]
+    },
+    {
+      "name": "natural-join-no-shared-columns",
+      "description": "NATURAL JOIN of tables with no shared column names is a cross product (SQLite behavior).",
+      "program": [
+        {"sql": "CREATE TABLE t1 (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE TABLE t2 (b INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t1 VALUES (1), (2);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t2 VALUES (10), (20);", "expect": {"rows": []}},
+        {"sql": "SELECT a, b FROM t1 NATURAL JOIN t2 ORDER BY a, b;", "expect": {"rows": [[1, 10], [1, 20], [2, 10], [2, 20]]}}
+      ]
+    },
+    {
+      "name": "join-using-single-column",
+      "program": [
+        {"sql": "CREATE TABLE t1 (id INTEGER, name TEXT);", "expect": {"rows": []}},
+        {"sql": "CREATE TABLE t2 (id INTEGER, score INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t1 VALUES (1, 'a'), (2, 'b'), (3, 'c');", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t2 VALUES (1, 100), (2, 200);", "expect": {"rows": []}},
+        {"sql": "SELECT id, name, score FROM t1 JOIN t2 USING (id) ORDER BY id;", "expect": {"rows": [[1, "a", 100], [2, "b", 200]]}}
+      ]
+    },
+    {
+      "name": "join-using-two-columns",
+      "program": [
+        {"sql": "CREATE TABLE t1 (a INTEGER, b INTEGER, v INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE TABLE t2 (a INTEGER, b INTEGER, w INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t1 VALUES (1, 2, 100), (3, 4, 200);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t2 VALUES (1, 2, 999), (3, 5, 888);", "expect": {"rows": []}},
+        {"sql": "SELECT a, b, v, w FROM t1 JOIN t2 USING (a, b);", "expect": {"rows": [[1, 2, 100, 999]]}}
+      ]
+    },
+    {
+      "name": "left-natural-join",
+      "program": [
+        {"sql": "CREATE TABLE t1 (id INTEGER, name TEXT);", "expect": {"rows": []}},
+        {"sql": "CREATE TABLE t2 (id INTEGER, score INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t1 VALUES (1, 'a'), (2, 'b'), (3, 'c');", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t2 VALUES (1, 100), (2, 200);", "expect": {"rows": []}},
+        {"sql": "SELECT id, name, score FROM t1 NATURAL LEFT JOIN t2 ORDER BY id;", "expect": {"rows": [[1, "a", 100], [2, "b", 200], [3, "c", null]]}}
+      ]
+    },
+    {
+      "name": "left-join-using",
+      "program": [
+        {"sql": "CREATE TABLE t1 (id INTEGER, v INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE TABLE t2 (id INTEGER, w INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t1 VALUES (1, 10), (2, 20), (3, 30);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t2 VALUES (1, 100), (3, 300);", "expect": {"rows": []}},
+        {"sql": "SELECT id, v, w FROM t1 LEFT JOIN t2 USING (id) ORDER BY id;", "expect": {"rows": [[1, 10, 100], [2, 20, null], [3, 30, 300]]}}
+      ]
+    },
+    {
+      "name": "using-unknown-column-rejected",
+      "program": [
+        {"sql": "CREATE TABLE t1 (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE TABLE t2 (b INTEGER);", "expect": {"rows": []}},
+        {"sql": "SELECT * FROM t1 JOIN t2 USING (x);", "expect": {"error": "COMPILE_USING_COLUMN_NOT_FOUND"}}
+      ]
+    }
+  ]
+}

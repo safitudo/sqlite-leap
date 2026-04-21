@@ -1,0 +1,100 @@
+{
+  "phase": "6bz",
+  "description": "Phase 6bz regression — indexed inner-subquery jump-target remap. When an EXISTS / IN (SELECT ...) inner body is compiled to an index-driven scan (via plan_equality_index or plan_range_index), its IdxSeek / IdxSeekGE / IdxSeekGT / IdxNext / IdxRewind / IdxAdvance jump-target fields are in the inner-pc namespace. Splicing those opcodes into the outer program without remapping via src_to_out[] produces an infinite loop on the first inner row (stale inner-pc target jumps back into the outer program's prelude). Surfaced by sqllogictest index/commute/* / index/orderby/* / index/orderby_nosort/* / index/in/* / index/between/* timing out on the C target while completing on Rust in ~100ms. Root cause: emit_inline_in_subquery and emit_inline_exists patched only OP_REWIND/OP_NEXT/OP_SORTERREWIND/OP_SORTERNEXT/OP_JUMPIFFALSE jumps — IDX* jumps were missed. Fix adds IDX* cases mirroring the compound-SELECT patcher (bug #79 precedent). No new VDBE opcodes. Regression-only — no new planner capability.",
+  "cases": [
+    {
+      "name": "in-subquery-with-range-indexed-inner",
+      "description": "The original wedge: `col IN (SELECT col FROM T WHERE col <= const)` where T has an index on col. Inner body compiles to IdxRewind + IdxAdvance scan. Without the fix, infinite loops.",
+      "program": [
+        {"sql": "CREATE TABLE t (pk INTEGER PRIMARY KEY, col0 INTEGER, col3 INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_col0 ON t (col0);",                                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (0, 1, 10);",                                       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 2, 1);",                                        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 3, 2);",                                        "expect": {"rows": []}},
+        {"sql": "SELECT pk FROM t WHERE col3 IN (SELECT col0 FROM t WHERE col0 <= 69) ORDER BY pk;",
+         "expect": {"rows": [[1], [2]]}}
+      ]
+    },
+    {
+      "name": "in-subquery-with-equality-indexed-inner",
+      "description": "Inner SELECT uses `col = const` → plan_equality_index → IdxSeek. Without the fix, IdxSeek's `target` points into the outer prelude.",
+      "program": [
+        {"sql": "CREATE TABLE t (pk INTEGER PRIMARY KEY, col0 INTEGER, col3 INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_col0 ON t (col0);",                                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (0, 5, 5);",                                        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 6, 5);",                                        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 7, 9);",                                        "expect": {"rows": []}},
+        {"sql": "SELECT pk FROM t WHERE col3 IN (SELECT col0 FROM t WHERE col0 = 5) ORDER BY pk;",
+         "expect": {"rows": [[0], [1]]}}
+      ]
+    },
+    {
+      "name": "in-subquery-with-between-indexed-inner",
+      "description": "Inner SELECT uses BETWEEN (parser desugars to `col >= lo AND col <= hi`) → plan_range_index with both bounds → IdxSeekGE + upper-bound gate.",
+      "program": [
+        {"sql": "CREATE TABLE t (pk INTEGER PRIMARY KEY, col0 INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_col0 ON t (col0);",                     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (0, 1);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 5);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 10);",                           "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3, 15);",                           "expect": {"rows": []}},
+        {"sql": "SELECT pk FROM t WHERE col0 IN (SELECT col0 FROM t WHERE col0 BETWEEN 3 AND 12) ORDER BY pk;",
+         "expect": {"rows": [[1], [2]]}}
+      ]
+    },
+    {
+      "name": "in-subquery-commuted-equality-indexed-inner",
+      "description": "Commuted form `<const> = col` inside the inner WHERE. The equality planner already handles this (symmetric match); this case verifies the splice does too.",
+      "program": [
+        {"sql": "CREATE TABLE t (pk INTEGER PRIMARY KEY, col0 INTEGER, col3 INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_col0 ON t (col0);",                                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (0, 42, 17);",                                      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 17, 42);",                                      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 17, 17);",                                      "expect": {"rows": []}},
+        {"sql": "SELECT pk FROM t WHERE col3 IN (SELECT col0 FROM t WHERE 17 = col0) ORDER BY pk;",
+         "expect": {"rows": [[0], [2]]}}
+      ]
+    },
+    {
+      "name": "exists-with-range-indexed-inner",
+      "description": "EXISTS form shares the same splicer structure as IN; the fix also patches emit_inline_exists. Correlated reference `t.col3 = u.col0` keeps the inner running per outer row.",
+      "program": [
+        {"sql": "CREATE TABLE t (pk INTEGER PRIMARY KEY, col3 INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE TABLE u (pk INTEGER PRIMARY KEY, col0 INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_u_col0 ON u (col0);",                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (0, 5);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 99);",                           "expect": {"rows": []}},
+        {"sql": "INSERT INTO u VALUES (0, 3);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO u VALUES (1, 5);",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO u VALUES (2, 7);",                            "expect": {"rows": []}},
+        {"sql": "SELECT pk FROM t WHERE EXISTS (SELECT 1 FROM u WHERE u.col0 <= 6 AND u.col0 = t.col3) ORDER BY pk;",
+         "expect": {"rows": [[0]]}}
+      ]
+    },
+    {
+      "name": "in-subquery-indexed-inner-empty-result",
+      "description": "Inner body runs to empty — IdxAdvance falls through on first iteration. Without the fix the IdxAdvance `jump_if_more` jumps back into the outer prelude on initial rewind success.",
+      "program": [
+        {"sql": "CREATE TABLE t (pk INTEGER PRIMARY KEY, col0 INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_col0 ON t (col0);",                     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (0, 100);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 200);",                          "expect": {"rows": []}},
+        {"sql": "SELECT pk FROM t WHERE col0 IN (SELECT col0 FROM t WHERE col0 <= 5) ORDER BY pk;",
+         "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "in-subquery-indexed-inner-no-bound",
+      "description": "Inner scan with a qualifying single-column index but a non-range WHERE — inner falls back to the non-indexed plan; fix must not change non-indexed behaviour. Regression-only safety case.",
+      "program": [
+        {"sql": "CREATE TABLE t (pk INTEGER PRIMARY KEY, col0 INTEGER, col3 INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_col0 ON t (col0);",                                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (0, 1, 1);",                                        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 2, 2);",                                        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 3, 3);",                                        "expect": {"rows": []}},
+        {"sql": "SELECT pk FROM t WHERE col3 IN (SELECT col3 FROM t WHERE col3 >= 2) ORDER BY pk;",
+         "expect": {"rows": [[1], [2]]}}
+      ]
+    }
+  ]
+}

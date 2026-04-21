@@ -1,0 +1,62 @@
+{
+  "phase": "6as",
+  "description": "Phase 6as gate — UNION ALL / UNION / EXCEPT / INTERSECT with heterogeneous column types across branches. Relaxes any per-column type-equality assumption to allow, e.g. INTEGER in branch 1 + TEXT in branch 2 to both appear in the unified result.",
+  "cases": [
+    {
+      "name": "union-all-hetero-basic",
+      "program": [
+        {"sql": "CREATE TABLE t1 (v INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE TABLE t2 (v TEXT);",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t1 VALUES (1), (2);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t2 VALUES ('a'), ('b');", "expect": {"rows": []}},
+        {"sql": "SELECT v FROM t1 UNION ALL SELECT v FROM t2 ORDER BY v;", "expect": {"rows": [[1], [2], ["a"], ["b"]]}}
+      ]
+    },
+    {
+      "name": "union-all-hetero-with-nulls",
+      "program": [
+        {"sql": "CREATE TABLE t1 (v INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE TABLE t2 (v TEXT);",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t1 VALUES (1), (NULL);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t2 VALUES (NULL), ('x');", "expect": {"rows": []}},
+        {"sql": "SELECT v FROM t1 UNION ALL SELECT v FROM t2;", "expect": {"rows": [[1], [null], [null], ["x"]]}}
+      ]
+    },
+    {
+      "name": "union-hetero-dedup-strict-equality",
+      "description": "UNION (with dedup) dedups by strict value equality — 1 and '1' are NOT duplicates.",
+      "program": [
+        {"sql": "SELECT 1 UNION SELECT '1' ORDER BY 1;", "expect": {"rows": [[1], ["1"]]}}
+      ]
+    },
+    {
+      "name": "union-integer-and-real-dedup",
+      "description": "INTEGER 1 and REAL 1.0 DEDUP in UNION — SQLite uses affinity-based (numeric) equality, same as the = operator. The first-seen value is retained.",
+      "program": [
+        {"sql": "SELECT 1 UNION SELECT 1.0 ORDER BY 1;", "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "hetero-select-literal-and-column",
+      "program": [
+        {"sql": "CREATE TABLE t (v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (10);", "expect": {"rows": []}},
+        {"sql": "SELECT v FROM t UNION ALL SELECT 'literal' ORDER BY v;", "expect": {"rows": [[10], ["literal"]]}}
+      ]
+    },
+    {
+      "name": "intersect-hetero-empty",
+      "description": "INTERSECT with type-divergent operands produces no intersection (strict equality).",
+      "program": [
+        {"sql": "SELECT 1 INTERSECT SELECT '1';", "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "except-hetero",
+      "description": "EXCEPT with type-divergent operands is a no-op subtraction.",
+      "program": [
+        {"sql": "SELECT 1 EXCEPT SELECT '1';", "expect": {"rows": [[1]]}}
+      ]
+    }
+  ]
+}

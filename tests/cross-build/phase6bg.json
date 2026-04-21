@@ -1,0 +1,67 @@
+{
+  "phase": "6bg",
+  "description": "Phase 6bg gate — RETURNING clause on INSERT / UPDATE / DELETE. After the DML operation, project the affected rows as a result set.",
+  "cases": [
+    {
+      "name": "insert-returning-single-col",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER PRIMARY KEY, v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (v) VALUES (10) RETURNING id;", "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "insert-returning-star",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10) RETURNING *;", "expect": {"rows": [[1, 10]]}}
+      ]
+    },
+    {
+      "name": "insert-multi-row-returning",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER PRIMARY KEY, v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (v) VALUES (10), (20), (30) RETURNING id, v ORDER BY id;", "expect": {"rows": [[1, 10], [2, 20], [3, 30]]}}
+      ]
+    },
+    {
+      "name": "update-returning",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER, v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10), (2, 20);", "expect": {"rows": []}},
+        {"sql": "UPDATE t SET v = v * 10 RETURNING id, v ORDER BY id;", "expect": {"rows": [[1, 100], [2, 200]]}}
+      ]
+    },
+    {
+      "name": "delete-returning",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER, v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10), (2, 20), (3, 30);", "expect": {"rows": []}},
+        {"sql": "DELETE FROM t WHERE v >= 20 RETURNING id;", "expect": {"rows": [[2], [3]]}}
+      ]
+    },
+    {
+      "name": "insert-returning-expression",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER PRIMARY KEY, v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (v) VALUES (5) RETURNING id, v * 2 AS doubled;", "expect": {"rows": [[1, 10]]}}
+      ]
+    },
+    {
+      "name": "update-returning-where",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER, v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10), (2, 20), (3, 30);", "expect": {"rows": []}},
+        {"sql": "UPDATE t SET v = 999 WHERE id = 2 RETURNING id, v;", "expect": {"rows": [[2, 999]]}}
+      ]
+    },
+    {
+      "name": "returning-no-rows",
+      "description": "DELETE matching zero rows with RETURNING returns empty set, not error.",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);", "expect": {"rows": []}},
+        {"sql": "DELETE FROM t WHERE id = 99 RETURNING id;", "expect": {"rows": []}}
+      ]
+    }
+  ]
+}

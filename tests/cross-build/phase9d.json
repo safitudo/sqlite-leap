@@ -1,0 +1,452 @@
+{
+  "phase": "9d",
+  "description": "Phase 9d gate — range predicates (>, <, >=, <=, BETWEEN) and ORDER BY ASC via single-column index; plus index leaf splits with interior index pages (type 0x02). 4 new VDBE opcodes: IdxRewind, IdxSeekGE, IdxSeekGT, IdxAdvance. Invariants 38-41. max_invariant=41. Non-goals: ORDER BY DESC via index (permanent), multi-col WHERE matching, OR compounds, IN lists, IdxPrev. All prior phase fixtures must stay green.",
+  "cases": [
+    {
+      "name": "range-gt-basic",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (4);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",                "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",             "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x > 3 ORDER BY x;",  "expect": {"rows": [[4], [5]]}}
+      ]
+    },
+    {
+      "name": "range-gte-basic",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (4);",                 "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",              "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x >= 3 ORDER BY x;",  "expect": {"rows": [[3], [4]]}}
+      ]
+    },
+    {
+      "name": "range-lt-basic",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (4);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",                 "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",              "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x < 3 ORDER BY x;",   "expect": {"rows": [[1], [2]]}}
+      ]
+    },
+    {
+      "name": "range-lte-basic",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (4);",                 "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",              "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x <= 2 ORDER BY x;",  "expect": {"rows": [[1], [2]]}}
+      ]
+    },
+    {
+      "name": "range-between-inclusive-both-ends",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (4);",                      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",                      "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",                   "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x BETWEEN 2 AND 4 ORDER BY x;",  "expect": {"rows": [[2], [3], [4]]}}
+      ]
+    },
+    {
+      "name": "range-gt-no-match-returns-empty",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                 "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",              "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x > 999;",            "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "range-lt-no-match-returns-empty",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (10);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (20);",                "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",              "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x < 5;",              "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "range-on-empty-index",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",              "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",              "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x > 0;",              "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x < 0;",              "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x BETWEEN 1 AND 10;", "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "range-duplicate-values-all-returned",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",                             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",                             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (7);",                             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (7);",                             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (9);",                             "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",                          "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x >= 5 AND x <= 7 ORDER BY x;",   "expect": {"rows": [[5], [5], [7], [7]]}}
+      ]
+    },
+    {
+      "name": "range-gt-with-null-rows-null-excluded",
+      "description": "NULL-indexed rows MUST NOT be returned by any range predicate (3VL).",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER, y INTEGER);",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (y) VALUES (100);",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 200);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 300);",             "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",               "expect": {"rows": []}},
+        {"sql": "SELECT y FROM t WHERE x > 0 ORDER BY x;",    "expect": {"rows": [[200], [300]]}},
+        {"sql": "SELECT y FROM t WHERE x < 10 ORDER BY x;",   "expect": {"rows": [[200], [300]]}}
+      ]
+    },
+    {
+      "name": "range-gt-with-null-lower-bound-returns-nothing",
+      "description": "x > NULL is never true under 3VL; IdxSeekGT with NULL key short-circuits to no-match.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",               "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                  "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",               "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x > NULL;",            "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "order-by-indexed-col-asc-no-where",
+      "description": "Without a WHERE clause, ORDER BY on an indexed col MUST still return all rows in sorted order (via IdxRewind + IdxAdvance, no sorter required).",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (4);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (9);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (6);",             "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",          "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t ORDER BY x;",           "expect": {"rows": [[1], [1], [2], [3], [4], [5], [6], [9]]}}
+      ]
+    },
+    {
+      "name": "order-by-indexed-col-explicit-asc",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",             "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",          "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t ORDER BY x ASC;",       "expect": {"rows": [[1], [2], [3]]}}
+      ]
+    },
+    {
+      "name": "order-by-indexed-col-desc-fallback-sorter",
+      "description": "DESC is NOT eligible for index scan; must still work via sorter. Observationally identical to sorter-only behaviour.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",             "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",          "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t ORDER BY x DESC;",      "expect": {"rows": [[3], [2], [1]]}}
+      ]
+    },
+    {
+      "name": "range-with-null-indexed-rows-mixed-in-order-by-uses-sorter-fallback-or-skips-nulls",
+      "description": "ORDER BY x (ASC) via index must include NULL-indexed rows sorted first (NULL-sort-first). If planner can't, it MAY fall back to sorter — both behaviours acceptable as long as result order is NULL-first.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER, y INTEGER);",  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 200);",           "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (y) VALUES (999);",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 100);",           "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",             "expect": {"rows": []}},
+        {"sql": "SELECT y FROM t ORDER BY x;",              "expect": {"rows": [[999], [100], [200]]}}
+      ]
+    },
+    {
+      "name": "range-plus-limit",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                           "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (4);",                              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",                              "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",                           "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x >= 2 ORDER BY x LIMIT 2;",       "expect": {"rows": [[2], [3]]}}
+      ]
+    },
+    {
+      "name": "range-plus-offset",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                                   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (10);",                                     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (20);",                                     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (30);",                                     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (40);",                                     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (50);",                                     "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",                                   "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x >= 20 ORDER BY x LIMIT 2 OFFSET 1;",     "expect": {"rows": [[30], [40]]}}
+      ]
+    },
+    {
+      "name": "range-plus-aggregate-count",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (4);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",                          "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",                       "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(*) FROM t WHERE x BETWEEN 2 AND 4;",    "expect": {"rows": [[3]]}}
+      ]
+    },
+    {
+      "name": "range-plus-aggregate-sum",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (4);",                          "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",                       "expect": {"rows": []}},
+        {"sql": "SELECT SUM(x) FROM t WHERE x > 1;",                  "expect": {"rows": [[9]]}}
+      ]
+    },
+    {
+      "name": "range-text-comparison",
+      "program": [
+        {"sql": "CREATE TABLE t (name TEXT);",                               "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('alice');",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('bob');",                              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('carol');",                            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('dave');",                             "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_n ON t (name);",                            "expect": {"rows": []}},
+        {"sql": "SELECT name FROM t WHERE name >= 'b' AND name < 'd' ORDER BY name;",   "expect": {"rows": [["bob"], ["carol"]]}}
+      ]
+    },
+    {
+      "name": "range-dml-after-create-consistent",
+      "description": "INSERT new rows after CREATE INDEX then range-query — new rows included.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",                 "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (7);",                 "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x >= 3 ORDER BY x;",  "expect": {"rows": [[3], [5], [7]]}}
+      ]
+    },
+    {
+      "name": "range-delete-then-query",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (4);",                 "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",              "expect": {"rows": []}},
+        {"sql": "DELETE FROM t WHERE x = 3;",                "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x >= 2 ORDER BY x;",  "expect": {"rows": [[2], [4]]}}
+      ]
+    },
+    {
+      "name": "range-update-preserves-range-semantics",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",                 "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",              "expect": {"rows": []}},
+        {"sql": "UPDATE t SET x = 10 WHERE x = 5;",          "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x >= 5 ORDER BY x;",  "expect": {"rows": [[10]]}}
+      ]
+    },
+    {
+      "name": "split-25-text-rows-each-100-bytes",
+      "description": "25 INSERTs of 100-byte TEXT values. Each index cell is ~115 bytes; 25 cells = ~2875 bytes, but with the payload-size varint and record-header overhead fit for a 4096-byte page budget is tight. Depending on implementation, may or may not split. Either way, all rows MUST be retrievable and ordered.",
+      "program": [
+        {"sql": "CREATE TABLE t (s TEXT);",                     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa001');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa002');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa003');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa004');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa005');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa006');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa007');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa008');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa009');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa010');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa011');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa012');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa013');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa014');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa015');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa016');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa017');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa018');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa019');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa020');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa021');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa022');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa023');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa024');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa025');",    "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_s ON t (s);",                  "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(*) FROM t WHERE s > 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa010';",      "expect": {"rows": [[15]]}}
+      ]
+    },
+    {
+      "name": "split-insert-post-create-forces-split",
+      "description": "Backfill and then INSERT additional rows until the index must split (or handle overflow).  All post-split rows remain retrievable.",
+      "program": [
+        {"sql": "CREATE TABLE t (s TEXT);",                     "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_s ON t (s);",                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa001');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa002');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa003');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa004');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa005');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa006');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa007');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa008');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa009');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa010');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa011');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa012');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa013');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa014');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa015');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa016');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa017');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa018');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa019');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa020');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa021');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa022');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa023');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa024');",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa025');",    "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(*) FROM t;",                        "expect": {"rows": [[25]]}},
+        {"sql": "SELECT COUNT(*) FROM t WHERE s >= 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa015';",      "expect": {"rows": [[11]]}}
+      ]
+    },
+    {
+      "name": "order-by-limit-returns-smallest-k",
+      "description": "ORDER BY via index + LIMIT k returns the k smallest values without sorting the full table. Pin observable result, not opcode shape.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",           "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (8);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (9);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",              "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",           "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t ORDER BY x LIMIT 3;",    "expect": {"rows": [[1], [2], [3]]}}
+      ]
+    },
+    {
+      "name": "range-on-non-indexed-column-falls-back-to-fullscan",
+      "description": "No index on y — range on y must still work (via the existing full-scan path).",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER, y INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);",           "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 20);",           "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3, 30);",           "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",            "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE y > 15 ORDER BY x;","expect": {"rows": [[2], [3]]}}
+      ]
+    },
+    {
+      "name": "range-boundary-inclusive-vs-strict",
+      "description": "Exercise >= vs > at the exact boundary, and <= vs < at the exact boundary.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",               "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (10);",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (15);",                 "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",               "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x >= 10 ORDER BY x;",  "expect": {"rows": [[10], [15]]}},
+        {"sql": "SELECT x FROM t WHERE x > 10 ORDER BY x;",   "expect": {"rows": [[15]]}},
+        {"sql": "SELECT x FROM t WHERE x <= 10 ORDER BY x;",  "expect": {"rows": [[5], [10]]}},
+        {"sql": "SELECT x FROM t WHERE x < 10 ORDER BY x;",   "expect": {"rows": [[5]]}}
+      ]
+    },
+    {
+      "name": "range-after-update-reindexed-correctly",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (100);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (200);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (300);",                "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",               "expect": {"rows": []}},
+        {"sql": "UPDATE t SET x = 50 WHERE x = 300;",         "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x > 100 ORDER BY x;",  "expect": {"rows": [[200]]}},
+        {"sql": "SELECT x FROM t WHERE x < 100 ORDER BY x;",  "expect": {"rows": [[50]]}}
+      ]
+    },
+    {
+      "name": "between-equals-single-value",
+      "description": "BETWEEN where lo == hi collapses to a single match (equality-like).",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                     "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",                  "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x BETWEEN 2 AND 2;",      "expect": {"rows": [[2]]}}
+      ]
+    },
+    {
+      "name": "between-with-lo-greater-than-hi-returns-empty",
+      "description": "BETWEEN 5 AND 3 has lo > hi — no rows can match.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                  "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (4);",                     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",                     "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",                  "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x BETWEEN 5 AND 3;",      "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "range-on-null-indexed-column-respects-3vl",
+      "description": "Multiple NULLs in indexed col. None should be returned by any range predicate.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER, y INTEGER);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (y) VALUES (1);",               "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (y) VALUES (2);",               "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (y) VALUES (3);",               "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5, 4);",                "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",                "expect": {"rows": []}},
+        {"sql": "SELECT y FROM t WHERE x > 0 ORDER BY x;",     "expect": {"rows": [[4]]}},
+        {"sql": "SELECT y FROM t WHERE x < 999 ORDER BY x;",   "expect": {"rows": [[4]]}}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,423 @@
+{
+  "phase": "9c",
+  "description": "Phase 9c gate — DML keeps indexes live. INSERT appends to every index on the table. DELETE removes from every index. UPDATE skips indexes unaffected by SET; affected indexes get OLD-delete + NEW-insert. 3 new VDBE opcodes: IdxOpenWrite, IdxInsert, IdxDelete. New invariants 34-36. max_invariant=36. Non-goals: splits (9d), UNIQUE (9g), PK auto-index (9f), DROP INDEX (9f). All prior phase fixtures must stay green.",
+  "cases": [
+    {
+      "name": "insert-after-create-index-visible-via-equality",
+      "description": "CREATE INDEX on empty table, then INSERT — new row findable via equality planner.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",        "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (42);",         "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 42;",      "expect": {"rows": [[42]]}}
+      ]
+    },
+    {
+      "name": "insert-multiple-after-create-index",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",        "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",          "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 2;",       "expect": {"rows": [[2]]}},
+        {"sql": "SELECT x FROM t WHERE x = 3;",       "expect": {"rows": [[3]]}}
+      ]
+    },
+    {
+      "name": "insert-duplicate-key-both-findable",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",           "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (7);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (7);",             "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 7;",          "expect": {"rows": [[7], [7]]}}
+      ]
+    },
+    {
+      "name": "insert-null-indexed-col-not-findable-by-equality",
+      "description": "INSERT with NULL indexed col adds a NULL cell; x = NULL never matches (3VL).",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER, y INTEGER);",                   "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",                              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (y) VALUES (100);",                           "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5, 200);",                            "expect": {"rows": []}},
+        {"sql": "SELECT y FROM t WHERE x = 5;",                              "expect": {"rows": [[200]]}}
+      ]
+    },
+    {
+      "name": "insert-mixed-with-backfill",
+      "description": "CREATE INDEX backfills 3 rows, then 2 more INSERT — all visible.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",          "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (4);",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",          "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 4;",       "expect": {"rows": [[4]]}},
+        {"sql": "SELECT x FROM t WHERE x = 2;",       "expect": {"rows": [[2]]}}
+      ]
+    },
+    {
+      "name": "delete-row-removes-index-entry",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (10);",         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (20);",         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (30);",         "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",       "expect": {"rows": []}},
+        {"sql": "DELETE FROM t WHERE x = 20;",        "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 20;",      "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 10;",      "expect": {"rows": [[10]]}},
+        {"sql": "SELECT x FROM t WHERE x = 30;",      "expect": {"rows": [[30]]}}
+      ]
+    },
+    {
+      "name": "delete-one-of-duplicate-keys-leaves-other",
+      "description": "Two rows with x=5 (different rowids). DELETE WHERE y=1 removes only one. The other remains findable via index.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER, y INTEGER);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5, 1);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5, 2);",                "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",                "expect": {"rows": []}},
+        {"sql": "DELETE FROM t WHERE y = 1;",                  "expect": {"rows": []}},
+        {"sql": "SELECT y FROM t WHERE x = 5;",                "expect": {"rows": [[2]]}}
+      ]
+    },
+    {
+      "name": "delete-all-rows-empties-index",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",          "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",       "expect": {"rows": []}},
+        {"sql": "DELETE FROM t WHERE x = 1;",         "expect": {"rows": []}},
+        {"sql": "DELETE FROM t WHERE x = 2;",         "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 1;",       "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 2;",       "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "delete-null-indexed-row",
+      "description": "Row with NULL indexed col can still be deleted; index stays consistent afterward.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER, y INTEGER);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (y) VALUES (999);",               "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (7, 100);",                "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",                  "expect": {"rows": []}},
+        {"sql": "DELETE FROM t WHERE y = 999;",                  "expect": {"rows": []}},
+        {"sql": "SELECT y FROM t WHERE x = 7;",                  "expect": {"rows": [[100]]}}
+      ]
+    },
+    {
+      "name": "delete-with-no-matching-where-leaves-index-intact",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",          "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",       "expect": {"rows": []}},
+        {"sql": "DELETE FROM t WHERE x = 999;",       "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 1;",       "expect": {"rows": [[1]]}},
+        {"sql": "SELECT x FROM t WHERE x = 2;",       "expect": {"rows": [[2]]}}
+      ]
+    },
+    {
+      "name": "update-non-indexed-column-index-unchanged",
+      "description": "UPDATE touching only non-indexed columns MUST NOT modify the index; equality lookup still finds old values.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER, y INTEGER);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (10, 100);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (20, 200);",             "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",                "expect": {"rows": []}},
+        {"sql": "UPDATE t SET y = 999 WHERE x = 10;",          "expect": {"rows": []}},
+        {"sql": "SELECT x, y FROM t WHERE x = 10;",            "expect": {"rows": [[10, 999]]}},
+        {"sql": "SELECT x, y FROM t WHERE x = 20;",            "expect": {"rows": [[20, 200]]}}
+      ]
+    },
+    {
+      "name": "update-indexed-column-old-value-gone-new-findable",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",          "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",       "expect": {"rows": []}},
+        {"sql": "UPDATE t SET x = 99 WHERE x = 5;",   "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 5;",       "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 99;",      "expect": {"rows": [[99]]}}
+      ]
+    },
+    {
+      "name": "update-indexed-column-to-null",
+      "description": "UPDATE setting indexed col to NULL: old value no longer findable; new NULL cell stored but never matched by = NULL.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER, y INTEGER);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (7, 1);",                "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",                "expect": {"rows": []}},
+        {"sql": "UPDATE t SET x = NULL WHERE y = 1;",          "expect": {"rows": []}},
+        {"sql": "SELECT y FROM t WHERE x = 7;",                "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "update-indexed-column-from-null-to-value",
+      "description": "Row inserted with NULL indexed col. UPDATE sets it to a value. New value now findable via equality.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER, y INTEGER);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t (y) VALUES (42);",              "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",                "expect": {"rows": []}},
+        {"sql": "UPDATE t SET x = 13 WHERE y = 42;",           "expect": {"rows": []}},
+        {"sql": "SELECT y FROM t WHERE x = 13;",               "expect": {"rows": [[42]]}}
+      ]
+    },
+    {
+      "name": "update-indexed-column-to-same-value-idempotent",
+      "description": "UPDATE SET x = x is a no-op semantically; post-UPDATE equality lookup still works.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",          "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",       "expect": {"rows": []}},
+        {"sql": "UPDATE t SET x = 5 WHERE x = 5;",    "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 5;",       "expect": {"rows": [[5]]}}
+      ]
+    },
+    {
+      "name": "update-affects-only-indexed-row",
+      "description": "Three rows. UPDATE targets one. Others stay findable; updated one switches index bucket.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER, y INTEGER);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);",               "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 20);",               "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3, 30);",               "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",                "expect": {"rows": []}},
+        {"sql": "UPDATE t SET x = 99 WHERE y = 20;",           "expect": {"rows": []}},
+        {"sql": "SELECT y FROM t WHERE x = 1;",                "expect": {"rows": [[10]]}},
+        {"sql": "SELECT y FROM t WHERE x = 2;",                "expect": {"rows": []}},
+        {"sql": "SELECT y FROM t WHERE x = 3;",                "expect": {"rows": [[30]]}},
+        {"sql": "SELECT y FROM t WHERE x = 99;",               "expect": {"rows": [[20]]}}
+      ]
+    },
+    {
+      "name": "multi-index-insert-maintains-both",
+      "description": "Two indexes on different cols. INSERT populates both; each equality probe works.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);",     "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_a ON t (a);",                "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_b ON t (b);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 100);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 200);",              "expect": {"rows": []}},
+        {"sql": "SELECT b FROM t WHERE a = 1;",                "expect": {"rows": [[100]]}},
+        {"sql": "SELECT a FROM t WHERE b = 200;",              "expect": {"rows": [[2]]}}
+      ]
+    },
+    {
+      "name": "multi-index-delete-maintains-both",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 100);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 200);",              "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_a ON t (a);",                "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_b ON t (b);",                "expect": {"rows": []}},
+        {"sql": "DELETE FROM t WHERE a = 1;",                  "expect": {"rows": []}},
+        {"sql": "SELECT b FROM t WHERE a = 1;",                "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t WHERE b = 100;",              "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t WHERE b = 200;",              "expect": {"rows": [[2]]}}
+      ]
+    },
+    {
+      "name": "multi-index-update-disjoint-affects-one",
+      "description": "Two indexes. UPDATE targets only col in idx_a; idx_b untouched. Observationally: idx_b's equality-lookup behaviour unchanged.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 100);",              "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_a ON t (a);",                "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_b ON t (b);",                "expect": {"rows": []}},
+        {"sql": "UPDATE t SET a = 99 WHERE b = 100;",          "expect": {"rows": []}},
+        {"sql": "SELECT b FROM t WHERE a = 1;",                "expect": {"rows": []}},
+        {"sql": "SELECT b FROM t WHERE a = 99;",               "expect": {"rows": [[100]]}},
+        {"sql": "SELECT a FROM t WHERE b = 100;",              "expect": {"rows": [[99]]}}
+      ]
+    },
+    {
+      "name": "multi-index-update-all-cols-affects-both",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);",         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 100);",                  "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_a ON t (a);",                    "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_b ON t (b);",                    "expect": {"rows": []}},
+        {"sql": "UPDATE t SET a = 2, b = 200 WHERE a = 1;",        "expect": {"rows": []}},
+        {"sql": "SELECT b FROM t WHERE a = 1;",                    "expect": {"rows": []}},
+        {"sql": "SELECT b FROM t WHERE a = 2;",                    "expect": {"rows": [[200]]}},
+        {"sql": "SELECT a FROM t WHERE b = 100;",                  "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t WHERE b = 200;",                  "expect": {"rows": [[2]]}}
+      ]
+    },
+    {
+      "name": "insert-delete-insert-round-trip-consistent",
+      "description": "Churn test — insert, delete, re-insert same value. Index stays consistent.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",        "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (7);",          "expect": {"rows": []}},
+        {"sql": "DELETE FROM t WHERE x = 7;",         "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 7;",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (7);",          "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 7;",       "expect": {"rows": [[7]]}}
+      ]
+    },
+    {
+      "name": "text-indexed-column-insert-and-delete",
+      "program": [
+        {"sql": "CREATE TABLE t (name TEXT);",            "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_n ON t (name);",         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('alice');",         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('bob');",           "expect": {"rows": []}},
+        {"sql": "SELECT name FROM t WHERE name = 'alice';","expect": {"rows": [["alice"]]}},
+        {"sql": "DELETE FROM t WHERE name = 'alice';",     "expect": {"rows": []}},
+        {"sql": "SELECT name FROM t WHERE name = 'alice';","expect": {"rows": []}},
+        {"sql": "SELECT name FROM t WHERE name = 'bob';",  "expect": {"rows": [["bob"]]}}
+      ]
+    },
+    {
+      "name": "text-indexed-column-update",
+      "program": [
+        {"sql": "CREATE TABLE t (name TEXT);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('old');",               "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_n ON t (name);",             "expect": {"rows": []}},
+        {"sql": "UPDATE t SET name = 'new' WHERE name = 'old';","expect": {"rows": []}},
+        {"sql": "SELECT name FROM t WHERE name = 'old';",      "expect": {"rows": []}},
+        {"sql": "SELECT name FROM t WHERE name = 'new';",      "expect": {"rows": [["new"]]}}
+      ]
+    },
+    {
+      "name": "update-where-no-match-no-side-effects",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",           "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",           "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",        "expect": {"rows": []}},
+        {"sql": "UPDATE t SET x = 999 WHERE x = 500;", "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 1;",        "expect": {"rows": [[1]]}},
+        {"sql": "SELECT x FROM t WHERE x = 2;",        "expect": {"rows": [[2]]}},
+        {"sql": "SELECT x FROM t WHERE x = 999;",      "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "update-multiple-rows-same-new-value",
+      "description": "UPDATE sets multiple rows' indexed col to the same new value. Both findable under new key.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER, y INTEGER);",   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 20);",             "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3, 30);",             "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",              "expect": {"rows": []}},
+        {"sql": "UPDATE t SET x = 0 WHERE y = 10;",          "expect": {"rows": []}},
+        {"sql": "UPDATE t SET x = 0 WHERE y = 20;",          "expect": {"rows": []}},
+        {"sql": "SELECT y FROM t WHERE x = 0 ORDER BY y;",   "expect": {"rows": [[10], [20]]}},
+        {"sql": "SELECT y FROM t WHERE x = 3;",              "expect": {"rows": [[30]]}}
+      ]
+    },
+    {
+      "name": "delete-all-then-insert-new-set",
+      "description": "DELETE every row, then insert a fresh set. Old values gone, new values findable.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",          "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",       "expect": {"rows": []}},
+        {"sql": "DELETE FROM t WHERE x = 1;",         "expect": {"rows": []}},
+        {"sql": "DELETE FROM t WHERE x = 2;",         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (4);",          "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 1;",       "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t WHERE x = 3;",       "expect": {"rows": [[3]]}},
+        {"sql": "SELECT x FROM t WHERE x = 4;",       "expect": {"rows": [[4]]}}
+      ]
+    },
+    {
+      "name": "insert-update-delete-on-pre-existing-indexed-row",
+      "description": "Backfill + INSERT + UPDATE + DELETE churn on a single row identity — full lifecycle.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER, y INTEGER);",      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 100);",               "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",                 "expect": {"rows": []}},
+        {"sql": "UPDATE t SET x = 2 WHERE x = 1;",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3, 300);",               "expect": {"rows": []}},
+        {"sql": "DELETE FROM t WHERE x = 2;",                   "expect": {"rows": []}},
+        {"sql": "SELECT y FROM t WHERE x = 1;",                 "expect": {"rows": []}},
+        {"sql": "SELECT y FROM t WHERE x = 2;",                 "expect": {"rows": []}},
+        {"sql": "SELECT y FROM t WHERE x = 3;",                 "expect": {"rows": [[300]]}}
+      ]
+    },
+    {
+      "name": "index-on-second-column-not-first",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);",     "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_b ON t (b);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);",               "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 20);",               "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t WHERE b = 10;",               "expect": {"rows": [[1]]}},
+        {"sql": "DELETE FROM t WHERE b = 10;",                 "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t WHERE b = 10;",               "expect": {"rows": []}},
+        {"sql": "UPDATE t SET b = 99 WHERE a = 2;",            "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t WHERE b = 20;",               "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t WHERE b = 99;",               "expect": {"rows": [[2]]}}
+      ]
+    },
+    {
+      "name": "consecutive-dml-preserves-equality-planner-result-matches-full-scan",
+      "description": "After a mix of DML ops, an index-assisted equality probe MUST return the same row set as a hypothetical full scan. Count-verified via COUNT(*) aggregation.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",        "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_x ON t (x);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (6);",          "expect": {"rows": []}},
+        {"sql": "DELETE FROM t WHERE x = 6;",         "expect": {"rows": []}},
+        {"sql": "SELECT COUNT(*) FROM t WHERE x = 5;","expect": {"rows": [[3]]}}
+      ]
+    },
+    {
+      "name": "update-on-non-indexed-table-no-index-behaviour",
+      "description": "Table with no indexes — UPDATE works as before (9c must not regress non-indexed tables).",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",          "expect": {"rows": []}},
+        {"sql": "UPDATE t SET x = 99 WHERE x = 1;",   "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t ORDER BY x;",        "expect": {"rows": [[2], [99]]}}
+      ]
+    },
+    {
+      "name": "delete-on-non-indexed-table-no-regression",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",          "expect": {"rows": []}},
+        {"sql": "DELETE FROM t WHERE x = 2;",         "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t ORDER BY x;",        "expect": {"rows": [[1], [3]]}}
+      ]
+    },
+    {
+      "name": "three-indexes-on-same-table",
+      "description": "Triple-indexed table. All three stay consistent through INSERT/UPDATE/DELETE.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER, c INTEGER);",    "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_a ON t (a);",                          "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_b ON t (b);",                          "expect": {"rows": []}},
+        {"sql": "CREATE INDEX idx_c ON t (c);",                          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10, 100);",                    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 20, 200);",                    "expect": {"rows": []}},
+        {"sql": "UPDATE t SET b = 999 WHERE a = 1;",                     "expect": {"rows": []}},
+        {"sql": "SELECT c FROM t WHERE a = 1;",                          "expect": {"rows": [[100]]}},
+        {"sql": "SELECT c FROM t WHERE b = 10;",                         "expect": {"rows": []}},
+        {"sql": "SELECT c FROM t WHERE b = 999;",                        "expect": {"rows": [[100]]}},
+        {"sql": "SELECT b FROM t WHERE c = 200;",                        "expect": {"rows": [[20]]}},
+        {"sql": "DELETE FROM t WHERE a = 1;",                            "expect": {"rows": []}},
+        {"sql": "SELECT b FROM t WHERE c = 100;",                        "expect": {"rows": []}},
+        {"sql": "SELECT b FROM t WHERE c = 200;",                        "expect": {"rows": [[20]]}}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "phase": "6bc",
+  "description": "Phase 6bc gate — empty IN () list. x IN () is always false (Null if x is Null); x NOT IN () is always true (Null if x is Null). No new opcodes. max_invariant=43 unchanged.",
+  "cases": [
+    {
+      "name": "in-empty-yields-zero",
+      "program": [
+        {"sql": "SELECT 1 IN ();",                            "expect": {"rows": [[0]]}}
+      ]
+    },
+    {
+      "name": "not-in-empty-yields-one",
+      "program": [
+        {"sql": "SELECT 1 NOT IN ();",                        "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "in-empty-with-null-yields-zero",
+      "description": "Empty-IN suppresses Null propagation — no comparison occurs, so no Null taint. Matches upstream SQLite.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL);",               "expect": {"rows": []}},
+        {"sql": "SELECT a IN () FROM t;",                     "expect": {"rows": [[0]]}}
+      ]
+    },
+    {
+      "name": "not-in-empty-with-null-yields-one",
+      "description": "NULL NOT IN () is 1 (true), matching upstream SQLite semantics.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL);",               "expect": {"rows": []}},
+        {"sql": "SELECT a NOT IN () FROM t;",                 "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "in-empty-with-string",
+      "program": [
+        {"sql": "SELECT 'hello' IN ();",                      "expect": {"rows": [[0]]}}
+      ]
+    },
+    {
+      "name": "in-empty-in-where-filters-all",
+      "description": "WHERE x IN () filters out all rows (except Null rows, which are also filtered since Null is falsy for WHERE).",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2), (3);",        "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t WHERE a IN ();",             "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "not-in-empty-in-where-keeps-all",
+      "description": "WHERE x NOT IN () keeps all rows where x is non-Null.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2), (3);",        "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t WHERE a NOT IN () ORDER BY a;", "expect": {"rows": [[1], [2], [3]]}}
+      ]
+    },
+    {
+      "name": "in-non-empty-still-works",
+      "description": "Regression: non-empty IN still works.",
+      "program": [
+        {"sql": "SELECT 2 IN (1, 2, 3);",                     "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "in-malformed-stray-comma-still-errors",
+      "description": "IN (,) still a parse error.",
+      "program": [
+        {"sql": "SELECT 1 IN (,);",                           "expect": {"error": "PARSE_UNEXPECTED_TOKEN"}}
+      ]
+    }
+  ]
+}

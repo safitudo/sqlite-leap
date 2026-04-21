@@ -1,0 +1,61 @@
+# Smoke: CAST — Integer↔Real↔Text, incl. Phase 6r Real→Text 17-digit scientific.
+
+query I nosort
+SELECT CAST('42' AS INTEGER)
+----
+42
+
+query I nosort
+SELECT CAST(3.7 AS INTEGER)
+----
+3
+
+query R nosort
+SELECT CAST(5 AS REAL)
+----
+5.000
+
+query R nosort
+SELECT CAST('3.14' AS REAL)
+----
+3.140
+
+query T nosort
+SELECT CAST(42 AS TEXT)
+----
+42
+
+# Phase 6r: Real→Text uses fixed 17-digit scientific, NOT sqllogictest's %.3f rendering.
+# The sqllogictest runner's R-format %.3f applies to REAL query columns — but CAST returns TEXT,
+# so the column is T, and the engine's emission is its Real→Text canonical form.
+query T nosort
+SELECT CAST(1.5 AS TEXT)
+----
+1.5000000000000000e+00
+
+query T nosort
+SELECT CAST(0.0 AS TEXT)
+----
+0.0
+
+query T nosort
+SELECT CAST(-1.0 AS TEXT)
+----
+-1.0000000000000000e+00
+
+# CAST is lenient on Text→Integer — zero digits consumed yields 0 (per spec).
+query I nosort
+SELECT CAST('not a number' AS INTEGER)
+----
+0
+
+query I nosort
+SELECT CAST('42abc' AS INTEGER)
+----
+42
+
+# NULL passthrough on CAST
+query T nosort
+SELECT CAST(NULL AS INTEGER)
+----
+NULL

@@ -1,0 +1,256 @@
+{
+  "phase": "2c-1",
+  "description": "Phase 2c-1 gate — expressions in SELECT projection. Covers arithmetic (+ - * /), unary minus, comparison (= != < <= > >=), parenthesisation, precedence, NULL propagation, EVAL_TYPE_ERROR, EVAL_DIVISION_BY_ZERO, EVAL_COLUMN_WITHOUT_TABLE. Every case must pass on BOTH the C and Rust generated builds with byte-identical outputs on success cases. phase1.json, phase2a.json, phase2b.json remain in force and MUST stay green.",
+  "cases": [
+    {
+      "name": "arithmetic-add",
+      "program": [{"sql": "SELECT 1+2;", "expect": {"rows": [[3]]}}]
+    },
+    {
+      "name": "arithmetic-sub",
+      "program": [{"sql": "SELECT 10-3;", "expect": {"rows": [[7]]}}]
+    },
+    {
+      "name": "arithmetic-mul",
+      "program": [{"sql": "SELECT 4*5;", "expect": {"rows": [[20]]}}]
+    },
+    {
+      "name": "arithmetic-div-truncates",
+      "description": "10/3 truncates toward zero → 3.",
+      "program": [{"sql": "SELECT 10/3;", "expect": {"rows": [[3]]}}]
+    },
+    {
+      "name": "arithmetic-div-exact",
+      "program": [{"sql": "SELECT 12/4;", "expect": {"rows": [[3]]}}]
+    },
+    {
+      "name": "arithmetic-div-negative-truncates-toward-zero",
+      "description": "-7/2 should be -3 (truncation toward zero, not floor).",
+      "program": [{"sql": "SELECT -7/2;", "expect": {"rows": [[-3]]}}]
+    },
+    {
+      "name": "precedence-mul-before-add",
+      "program": [{"sql": "SELECT 1+2*3;", "expect": {"rows": [[7]]}}]
+    },
+    {
+      "name": "precedence-paren-overrides",
+      "program": [{"sql": "SELECT (1+2)*3;", "expect": {"rows": [[9]]}}]
+    },
+    {
+      "name": "precedence-mixed",
+      "program": [{"sql": "SELECT 2+3*4-5;", "expect": {"rows": [[9]]}}]
+    },
+    {
+      "name": "associativity-left-sub",
+      "description": "10 - 3 - 2 = (10-3)-2 = 5.",
+      "program": [{"sql": "SELECT 10-3-2;", "expect": {"rows": [[5]]}}]
+    },
+    {
+      "name": "associativity-left-div",
+      "description": "24/4/2 = (24/4)/2 = 3.",
+      "program": [{"sql": "SELECT 24/4/2;", "expect": {"rows": [[3]]}}]
+    },
+    {
+      "name": "unary-minus-literal",
+      "program": [{"sql": "SELECT -5;", "expect": {"rows": [[-5]]}}]
+    },
+    {
+      "name": "unary-minus-of-expression",
+      "program": [{"sql": "SELECT -(5+3);", "expect": {"rows": [[-8]]}}]
+    },
+    {
+      "name": "unary-minus-double-negation",
+      "program": [{"sql": "SELECT -(-7);", "expect": {"rows": [[7]]}}]
+    },
+    {
+      "name": "subtract-negative-yields-addition",
+      "program": [{"sql": "SELECT 1-(-2);", "expect": {"rows": [[3]]}}]
+    },
+
+    {
+      "name": "comparison-eq-true",
+      "program": [{"sql": "SELECT 1=1;", "expect": {"rows": [[1]]}}]
+    },
+    {
+      "name": "comparison-eq-false",
+      "program": [{"sql": "SELECT 1=2;", "expect": {"rows": [[0]]}}]
+    },
+    {
+      "name": "comparison-ne",
+      "program": [{"sql": "SELECT 3!=4;", "expect": {"rows": [[1]]}}]
+    },
+    {
+      "name": "comparison-lt",
+      "program": [{"sql": "SELECT 1<2;", "expect": {"rows": [[1]]}}]
+    },
+    {
+      "name": "comparison-le-equal",
+      "program": [{"sql": "SELECT 5<=5;", "expect": {"rows": [[1]]}}]
+    },
+    {
+      "name": "comparison-gt",
+      "program": [{"sql": "SELECT 5>2;", "expect": {"rows": [[1]]}}]
+    },
+    {
+      "name": "comparison-ge-equal",
+      "program": [{"sql": "SELECT 5>=5;", "expect": {"rows": [[1]]}}]
+    },
+    {
+      "name": "comparison-text-eq",
+      "program": [{"sql": "SELECT 'a'='a';", "expect": {"rows": [[1]]}}]
+    },
+    {
+      "name": "comparison-text-lt",
+      "program": [{"sql": "SELECT 'a'<'b';", "expect": {"rows": [[1]]}}]
+    },
+    {
+      "name": "comparison-no-chaining",
+      "description": "1<2<3 is a parse error: no comparison chaining.",
+      "program": [{"sql": "SELECT 1<2<3;", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "LT", "pos": 10, "expected": ["SEMICOLON", "EOF", "COMMA", "KEYWORD_FROM"]}}}}]
+    },
+
+    {
+      "name": "null-propagation-add",
+      "program": [{"sql": "SELECT NULL+1;", "expect": {"rows": [[null]]}}]
+    },
+    {
+      "name": "null-propagation-sub-right",
+      "program": [{"sql": "SELECT 5-NULL;", "expect": {"rows": [[null]]}}]
+    },
+    {
+      "name": "null-propagation-unary-minus",
+      "program": [{"sql": "SELECT -NULL;", "expect": {"rows": [[null]]}}]
+    },
+    {
+      "name": "null-propagation-comparison",
+      "program": [{"sql": "SELECT NULL=1;", "expect": {"rows": [[null]]}}]
+    },
+    {
+      "name": "null-propagation-both-sides",
+      "program": [{"sql": "SELECT NULL+NULL;", "expect": {"rows": [[null]]}}]
+    },
+
+    {
+      "name": "division-by-zero-literal",
+      "description": "Phase 6bv SQLite-compat: integer 1/0 yields NULL, not an error. Verified mainline: `sqlite3 :memory: 'SELECT 1/0;'` prints empty (NULL).",
+      "program": [{"sql": "SELECT 1/0;", "expect": {"rows": [[null]]}}]
+    },
+    {
+      "name": "division-by-zero-expression",
+      "description": "Phase 6bv SQLite-compat: integer divide-by-zero via an expression still yields NULL.",
+      "program": [{"sql": "SELECT 5/(2-2);", "expect": {"rows": [[null]]}}]
+    },
+    {
+      "name": "division-zero-propagates-null-first",
+      "description": "NULL/0 yields NULL, not EVAL_DIVISION_BY_ZERO (NULL propagation precedes zero check).",
+      "program": [{"sql": "SELECT NULL/0;", "expect": {"rows": [[null]]}}]
+    },
+
+    {
+      "name": "type-error-text-plus-int",
+      "program": [{"sql": "SELECT 'x'+1;", "expect": {"error": {"name": "EVAL_TYPE_ERROR", "fields": {"op": "+", "left_type": "TEXT", "right_type": "INTEGER"}}}}]
+    },
+    {
+      "name": "type-error-int-minus-text",
+      "program": [{"sql": "SELECT 1-'x';", "expect": {"error": {"name": "EVAL_TYPE_ERROR", "fields": {"op": "-", "left_type": "INTEGER", "right_type": "TEXT"}}}}]
+    },
+    {
+      "name": "type-error-unary-minus-text",
+      "program": [{"sql": "SELECT -'x';", "expect": {"error": {"name": "EVAL_TYPE_ERROR", "fields": {"op": "-", "operand_type": "TEXT"}}}}]
+    },
+    {
+      "name": "type-error-compare-int-vs-text",
+      "program": [{"sql": "SELECT 1<'x';", "expect": {"error": {"name": "EVAL_TYPE_ERROR", "fields": {"op": "<", "left_type": "INTEGER", "right_type": "TEXT"}}}}]
+    },
+
+    {
+      "name": "column-ref-no-table",
+      "program": [{"sql": "SELECT a;", "expect": {"error": {"name": "EVAL_COLUMN_WITHOUT_TABLE", "fields": {"column": "a"}}}}]
+    },
+    {
+      "name": "column-ref-in-expression-no-table",
+      "program": [{"sql": "SELECT a+1;", "expect": {"error": {"name": "EVAL_COLUMN_WITHOUT_TABLE", "fields": {"column": "a"}}}}]
+    },
+
+    {
+      "name": "column-expression-single-row",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",     "expect": {"rows": []}},
+        {"sql": "SELECT a+1 FROM t;",            "expect": {"rows": [[6]]}}
+      ]
+    },
+    {
+      "name": "column-expression-multi-row",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",     "expect": {"rows": []}},
+        {"sql": "SELECT a*10 FROM t;",           "expect": {"rows": [[10], [20], [30]]}}
+      ]
+    },
+    {
+      "name": "column-binary-op-two-columns",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3, 4);",           "expect": {"rows": []}},
+        {"sql": "SELECT a+b FROM t;",                     "expect": {"rows": [[7]]}}
+      ]
+    },
+    {
+      "name": "mixed-projection-column-and-expr",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",   "expect": {"rows": []}},
+        {"sql": "SELECT a, a*2, a+1 FROM t;",  "expect": {"rows": [[5, 10, 6]]}}
+      ]
+    },
+    {
+      "name": "column-comparison-projection",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 2);",           "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5, 3);",           "expect": {"rows": []}},
+        {"sql": "SELECT a<b FROM t;",                     "expect": {"rows": [[1], [0]]}}
+      ]
+    },
+    {
+      "name": "null-column-propagation",
+      "description": "Column value NULL propagates through expression.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL);",  "expect": {"rows": []}},
+        {"sql": "SELECT a+1 FROM t;",            "expect": {"rows": [[null]]}}
+      ]
+    },
+    {
+      "name": "complex-expression-with-columns",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER, c INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 3, 4);",                    "expect": {"rows": []}},
+        {"sql": "SELECT a*b+c FROM t;",                               "expect": {"rows": [[10]]}}
+      ]
+    },
+
+    {
+      "name": "parse-error-trailing-op",
+      "description": "An expression cannot end with an operator.",
+      "program": [{"sql": "SELECT 1+;", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "SEMICOLON", "pos": 9, "expected": ["INTEGER_LITERAL", "STRING_LITERAL", "KEYWORD_NULL", "IDENTIFIER", "MINUS", "LPAREN"]}}}}]
+    },
+    {
+      "name": "parse-error-missing-rparen",
+      "program": [{"sql": "SELECT (1+2;", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "SEMICOLON", "pos": 11, "expected": ["RPAREN", "PLUS", "MINUS", "STAR", "SLASH", "EQ", "NEQ", "LT", "LE", "GT", "GE"]}}}}]
+    },
+    {
+      "name": "parse-error-prefix-star",
+      "description": "STAR as a prefix is never valid (no leading multiplication).",
+      "program": [{"sql": "SELECT *5;", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "STAR", "pos": 7, "expected": ["IDENTIFIER", "INTEGER_LITERAL", "STRING_LITERAL", "KEYWORD_NULL", "MINUS", "LPAREN"]}}}}]
+    },
+    {
+      "name": "parse-error-bare-bang",
+      "description": "A bare ! (not followed by =) is LEX_UNEXPECTED_CHARACTER.",
+      "program": [{"sql": "SELECT 1!2;", "expect": {"error": {"name": "LEX_UNEXPECTED_CHARACTER", "fields": {"pos": 8}}}}]
+    }
+  ]
+}

@@ -1,0 +1,97 @@
+{
+  "phase": "6ac",
+  "description": "Phase 6ac gate — CREATE VIEW / DROP VIEW (read-only views, compile-time SELECT substitution).",
+  "cases": [
+    {
+      "name": "view-basic-select",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER, v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10), (2, 20), (3, 30);", "expect": {"rows": []}},
+        {"sql": "CREATE VIEW v_big AS SELECT id, v FROM t WHERE v >= 20;", "expect": {"rows": []}},
+        {"sql": "SELECT id, v FROM v_big ORDER BY id;", "expect": {"rows": [[2, 20], [3, 30]]}}
+      ]
+    },
+    {
+      "name": "view-with-aggregate",
+      "program": [
+        {"sql": "CREATE TABLE t (g INTEGER, v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10), (1, 20), (2, 30);", "expect": {"rows": []}},
+        {"sql": "CREATE VIEW v_sum AS SELECT g, SUM(v) AS total FROM t GROUP BY g;", "expect": {"rows": []}},
+        {"sql": "SELECT g, total FROM v_sum ORDER BY g;", "expect": {"rows": [[1, 30], [2, 30]]}}
+      ]
+    },
+    {
+      "name": "view-with-explicit-columns",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);", "expect": {"rows": []}},
+        {"sql": "CREATE VIEW v_renamed (x, y) AS SELECT a, b FROM t;", "expect": {"rows": []}},
+        {"sql": "SELECT x, y FROM v_renamed;", "expect": {"rows": [[1, 10]]}}
+      ]
+    },
+    {
+      "name": "drop-view",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE VIEW v1 AS SELECT a FROM t;", "expect": {"rows": []}},
+        {"sql": "DROP VIEW v1;", "expect": {"rows": []}},
+        {"sql": "SELECT a FROM v1;", "expect": {"error": "COMPILE_UNKNOWN_TABLE"}}
+      ]
+    },
+    {
+      "name": "drop-view-if-exists-missing",
+      "program": [
+        {"sql": "DROP VIEW IF EXISTS does_not_exist;", "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "drop-view-missing-raises",
+      "program": [
+        {"sql": "DROP VIEW not_there;", "expect": {"error": "COMPILE_UNKNOWN_VIEW"}}
+      ]
+    },
+    {
+      "name": "view-cannot-insert",
+      "description": "Read-only views — INSERT into a view must fail (v1 non-goal).",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE VIEW v1 AS SELECT a FROM t;", "expect": {"rows": []}},
+        {"sql": "INSERT INTO v1 VALUES (1);", "expect": {"error": "COMPILE_VIEW_NOT_WRITABLE"}}
+      ]
+    },
+    {
+      "name": "view-join-with-table",
+      "program": [
+        {"sql": "CREATE TABLE t1 (id INTEGER, name TEXT);", "expect": {"rows": []}},
+        {"sql": "CREATE TABLE t2 (id INTEGER, score INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t1 VALUES (1, 'a'), (2, 'b');", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t2 VALUES (1, 100), (2, 200);", "expect": {"rows": []}},
+        {"sql": "CREATE VIEW v_joined AS SELECT t1.id, t1.name, t2.score FROM t1 JOIN t2 ON t1.id = t2.id;", "expect": {"rows": []}},
+        {"sql": "SELECT id, name, score FROM v_joined ORDER BY id;", "expect": {"rows": [[1, "a", 100], [2, "b", 200]]}}
+      ]
+    },
+    {
+      "name": "view-if-not-exists",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE VIEW v1 AS SELECT a FROM t;", "expect": {"rows": []}},
+        {"sql": "CREATE VIEW IF NOT EXISTS v1 AS SELECT a FROM t;", "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "view-duplicate-without-if-not-exists",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE VIEW v1 AS SELECT a FROM t;", "expect": {"rows": []}},
+        {"sql": "CREATE VIEW v1 AS SELECT a FROM t;", "expect": {"error": "COMPILE_DUPLICATE_VIEW"}}
+      ]
+    },
+    {
+      "name": "view-column-count-mismatch",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);", "expect": {"rows": []}},
+        {"sql": "CREATE VIEW v1 (x) AS SELECT a, b FROM t;", "expect": {"error": "COMPILE_VIEW_COLUMN_COUNT_MISMATCH"}}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$id": "https://sqlite-leap/schema/value.schema.json",
+  "title": "Value",
+  "description": "A runtime value produced by evaluating a statement. Phase 1 supports three variants: 64-bit signed integer, UTF-8 text, and SQL NULL. Phase 6g adds Real (IEEE-754 double-precision float). In the JSON-encoded fixtures, a bare integer is Integer; a JSON number containing a `.` or an exponent is Real; a JSON string is Text; JSON null is SQL NULL.",
+  "oneOf": [
+    {
+      "type": "null",
+      "description": "SQL NULL"
+    },
+    {
+      "type": "integer",
+      "minimum": -9223372036854775808,
+      "maximum": 9223372036854775807,
+      "description": "64-bit signed integer"
+    },
+    {
+      "type": "number",
+      "description": "Phase 6g: IEEE-754 double-precision float (distinguished from integer by the presence of a decimal point or exponent in the JSON encoding)."
+    },
+    {
+      "type": "string",
+      "description": "UTF-8 text"
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "phase": "6bd",
+  "description": "Phase 6bd gate — SELECT ALL as no-op keyword. No new opcodes. max_invariant=43 unchanged.",
+  "cases": [
+    {
+      "name": "select-all-basic",
+      "description": "SELECT ALL x FROM t is equivalent to SELECT x FROM t.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2), (2), (3);",   "expect": {"rows": []}},
+        {"sql": "SELECT ALL a FROM t ORDER BY a;",            "expect": {"rows": [[1], [2], [2], [3]]}}
+      ]
+    },
+    {
+      "name": "select-all-star",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                  "expect": {"rows": []}},
+        {"sql": "SELECT ALL * FROM t;",                       "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "select-all-no-from",
+      "program": [
+        {"sql": "SELECT ALL 42;",                             "expect": {"rows": [[42]]}}
+      ]
+    },
+    {
+      "name": "select-distinct-still-works",
+      "description": "Regression: DISTINCT still works.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2), (2), (3);",   "expect": {"rows": []}},
+        {"sql": "SELECT DISTINCT a FROM t ORDER BY a;",       "expect": {"rows": [[1], [2], [3]]}}
+      ]
+    },
+    {
+      "name": "select-all-distinct-rejected",
+      "description": "SELECT ALL DISTINCT is a parse error on the second modifier.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                "expect": {"rows": []}},
+        {"sql": "SELECT ALL DISTINCT a FROM t;",              "expect": {"error": "PARSE_UNEXPECTED_TOKEN"}}
+      ]
+    },
+    {
+      "name": "select-distinct-all-rejected",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);",                "expect": {"rows": []}},
+        {"sql": "SELECT DISTINCT ALL a FROM t;",              "expect": {"error": "PARSE_UNEXPECTED_TOKEN"}}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+# Smoke: string scalar functions — LENGTH, UPPER, LOWER, TRIM, LTRIM, RTRIM.
+
+query I nosort
+SELECT LENGTH('hello')
+----
+5
+
+query I nosort
+SELECT LENGTH('')
+----
+0
+
+query T nosort
+SELECT UPPER('hello')
+----
+HELLO
+
+query T nosort
+SELECT LOWER('WORLD')
+----
+world
+
+query T nosort
+SELECT TRIM('  hi  ')
+----
+hi
+
+query I nosort
+SELECT LENGTH(LTRIM('  hi  '))
+----
+4
+
+query I nosort
+SELECT LENGTH(RTRIM('  hi  '))
+----
+4
+
+# UTF-8 handling: LENGTH counts code points
+query I nosort
+SELECT LENGTH('café')
+----
+4
+
+# LOWER/UPPER are ASCII-only per spec — non-ASCII passthrough
+query T nosort
+SELECT UPPER('café')
+----
+CAFé
+
+query T nosort
+SELECT LOWER('CAFÉ')
+----
+cafÉ

@@ -1,0 +1,336 @@
+{
+  "phase": "2c-3",
+  "description": "Phase 2c-3 gate — UPDATE and DELETE statements with optional WHERE clause. Covers single- and multi-column updates, expression-valued SET (including atomic swap semantics), full-table and filtered deletes, tombstone semantics (visibility after DELETE, subsequent INSERT placement), compile-time schema checks, runtime storage errors, and parse errors. All 1..2c-2 fixtures must stay green. Cross-build equivalence between C and Rust is required.",
+  "cases": [
+    {
+      "name": "update-all-rows-no-where",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",   "expect": {"rows": []}},
+        {"sql": "UPDATE t SET x = 42;",        "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t;",            "expect": {"rows": [[42], [42], [42]]}}
+      ]
+    },
+    {
+      "name": "update-with-where",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",           "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",           "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",           "expect": {"rows": []}},
+        {"sql": "UPDATE t SET x = 99 WHERE x = 2;",    "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t;",                    "expect": {"rows": [[1], [99], [3]]}}
+      ]
+    },
+    {
+      "name": "update-expression-uses-current-value",
+      "description": "SET x = x + 1 reads the CURRENT value, computes, writes back.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",      "expect": {"rows": []}},
+        {"sql": "UPDATE t SET x = x + 10;",       "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t;",               "expect": {"rows": [[11], [12], [13]]}}
+      ]
+    },
+    {
+      "name": "update-multiple-columns",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 20);",          "expect": {"rows": []}},
+        {"sql": "UPDATE t SET a = 100, b = 200;",         "expect": {"rows": []}},
+        {"sql": "SELECT * FROM t;",                       "expect": {"rows": [[100, 200], [100, 200]]}}
+      ]
+    },
+    {
+      "name": "update-atomic-swap",
+      "description": "UPDATE t SET a = b, b = a must swap values — all RHS expressions evaluate against the pre-update row snapshot.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 2);",           "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3, 4);",           "expect": {"rows": []}},
+        {"sql": "UPDATE t SET a = b, b = a;",             "expect": {"rows": []}},
+        {"sql": "SELECT * FROM t;",                       "expect": {"rows": [[2, 1], [4, 3]]}}
+      ]
+    },
+    {
+      "name": "update-with-null-value",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",        "expect": {"rows": []}},
+        {"sql": "UPDATE t SET x = NULL;",           "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t;",                 "expect": {"rows": [[null], [null]]}}
+      ]
+    },
+    {
+      "name": "update-leaves-non-listed-columns-alone",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER, c INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 2, 3);",                   "expect": {"rows": []}},
+        {"sql": "UPDATE t SET b = 99;",                              "expect": {"rows": []}},
+        {"sql": "SELECT * FROM t;",                                  "expect": {"rows": [[1, 99, 3]]}}
+      ]
+    },
+    {
+      "name": "update-with-where-and-expression",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER, y INTEGER);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2, 20);",              "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3, 30);",              "expect": {"rows": []}},
+        {"sql": "UPDATE t SET y = y * 2 WHERE x >= 2;",       "expect": {"rows": []}},
+        {"sql": "SELECT * FROM t;",                           "expect": {"rows": [[1, 10], [2, 40], [3, 60]]}}
+      ]
+    },
+    {
+      "name": "update-empty-table-no-error",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",   "expect": {"rows": []}},
+        {"sql": "UPDATE t SET x = 1;",           "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t;",              "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "update-where-matches-nothing",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",      "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",        "expect": {"rows": []}},
+        {"sql": "UPDATE t SET x = 99 WHERE x = 7;", "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t;",                 "expect": {"rows": [[1], [2]]}}
+      ]
+    },
+    {
+      "name": "update-text-column",
+      "program": [
+        {"sql": "CREATE TABLE t (name TEXT);",                     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('alice');",                 "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('bob');",                   "expect": {"rows": []}},
+        {"sql": "UPDATE t SET name = 'charlie' WHERE name = 'bob';", "expect": {"rows": []}},
+        {"sql": "SELECT name FROM t;",                             "expect": {"rows": [["alice"], ["charlie"]]}}
+      ]
+    },
+
+    {
+      "name": "update-table-not-found",
+      "program": [
+        {"sql": "UPDATE nope SET x = 1;",  "expect": {"error": {"name": "STORAGE_TABLE_NOT_FOUND", "fields": {"table": "nope"}}}}
+      ]
+    },
+    {
+      "name": "update-column-not-found-in-set",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",       "expect": {"rows": []}},
+        {"sql": "UPDATE t SET bad = 1;",             "expect": {"error": {"name": "STORAGE_COLUMN_NOT_FOUND", "fields": {"table": "t", "column": "bad"}}}}
+      ]
+    },
+    {
+      "name": "update-duplicate-column-in-set",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",           "expect": {"rows": []}},
+        {"sql": "UPDATE t SET x = 1, x = 2;",            "expect": {"error": {"name": "STORAGE_DUPLICATE_COLUMN", "fields": {"table": "t", "column": "x"}}}}
+      ]
+    },
+    {
+      "name": "update-column-not-found-in-where",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                "expect": {"rows": []}},
+        {"sql": "UPDATE t SET x = 1 WHERE nope = 1;",         "expect": {"error": {"name": "STORAGE_COLUMN_NOT_FOUND", "fields": {"table": "t", "column": "nope"}}}}
+      ]
+    },
+    {
+      "name": "update-type-mismatch",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",            "expect": {"rows": []}},
+        {"sql": "UPDATE t SET x = 'text';",             "expect": {"error": {"name": "STORAGE_TYPE_MISMATCH", "fields": {"table": "t", "column": "x", "expected_type": "INTEGER", "got_type": "TEXT"}}}}
+      ]
+    },
+    {
+      "name": "update-where-type-error",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",              "expect": {"rows": []}},
+        {"sql": "UPDATE t SET x = 2 WHERE 'abc';",        "expect": {"error": {"name": "EVAL_TYPE_ERROR", "fields": {"op": "WHERE", "operand_type": "TEXT"}}}}
+      ]
+    },
+    {
+      "name": "update-division-by-zero-in-expr",
+      "description": "Phase 6bv SQLite-compat: integer `x / 0` yields NULL (not an error), so the UPDATE writes NULL into the INTEGER column — INTEGER columns accept NULL per the INSERT type rule. The original row of 5 becomes NULL.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",            "expect": {"rows": []}},
+        {"sql": "UPDATE t SET x = x / 0;",              "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t;",                     "expect": {"rows": [[null]]}}
+      ]
+    },
+
+    {
+      "name": "delete-all-rows",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",   "expect": {"rows": []}},
+        {"sql": "DELETE FROM t;",              "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t;",            "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "delete-with-where",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",         "expect": {"rows": []}},
+        {"sql": "DELETE FROM t WHERE x = 2;",        "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t;",                  "expect": {"rows": [[1], [3]]}}
+      ]
+    },
+    {
+      "name": "delete-then-insert-preserves-order",
+      "description": "After DELETE, subsequent INSERT appends to the end. The tombstoned slot is NOT reused; live-row order remains insertion-order.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",         "expect": {"rows": []}},
+        {"sql": "DELETE FROM t WHERE x = 2;",        "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (4);",         "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t;",                  "expect": {"rows": [[1], [3], [4]]}}
+      ]
+    },
+    {
+      "name": "delete-empty-table-no-error",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
+        {"sql": "DELETE FROM t;",              "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t;",            "expect": {"rows": []}}
+      ]
+    },
+    {
+      "name": "delete-where-matches-nothing",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",         "expect": {"rows": []}},
+        {"sql": "DELETE FROM t WHERE x = 99;",       "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t;",                  "expect": {"rows": [[1]]}}
+      ]
+    },
+    {
+      "name": "delete-all-then-full-reinsert",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",     "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",     "expect": {"rows": []}},
+        {"sql": "DELETE FROM t;",                "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (100);",   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (200);",   "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t;",              "expect": {"rows": [[100], [200]]}}
+      ]
+    },
+    {
+      "name": "delete-with-complex-where",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",                       "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",                         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",                         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",                         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (4);",                         "expect": {"rows": []}},
+        {"sql": "DELETE FROM t WHERE x > 1 AND x < 4;",              "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t;",                                  "expect": {"rows": [[1], [4]]}}
+      ]
+    },
+    {
+      "name": "delete-null-column-excluded",
+      "description": "A row with NULL in the tested column produces NULL from the comparison, which excludes it from deletion.",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (NULL);",         "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",            "expect": {"rows": []}},
+        {"sql": "DELETE FROM t WHERE x > 1;",           "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t;",                     "expect": {"rows": [[1], [null]]}}
+      ]
+    },
+    {
+      "name": "delete-table-not-found",
+      "program": [
+        {"sql": "DELETE FROM nope;", "expect": {"error": {"name": "STORAGE_TABLE_NOT_FOUND", "fields": {"table": "nope"}}}}
+      ]
+    },
+    {
+      "name": "delete-column-not-found-in-where",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",             "expect": {"rows": []}},
+        {"sql": "DELETE FROM t WHERE nope = 1;",           "expect": {"error": {"name": "STORAGE_COLUMN_NOT_FOUND", "fields": {"table": "t", "column": "nope"}}}}
+      ]
+    },
+
+    {
+      "name": "interleaved-update-delete",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",            "expect": {"rows": []}},
+        {"sql": "UPDATE t SET x = x * 10;",             "expect": {"rows": []}},
+        {"sql": "DELETE FROM t WHERE x = 20;",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (99);",           "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t;",                     "expect": {"rows": [[10], [30], [99]]}}
+      ]
+    },
+    {
+      "name": "update-after-delete-sees-only-live-rows",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",          "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",            "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (3);",            "expect": {"rows": []}},
+        {"sql": "DELETE FROM t WHERE x = 2;",           "expect": {"rows": []}},
+        {"sql": "UPDATE t SET x = x + 100;",            "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t;",                     "expect": {"rows": [[101], [103]]}}
+      ]
+    },
+
+    {
+      "name": "parse-update-without-set",
+      "program": [{"sql": "UPDATE t x = 1;", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "IDENTIFIER", "pos": 9, "expected": ["KEYWORD_SET"]}}}}]
+    },
+    {
+      "name": "parse-update-empty-set",
+      "program": [{"sql": "UPDATE t SET;", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "SEMICOLON", "pos": 12, "expected": ["IDENTIFIER"]}}}}]
+    },
+    {
+      "name": "parse-delete-without-from",
+      "program": [{"sql": "DELETE t;", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "IDENTIFIER", "pos": 7, "expected": ["KEYWORD_FROM"]}}}}]
+    },
+    {
+      "name": "parse-delete-no-table",
+      "program": [{"sql": "DELETE FROM;", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "SEMICOLON", "pos": 11, "expected": ["IDENTIFIER"]}}}}]
+    },
+    {
+      "name": "parse-update-trailing-comma",
+      "program": [{"sql": "UPDATE t SET x = 1, ;", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "SEMICOLON", "pos": 20, "expected": ["IDENTIFIER"]}}}}]
+    },
+    {
+      "name": "keyword-update-reserved",
+      "description": "The case-insensitive word 'update' is now a keyword and cannot be used as a table name.",
+      "program": [{"sql": "CREATE TABLE update (x INTEGER);", "expect": {"error": {"name": "PARSE_UNEXPECTED_TOKEN", "fields": {"kind": "KEYWORD_UPDATE", "pos": 13, "expected": ["IDENTIFIER"]}}}}]
+    },
+    {
+      "name": "keyword-delete-case-insensitive",
+      "program": [
+        {"sql": "CREATE TABLE t (x INTEGER);",   "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (5);",     "expect": {"rows": []}},
+        {"sql": "dElEtE fRoM t;",                "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t;",              "expect": {"rows": []}}
+      ]
+    }
+  ]
+}
