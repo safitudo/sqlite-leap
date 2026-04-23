@@ -1,0 +1,103 @@
+{
+  "phase": "4b",
+  "description": "Phase 4b gate — WAL write-side + incremental commit. Per spec/wal.spec.md § 'Phase 4b — WAL write-side + incremental commit'. Activation via LEAP_WAL_APPEND=1; salts pinned via LEAP_WAL_SALT_OVERRIDE for byte-deterministic fixtures. Covers: session activation + header emission, single-commit frame append, multi-commit frame append + recovery-on-reopen, uncommitted-tail discard, wal-absent-after-checkpoint, and the Phase 3d fallback when LEAP_WAL_APPEND is unset. Both C and Rust builds MUST produce byte-identical WAL bytes for identical inputs.",
+  "schema": {
+    "case": "inherits phase4a.json schema plus new fields:",
+    "wal_append": "bool — default true when absent. Sets LEAP_WAL_APPEND=1 for the case.",
+    "wal_salt_hex": "string — 16 hex characters; 8 for salt-1 + 8 for salt-2 (big-endian u32 each). Required when wal_append is true.",
+    "inspect_after_close": "object — assertions about on-disk artifacts after db_close: wal_absent (bool), main_db_has_page_count (int).",
+    "step.commit_label": "string — triggers close+snapshot+reopen; records the WAL contents under this label.",
+    "step.preload_wal_hex": "string — overwrite <path>-wal mid-program (no reopen).",
+    "step.expect.wal_frame_count": "int — post-step WAL frame count.",
+    "step.expect.wal_last_commit_page_count": "int — db_size_after_commit of the last frame.",
+    "expected_wal_hex_by_commit": "object — label -> full expected hex bytes of the WAL file at that commit point."
+  },
+  "cases": [
+    {
+      "name": "wal-append-disabled-phase3d-fallback",
+      "description": "Regression: with wal_append=false, behaviour is the Phase 3d atomic-rename commit. No <path>-wal is ever created.",
+      "backend": "disk",
+      "wal_append": false,
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (42);",   "expect": {"rows": []}},
+        {"reopen": true},
+        {"sql": "SELECT a FROM t;",             "expect": {"rows": [[42]]}}
+      ],
+      "inspect_after_close": {"wal_absent": true}
+    },
+    {
+      "name": "wal-append-single-commit-emits-frames-and-checkpoints-on-close",
+      "description": "With LEAP_WAL_APPEND=1, a single commit-unit (close) produces a <path>-wal with one frame per dirty page. After close, the WAL is absorbed into the main DB and unlinked. Reopen sees the merged state.",
+      "backend": "disk",
+      "wal_append": true,
+      "wal_salt_hex": "aabbccdd11223344",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1);",    "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (2);",    "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t;",             "expect": {"rows": [[1], [2]]}},
+        {"reopen": true},
+        {"sql": "SELECT a FROM t;",             "expect": {"rows": [[1], [2]]}}
+      ],
+      "inspect_after_close": {"wal_absent": true}
+    },
+    {
+      "name": "wal-append-multi-commit-recovery-on-reopen",
+      "description": "Two separate commits (close/reopen cycles) each write to the WAL. The second reopen's Phase 4a+4b recovery walks both commits' frames, overlays them, checkpoints to main DB, unlinks WAL. Final state = post-both-commits.",
+      "backend": "disk",
+      "wal_append": true,
+      "wal_salt_hex": "0011223344556677",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10);",          "expect": {"rows": []}},
+        {"reopen": true},
+        {"sql": "SELECT a, b FROM t;",                    "expect": {"rows": [[1, 10]]}},
+        {"sql": "INSERT INTO t VALUES (2, 20);",          "expect": {"rows": []}},
+        {"reopen": true},
+        {"sql": "SELECT a, b FROM t;",                    "expect": {"rows": [[1, 10], [2, 20]]}}
+      ],
+      "inspect_after_close": {"wal_absent": true}
+    },
+    {
+      "name": "wal-append-bulk-insert-grows-dirty-set-proportionally",
+      "description": "A bulk insert of 500 rows produces multiple dirty pages. The WAL frame count reflects the number of changed/grown pages. On reopen, all rows survive.",
+      "backend": "disk",
+      "wal_append": true,
+      "wal_salt_hex": "deadbeefcafebabe",
+      "program": [
+        {"sql": "CREATE TABLE t (id INTEGER);", "expect": {"rows": []}},
+        {"bulk_insert_int_range": {"table": "t", "start": 1, "count": 500}, "expect": {"rows": []}},
+        {"reopen": true},
+        {"sql": "SELECT COUNT(*) FROM t;", "expect": {"rows": [[500]]}},
+        {"sql": "SELECT id FROM t WHERE id = 250;", "expect": {"rows": [[250]]}}
+      ],
+      "inspect_after_close": {"wal_absent": true}
+    },
+    {
+      "name": "wal-append-uncommitted-tail-is-discarded-on-open",
+      "description": "A pre-existing <path>-wal file has a valid header but the tail is truncated mid-frame. Phase 4b recovery halts at the truncated frame and discards it; no error is raised (treated as 'uncommitted'). The main DB is opened normally; since the WAL had no committed-marker frame before the truncation, the engine sees only main-DB state.",
+      "backend": "disk",
+      "wal_append": true,
+      "wal_salt_hex": "1234567890abcdef",
+      "preload_wal_hex": "377f0682002de21800001000000000000000000000000000000000000000000000112233aabbccdd00",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (99);",  "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t;",            "expect": {"rows": [[99]]}}
+      ],
+      "inspect_after_close": {"wal_absent": true}
+    },
+    {
+      "name": "wal-append-empty-session-no-wal-on-close",
+      "description": "A WAL-append session that performs no mutations produces no committed frames. On close, the empty WAL (header only) is absorbed by the checkpoint (a no-op overlay) and unlinked. Main DB on disk is unchanged.",
+      "backend": "disk",
+      "wal_append": true,
+      "wal_salt_hex": "0000000000000001",
+      "program": [
+        {"sql": "SELECT 1;", "expect": {"rows": [[1]]}}
+      ],
+      "inspect_after_close": {"wal_absent": true}
+    }
+  ]
+}

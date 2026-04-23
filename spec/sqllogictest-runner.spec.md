@@ -187,3 +187,19 @@ The mainline-reference harness (`tests/sqllogictest/reference_sqlite.py`) drives
 - Full compatibility with every sqllogictest dialect extension (e.g., duckdb's extensions, mainline's internal-test-only directives). We implement the canonical published subset. Anything else is "skip-with-warning".
 - Parallel execution across files. v1 is sequential for reproducibility; parallelism is a performance opt-in that can be added without spec change.
 - Result caching. Every run is fresh; caching is an opt-in developer tool, not part of the gate.
+
+## Backend selection — `LEAP_DB_PATH` (Phase 4b addition)
+
+The runner defaults to the in-memory backend (`create_memory_database()` equivalent) because the smoke suite is unit-test-like and benefits from zero-setup per file. The benchmark lane 4 (`bench/lanes/04-insert-throughput`) and any test that exercises the on-disk / WAL-append path needs a file-backed DB.
+
+When the environment variable `LEAP_DB_PATH` is set to a non-empty string, the runner MUST:
+
+1. Before processing the first record of each `.test` file, unlink the file at `$LEAP_DB_PATH` if it exists (and any companion `<path>-wal` or `<path>.leap-stage` sidecars). This guarantees a clean starting state per file and mirrors the in-memory default's "fresh DB per file" semantics.
+2. Open the session via `open_database($LEAP_DB_PATH)` instead of `create_memory_database()`. All subsequent records in that file run against the file-backed DB.
+3. After the last record of the file, call `close_database(handle)` to trigger the Phase 3d / 4b commit path.
+
+When `LEAP_DB_PATH` is unset or empty, runner behaviour is unchanged from the in-memory default.
+
+This knob is orthogonal to `LEAP_WAL_APPEND` (the Phase 4b WAL-append activation flag). A benchmark harness wanting to measure WAL-append throughput sets BOTH. Tests that want only Phase 3d atomic-rename commit set `LEAP_DB_PATH` alone.
+
+Runner implementations MUST fail a run (exit code 2, stderr diagnostic) if `LEAP_DB_PATH` is set but `open_database` raises any error that is NOT `STORAGE_FILE_NOT_FOUND` (handled by step 1's unlink). A legitimate error during open (e.g., `STORAGE_CORRUPT_HEADER`) is a test failure, not a runner failure; the failing record emits a FAIL line and the run proceeds.

@@ -1,0 +1,5 @@
+lane,target,value,units,timestamp
+insert-throughput,sqlite-mainline,689416,inserts_per_second,2026-04-23T20:50:20Z
+insert-throughput,turso,209837,inserts_per_second,2026-04-23T20:50:24Z
+insert-throughput,sqlite-leap-c,20296,inserts_per_second,2026-04-23T20:50:54Z
+insert-throughput,sqlite-leap-rust,37786,inserts_per_second,2026-04-23T20:51:10Z

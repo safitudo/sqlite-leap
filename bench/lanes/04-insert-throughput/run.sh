@@ -51,8 +51,14 @@ case "$TARGET" in
         if [[ ! -f "$wrapped" || "$WORKLOAD" -nt "$wrapped" ]]; then
             python3 "$BENCH_ROOT/lanes/_wrap_sql.py" "$WORKLOAD" "$wrapped" >&2
         fi
-        # sqllogictest harness creates its own DB per run; pass the workload.
-        invoke="$bin $wrapped > /dev/null"
+        # Phase 4b (2026-04-21): file-backed DB + WAL-append mode, matching
+        # mainline's WAL mode invocation above. Fresh tmpdir per run so the
+        # number measures steady-state WAL-write cost on a clean file, not
+        # page-cache reuse from a prior run. See spec/wal.spec.md §
+        # "Phase 4b" for the activation contract (LEAP_WAL_APPEND=1 +
+        # disk-backed session) and spec/sqllogictest-runner.spec.md §
+        # "Backend selection — LEAP_DB_PATH" for the runner knob.
+        invoke="d=\$(mktemp -d); LEAP_DB_PATH=\$d/db.sqlite LEAP_WAL_APPEND=1 $bin $wrapped > /dev/null; rm -rf \$d"
         ;;
 esac
 
