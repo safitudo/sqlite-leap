@@ -1,0 +1,29 @@
+# harness=src-rust/target/release/fuzz_parse
+# seeds_dir=tests/fuzz/corpus/sql/valid seed_count=81
+# out_dir=/tmp/fuzz/parse_rust
+# rng_seed=12 duration_s=3600.0
+#441161 TIMEOUT None saved=timeout_0001.sql
+#441166 TIMEOUT None saved=timeout_0002.sql
+#441175 TIMEOUT None saved=timeout_0003.sql
+#441181 TIMEOUT None saved=timeout_0004.sql
+#441184 TIMEOUT None saved=timeout_0005.sql
+#441188 TIMEOUT None saved=timeout_0006.sql
+#441189 TIMEOUT None saved=timeout_0007.sql
+#441190 TIMEOUT None saved=timeout_0008.sql
+#441191 TIMEOUT None saved=timeout_0009.sql
+#441192 TIMEOUT None saved=timeout_0010.sql
+#441193 TIMEOUT None saved=timeout_0011.sql
+#441196 TIMEOUT None saved=timeout_0012.sql
+#441198 TIMEOUT None saved=timeout_0013.sql
+#441199 TIMEOUT None saved=timeout_0014.sql
+#441202 TIMEOUT None saved=timeout_0015.sql
+#441203 TIMEOUT None saved=timeout_0016.sql
+#441204 TIMEOUT None saved=timeout_0017.sql
+#441206 TIMEOUT None saved=timeout_0018.sql
+#441208 TIMEOUT None saved=timeout_0019.sql
+#441209 TIMEOUT None saved=timeout_0020.sql
+#441210 TIMEOUT None saved=timeout_0021.sql
+#441211 TIMEOUT None saved=timeout_0022.sql
+#441212 TIMEOUT None saved=timeout_0023.sql
+#441213 TIMEOUT None saved=timeout_0024.sql
+#441214 TIMEOUT None saved=timeout_0025.sql

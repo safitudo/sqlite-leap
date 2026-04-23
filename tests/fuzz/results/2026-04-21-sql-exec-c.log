@@ -1,0 +1,28 @@
+# harness=src-c/bin/fuzz-exec
+# seeds_dir=tests/fuzz/corpus/sql/valid seed_count=81
+# out_dir=/tmp/fuzz/exec_c
+# rng_seed=13 duration_s=3600.0
+#444403 TIMEOUT None saved=timeout_0001.sql
+#444409 TIMEOUT None saved=timeout_0002.sql
+#444422 TIMEOUT None saved=timeout_0003.sql
+#444424 TIMEOUT None saved=timeout_0004.sql
+#444425 TIMEOUT None saved=timeout_0005.sql
+#444432 TIMEOUT None saved=timeout_0006.sql
+#444433 TIMEOUT None saved=timeout_0007.sql
+#444434 TIMEOUT None saved=timeout_0008.sql
+#444435 TIMEOUT None saved=timeout_0009.sql
+#444438 TIMEOUT None saved=timeout_0010.sql
+#444441 TIMEOUT None saved=timeout_0011.sql
+#444443 TIMEOUT None saved=timeout_0012.sql
+#444446 TIMEOUT None saved=timeout_0013.sql
+#444447 TIMEOUT None saved=timeout_0014.sql
+#444448 TIMEOUT None saved=timeout_0015.sql
+#444449 TIMEOUT None saved=timeout_0016.sql
+#444451 TIMEOUT None saved=timeout_0017.sql
+#444453 TIMEOUT None saved=timeout_0018.sql
+#444454 TIMEOUT None saved=timeout_0019.sql
+#444455 TIMEOUT None saved=timeout_0020.sql
+#444456 TIMEOUT None saved=timeout_0021.sql
+#444457 TIMEOUT None saved=timeout_0022.sql
+#444458 TIMEOUT None saved=timeout_0023.sql
+#444459 TIMEOUT None saved=timeout_0024.sql

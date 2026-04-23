@@ -1,0 +1,55 @@
+# harness=src-rust/target/release/fuzz_exec
+# seeds_dir=tests/fuzz/corpus/sql/valid seed_count=81
+# out_dir=/tmp/fuzz/exec_rust
+# rng_seed=14 duration_s=3600.0
+#204 CRASH signal=6 saved=crash_0001.sql
+#4263 CRASH signal=6 saved=crash_0002.sql
+#8665 CRASH signal=6 saved=crash_0003.sql
+#9155 CRASH signal=6 saved=crash_0004.sql
+#9926 CRASH signal=6 saved=crash_0005.sql
+#13794 CRASH signal=6 saved=crash_0006.sql
+#15478 CRASH signal=6 saved=crash_0007.sql
+#16500 CRASH signal=6 saved=crash_0008.sql
+#17233 CRASH signal=6 saved=crash_0009.sql
+#27166 CRASH signal=6 saved=crash_0010.sql
+#28477 CRASH signal=6 saved=crash_0011.sql
+#29118 CRASH signal=6 saved=crash_0012.sql
+#30099 CRASH signal=6 saved=crash_0013.sql
+#30699 CRASH signal=6 saved=crash_0014.sql
+#31051 CRASH signal=6 saved=crash_0015.sql
+#35652 CRASH signal=6 saved=crash_0016.sql
+#38963 CRASH signal=6 saved=crash_0017.sql
+#39401 CRASH signal=6 saved=crash_0018.sql
+#40226 CRASH signal=6 saved=crash_0019.sql
+#41475 CRASH signal=6 saved=crash_0020.sql
+#42634 CRASH signal=6 saved=crash_0021.sql
+#45412 CRASH signal=6 saved=crash_0022.sql
+#52231 CRASH signal=6 saved=crash_0023.sql
+#52554 CRASH signal=6 saved=crash_0024.sql
+#56681 CRASH signal=6 saved=crash_0025.sql
+#60751 CRASH signal=6 saved=crash_0026.sql
+#63326 CRASH signal=6 saved=crash_0027.sql
+#65732 CRASH signal=6 saved=crash_0028.sql
+#65836 CRASH signal=6 saved=crash_0029.sql
+#70422 CRASH signal=6 saved=crash_0030.sql
+#73543 CRASH signal=6 saved=crash_0031.sql
+#74015 CRASH signal=6 saved=crash_0032.sql
+#76617 CRASH signal=6 saved=crash_0033.sql
+#76898 CRASH signal=6 saved=crash_0034.sql
+#78245 CRASH signal=6 saved=crash_0035.sql
+#82185 CRASH signal=6 saved=crash_0036.sql
+#82692 CRASH signal=6 saved=crash_0037.sql
+#82875 CRASH signal=6 saved=crash_0038.sql
+#82878 CRASH signal=6 saved=crash_0039.sql
+#84925 CRASH signal=6 saved=crash_0040.sql
+#86580 CRASH signal=6 saved=crash_0041.sql
+#89058 CRASH signal=6 saved=crash_0042.sql
+#97459 CRASH signal=6 saved=crash_0043.sql
+#99657 CRASH signal=6 saved=crash_0044.sql
+#101398 CRASH signal=6 saved=crash_0045.sql
+#103576 CRASH signal=6 saved=crash_0046.sql
+#106020 CRASH signal=6 saved=crash_0047.sql
+#106416 CRASH signal=6 saved=crash_0048.sql
+#107839 CRASH signal=6 saved=crash_0049.sql
+#111832 CRASH signal=6 saved=crash_0050.sql
+#248473 CRASH signal=6 (not saved; findings=100)

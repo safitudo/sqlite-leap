@@ -1,0 +1,80 @@
+{
+  "n_workloads": 100,
+  "n_rows": 100,
+  "seed": 4276994061,
+  "elapsed_s": 38.675827333237976,
+  "engines": [
+    "mainline",
+    "leap-c",
+    "leap-rust"
+  ],
+  "matrix": {
+    "mainline__mainline": {
+      "identical": 100,
+      "diverge": 0,
+      "produce_err": 0,
+      "read_err": 0,
+      "read_crash": 0
+    },
+    "mainline__leap-c": {
+      "identical": 100,
+      "diverge": 0,
+      "produce_err": 0,
+      "read_err": 0,
+      "read_crash": 0
+    },
+    "mainline__leap-rust": {
+      "identical": 100,
+      "diverge": 0,
+      "produce_err": 0,
+      "read_err": 0,
+      "read_crash": 0
+    },
+    "leap-c__mainline": {
+      "identical": 100,
+      "diverge": 0,
+      "produce_err": 0,
+      "read_err": 0,
+      "read_crash": 0
+    },
+    "leap-c__leap-c": {
+      "identical": 100,
+      "diverge": 0,
+      "produce_err": 0,
+      "read_err": 0,
+      "read_crash": 0
+    },
+    "leap-c__leap-rust": {
+      "identical": 100,
+      "diverge": 0,
+      "produce_err": 0,
+      "read_err": 0,
+      "read_crash": 0
+    },
+    "leap-rust__mainline": {
+      "identical": 100,
+      "diverge": 0,
+      "produce_err": 0,
+      "read_err": 0,
+      "read_crash": 0
+    },
+    "leap-rust__leap-c": {
+      "identical": 100,
+      "diverge": 0,
+      "produce_err": 0,
+      "read_err": 0,
+      "read_crash": 0
+    },
+    "leap-rust__leap-rust": {
+      "identical": 100,
+      "diverge": 0,
+      "produce_err": 0,
+      "read_err": 0,
+      "read_crash": 0
+    }
+  },
+  "divergences": [],
+  "produce_errors": [],
+  "reader_errors": [],
+  "reader_crashes": []
+}

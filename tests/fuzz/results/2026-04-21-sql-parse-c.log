@@ -1,0 +1,26 @@
+# harness=src-c/bin/fuzz-parse
+# seeds_dir=tests/fuzz/corpus/sql/valid seed_count=81
+# out_dir=/tmp/fuzz/parse_c
+# rng_seed=11 duration_s=3600.0
+#87067 CRASH signal=9 saved=crash_0001.sql
+#449169 TIMEOUT None saved=timeout_0002.sql
+#449185 TIMEOUT None saved=timeout_0003.sql
+#449189 TIMEOUT None saved=timeout_0004.sql
+#449190 TIMEOUT None saved=timeout_0005.sql
+#449191 TIMEOUT None saved=timeout_0006.sql
+#449196 TIMEOUT None saved=timeout_0007.sql
+#449198 TIMEOUT None saved=timeout_0008.sql
+#449199 TIMEOUT None saved=timeout_0009.sql
+#449201 TIMEOUT None saved=timeout_0010.sql
+#449204 TIMEOUT None saved=timeout_0011.sql
+#449205 TIMEOUT None saved=timeout_0012.sql
+#449206 TIMEOUT None saved=timeout_0013.sql
+#449207 TIMEOUT None saved=timeout_0014.sql
+#449209 TIMEOUT None saved=timeout_0015.sql
+#449211 TIMEOUT None saved=timeout_0016.sql
+#449212 TIMEOUT None saved=timeout_0017.sql
+#449213 TIMEOUT None saved=timeout_0018.sql
+#449214 TIMEOUT None saved=timeout_0019.sql
+#449215 TIMEOUT None saved=timeout_0020.sql
+#449216 TIMEOUT None saved=timeout_0021.sql
+#449217 TIMEOUT None saved=timeout_0022.sql

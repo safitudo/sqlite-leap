@@ -26,6 +26,18 @@ Turso has one Rust implementation. sqlite-leap has two implementations from one 
 | 3 producers × 3 readers × 3 schemas × 4 rowcounts | **108/108 pass (100%)** | `tests/roundtrip/results/2026-04-20-matrix.md` |
 | Load-bearing (mainline ↔ leap, both directions) | **48/48** | same |
 | Peak validated index-tree depth | 2 (50 000-row indexed table, `PRAGMA integrity_check = ok` via mainline reader) | `serialise_populated_index_leaf` + `walk_index_tree` path in src-c and src-rust |
+| Fuzz-grade deterministic roundtrip | **900/900 byte-equivalent**, 100 workloads × 3×3 producer/reader matrix, zero divergences, zero crashes | `tests/fuzz/results/2026-04-21-file-format.md` |
+
+### Fuzz-resistance
+
+| Target | Inputs | Crashes | Notes |
+|---|---:|---:|---|
+| `fuzz-parse` leap-c    | 449 217 |  0* | *one spurious SIGKILL, non-reproducible |
+| `fuzz-parse` leap-rust | 441 214 |  0  | clean |
+| `fuzz-exec`  leap-c    | 444 459 |  0  | clean |
+| `fuzz-exec`  leap-rust | 248 473 | **100** | 2 bug classes (name-resolution panics on unresolved identifiers + GROUP BY on unresolved col). Open finding — spec-level, Rust path should surface `ENGINE_ERROR` instead of `unwrap()`. Concrete reproducers saved. |
+
+Full campaign writeup: `tests/fuzz/results/2026-04-21-README.md`.
 
 ### Bench (macOS arm64, M2 Ultra — validated CSV after harness fix)
 
