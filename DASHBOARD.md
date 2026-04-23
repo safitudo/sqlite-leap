@@ -2,11 +2,11 @@
 
 **Date:** 2026-04-23 (macOS arm64 / Linux x86_64 via Docker)
 **Scope:** honest status of the LEAP claims. All numbers reproducible from artifacts in this repo.
-**Last update:** Phase 9h — name-resolution error propagation dual-target pin. Closed 2026-04-21 Rust SIGABRT cluster + cross-target error-kind divergence on recursive CTEs. See `tests/fuzz/results/2026-04-23-README.md`.
+**Last update:** Rust corpus 615/622 → **620/622 (99.68%)** via Phase 6cd (HAVING / GROUP BY base-column-wins-on-alias-shadow) + UPDATE duplicate-column rightmost-wins (R-34751-18293). Zero PASS→FAIL regressions; 86/86 phase tests green; 203/203 smoke byte-identical C↔Rust. Log: `tests/sqllogictest/results/2026-04-23-rust-full-v5.log`.
 
 ## The claim in one line
 
-> One language-neutral spec → two engines (C + Rust) → byte-identical output on hand-authored smoke tests, 108/108 bidirectional file-format compatibility with mainline SQLite, and **98.87%** / **92.60%** (Rust / C) end-to-end file-level pass on the full 622-file upstream sqllogictest corpus.
+> One language-neutral spec → two engines (C + Rust) → byte-identical output on hand-authored smoke tests, 108/108 bidirectional file-format compatibility with mainline SQLite, and **99.68%** / **92.60%** (Rust / C) end-to-end file-level pass on the full 622-file upstream sqllogictest corpus.
 
 Turso has one Rust implementation. sqlite-leap has two implementations from one spec. That asymmetry is the stunt.
 
@@ -17,7 +17,7 @@ Turso has one Rust implementation. sqlite-leap has two implementations from one 
 | Proof | Result | Evidence |
 |---|---|---|
 | Smoke suite byte-identical C ↔ Rust | **203/203** | `tests/sqllogictest/smoke/` |
-| Upstream corpus — Rust (622 files) | **615/622 (98.87%)** pass, **0 panics**, 2 timeouts, 5 FAIL | `tests/sqllogictest/results/2026-04-21-rust-full-v4.log` + diff `-v4-diff.md` |
+| Upstream corpus — Rust (622 files) | **620/622 (99.68%)** pass, **0 panics**, 2 timeouts, 0 FAIL | `tests/sqllogictest/results/2026-04-23-rust-full-v5.log` + diff `-v5-diff.md` |
 | Upstream corpus — C (622 files, file-level) | **576/622 (92.60%)** pass, **0 panics**, 33 timeouts, 13 FAIL, 0 regressions from v3 | `tests/sqllogictest/results/2026-04-21-c-full-v4.log` + diff `-v4-diff.md` |
 
 ### Bidirectional file-format compat with mainline SQLite
@@ -103,11 +103,13 @@ Starting pass-rate: Rust **64.63%** / C **25.88%**. Six targeted fixes this sess
 | C memblowup fix (#79) | C | unbounded RSS → 9 MB on select4.test; removes crash |
 | C SIGBUS fix (PHASE6AG_OUTER_BIT collision) | C | 9 crashes flip to regular FAIL |
 
-Rust pass rate: 64.63% → 93.89% → 98.71% → **98.87%** at file level (+213 files, zero PASS→FAIL regressions). Residual 7 non-PASS: 4 `random/groupby/slt_good_{8,10,11,12}.test` (interleaved alias + row-count errors), 1 `evidence/slt_lang_update.test`, 2 TIMEOUT (select4/select5). The cluster-fix round found:
+Rust pass rate: 64.63% → 93.89% → 98.71% → 98.87% → **99.68%** at file level (+218 files, zero PASS→FAIL regressions). Residual 2 non-PASS: both TIMEOUT (select4/select5 — VDBE dispatch perf, out of scope). The cluster-fix round found:
 - sqllogictest runner wasn't applying typechar-driven TEXT→INT/REAL coercion on expected values (pinned the rule in `spec/sqllogictest-runner.spec.md`).
 - `SELECT * FROM t GROUP BY k` produced zero rows because Star projection collapsed to empty slice in the grouped path.
 - `A LEFT JOIN B ON FALSE, C` produced 3 rows instead of 9 — LEFT-tail emit skipped nested cross-product loops. Added `emit_nested_null_fill`.
 - #140 AMBIGUOUS_ALIAS tiebreak — mainline accepts duplicate-alias when name matches base column (base wins); documented as Phase 6cc in spec/sql-grammar.spec.md.
+- **#143 Phase 6cd HAVING / GROUP BY shadow rule** — base column wins over single-alias shadow (not just duplicate-alias tiebreak). Closes all four `random/groupby/slt_good_{8,10,11,12}.test` residuals that interleaved AMBIGUOUS_ALIAS, AGGREGATE_IN_NON_PROJECTION (nested aggregates from alias substitution), and row-count mismatches. ORDER BY retains alias-wins behaviour. Spec: `spec/sql-grammar.spec.md` § Phase 6aj updates + Phase 6cd. Fixture: `tests/cross-build/phase6aj.json::non-distinct-having-base-col-wins` (supersedes the Task #92 `non-distinct-having-alias-still-wins` memorialisation of leap-c's alias-wins quirk, which diverged from mainline).
+- **#143 UPDATE duplicate-column rightmost-wins** — `UPDATE t SET x=3, x=4, x=5` now follows SQL grammar evidence R-34751-18293 (rightmost assignment wins, others ignored), instead of raising STORAGE_DUPLICATE_COLUMN. Closes `evidence/slt_lang_update.test`. Spec: `spec/sql-grammar.spec.md` § Phase 2c-3 + `spec/vdbe-opcodes.spec.md` § UpdateRow note. Fixture: `tests/cross-build/phase2c3.json::update-duplicate-column-rightmost-wins` (replaces the old error-expecting fixture).
 
 C pass rate: 25.88% → **90.19%** (v3) → **92.60%** (v4, post-#139 derived-table parser port) at file level. +415 files, zero PASS→FAIL regressions, zero panics. Residual 46 non-PASS: 13 FAIL (1 `evidence/slt_lang_update`, 12 `random/groupby/slt_good_*` bare-col cluster), 33 TIMEOUT (22 in `index/random/10/` + `index/random/100/` small-row planner cluster, 11 other large-row or joint-with-Rust). Big unlocks this session's round 2:
 - #129 C planner fix — IDX* opcodes missing from pc-remap in 3 splicing paths (emit_inline_exists, emit_inline_in_subquery, splice_opcode) caused infinite loop on IN-subquery + indexed inner WHERE. 147 TIMEOUT→PASS.

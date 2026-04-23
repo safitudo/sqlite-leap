@@ -607,7 +607,7 @@ Update := { kind: "Update", table: string,
 Delete := { kind: "Delete", table: string, where: Expression | null }
 ```
 
-`assignments` is a non-empty ordered list. Duplicate `column` names within the list (case-sensitive) are a compile-time error (`STORAGE_DUPLICATE_COLUMN`). The `value` in each assignment is an arbitrary `Expression` — including `ColumnRef` to reference the row's existing values (e.g. `SET x = x + 1`).
+`assignments` is a non-empty ordered list. Duplicate `column` names within the list (case-sensitive) are ALLOWED: per the SQL grammar evidence R-34751-18293 ("If a single column-name appears more than once in the list of assignment expressions, all but the rightmost occurrence is ignored"), the compiler de-duplicates the assignment list keeping the rightmost `value` for each repeated `column` name. The ignored `value` expressions are NOT evaluated (any side effects are elided). The de-duplicated list is what the downstream VDBE compile and `UpdateRow` opcode see. The `value` in each assignment is an arbitrary `Expression` — including `ColumnRef` to reference the row's existing values (e.g. `SET x = x + 1`).
 
 ### Phase 2c-3 evaluation semantics
 
@@ -636,9 +636,9 @@ DELETE produces `{"rows": []}` on success.
 Performed in this precedence order (first match wins):
 
 1. Table existence — `STORAGE_TABLE_NOT_FOUND`.
-2. For UPDATE: each `column` in `assignments` must be a column of the table, checked left-to-right — `STORAGE_COLUMN_NOT_FOUND` on the first offending name.
-3. For UPDATE: duplicate `column` names in `assignments` — `STORAGE_DUPLICATE_COLUMN` on the first repeated name (leftmost of the repeated pair).
-4. For UPDATE and DELETE: `ColumnRef` resolution in `where` and (UPDATE only) in each `assignment.value` — `STORAGE_COLUMN_NOT_FOUND`, leftmost offending name in source-order traversal (assignments before WHERE; within each, in-order traversal of the expression tree).
+2. For UPDATE: each `column` in `assignments` must be a column of the table, checked left-to-right — `STORAGE_COLUMN_NOT_FOUND` on the first offending name. (Performed BEFORE duplicate-column de-duplication, so a stray unknown-column name in any assignment still raises.)
+3. For UPDATE: duplicate `column` names in `assignments` are accepted and de-duplicated rightmost-wins (evidence R-34751-18293). No error is raised. The de-duplicated list is what steps 4, 5, and the downstream codegen operate on.
+4. For UPDATE and DELETE: `ColumnRef` resolution in `where` and (UPDATE only) in each retained (post-dedup) `assignment.value` — `STORAGE_COLUMN_NOT_FOUND`, leftmost offending name in source-order traversal (assignments before WHERE; within each, in-order traversal of the expression tree). `value` expressions of ignored (non-rightmost) duplicate assignments are NOT traversed.
 
 `EVAL_COLUMN_WITHOUT_TABLE` is NOT raisable by UPDATE or DELETE at the AST level because both statements always have a table; a `ColumnRef` is therefore always resolvable against the table schema.
 
@@ -4546,18 +4546,21 @@ Phase 6aj extends compile-time name resolution so that a projection-list alias i
 The SQLite resolution rule is: in GROUP BY, ORDER BY, and HAVING, try to resolve a bare identifier first against the projection-list aliases; if not found (or ambiguous under the rules below), fall through to the underlying table/column namespace.
 
 - **WHERE** is evaluated BEFORE projection → aliases are NOT in scope. A bare identifier in WHERE that only matches a projection alias → `COMPILE_UNKNOWN_COLUMN`.
-- **GROUP BY** / **ORDER BY** / **HAVING** → alias scope wins over table-column scope when there's a match.
+- **ORDER BY** → alias scope wins over table-column scope when there's a match (standard SQLite idiom: `ORDER BY <alias>` sorts by the projected expression).
+- **GROUP BY** / **HAVING** → alias scope wins *only when the name does NOT collide with a base column of the enclosing FROM*. On a shadow collision the base column wins (Phase 6cd). This matches mainline SQLite; see the corpus evidence in `random/groupby/slt_good_{8,10,11,12}.test`, where aggregate-bearing projection aliases are referenced from inside other aggregates in HAVING — the only binding that keeps the SQL legal (i.e. avoids a nested aggregate) is the base column.
 - **Ambiguous aliases**: if two projections share the same alias name and a later clause references that alias, raise `COMPILE_AMBIGUOUS_ALIAS` at compile time. Do not silently pick either. **Tiebreak (Phase 6cc)**: if the ambiguous name ALSO matches a base column of the enclosing FROM, the base column wins; no error is raised and the reference resolves to the column. Mainline SQLite does not treat duplicate projection aliases as ambiguous when an underlying table column shares the name.
 - **Aliased expressions** (not just column refs) are valid: `SELECT a*10 AS scaled FROM t ORDER BY scaled` must sort by the computed expression.
 
 ### Phase 6aj compile
 
-Resolution of a bare identifier in GROUP BY / ORDER BY / HAVING:
+Resolution of a bare identifier, parameterised by clause:
 
 1. Look up the name among the current SELECT's projection aliases.
-2. If exactly one match → substitute the projection's expression (or output-row register reference) inline.
+2. If exactly one match:
+   - **ORDER BY** → substitute the projection's expression inline.
+   - **GROUP BY / HAVING** → if a base column of the enclosing FROM shares the name (case-insensitive), leave the reference unchanged so normal column resolution binds the base column (Phase 6cd shadow rule). Otherwise substitute the projection's expression inline.
 3. If multiple matches:
-   a. If a base column of the enclosing FROM shares the name → leave the reference unchanged so normal column resolution binds it to that base column (Phase 6cc tiebreak).
+   a. If a base column of the enclosing FROM shares the name → leave the reference unchanged so normal column resolution binds it to that base column (Phase 6cc tiebreak, applies to ORDER BY / GROUP BY / HAVING).
    b. Otherwise → `COMPILE_AMBIGUOUS_ALIAS`.
 4. If no match → fall through to the normal table-column resolution (existing path for 6b / 6d / 6c).
 

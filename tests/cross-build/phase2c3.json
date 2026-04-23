@@ -130,10 +130,13 @@
       ]
     },
     {
-      "name": "update-duplicate-column-in-set",
+      "name": "update-duplicate-column-rightmost-wins",
+      "description": "SQL evidence R-34751-18293: if a single column-name appears more than once in the assignment list, all but the rightmost occurrence is ignored. Mainline SQLite accepts the statement and applies the rightmost value. Earlier fixture memorialised a STORAGE_DUPLICATE_COLUMN rejection; that diverged from mainline and broke `evidence/slt_lang_update.test` on the upstream corpus.",
       "program": [
         {"sql": "CREATE TABLE t (x INTEGER);",           "expect": {"rows": []}},
-        {"sql": "UPDATE t SET x = 1, x = 2;",            "expect": {"error": {"name": "STORAGE_DUPLICATE_COLUMN", "fields": {"table": "t", "column": "x"}}}}
+        {"sql": "INSERT INTO t VALUES (0);",             "expect": {"rows": []}},
+        {"sql": "UPDATE t SET x = 1, x = 2, x = 3;",     "expect": {"rows": []}},
+        {"sql": "SELECT x FROM t;",                      "expect": {"rows": [[3]]}}
       ]
     },
     {

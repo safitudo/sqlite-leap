@@ -287,7 +287,7 @@ Phase 2c-3 adds two mutation opcodes for UPDATE and DELETE. Both operate through
   4. On storage error: propagate unchanged and halt.
 - **Errors:** `STORAGE_COLUMN_NOT_FOUND`, `STORAGE_TYPE_MISMATCH`, `STORAGE_DUPLICATE_COLUMN` — propagated verbatim from storage.
 
-Note: the `column_names` list is fixed at compile time (it comes from the SQL `SET` clause). The compiler MUST reject duplicates in `column_names` with `STORAGE_DUPLICATE_COLUMN` at compile time so that `STORAGE_DUPLICATE_COLUMN` does not reach the VDBE for UPDATE — mirror of INSERT's compile-time-precedence rule.
+Note: the `column_names` list is fixed at compile time (it comes from the SQL `SET` clause). Per SQL grammar evidence R-34751-18293, the compiler MUST de-duplicate repeated column names rightmost-wins before emitting this opcode. As a result, `column_names` passed to `UpdateRow` at runtime is ALWAYS free of duplicates; `STORAGE_DUPLICATE_COLUMN` does not arise for UPDATE via this path (it still remains on the error enumeration as a safety-net surface from storage). INSERT's compile-time-precedence rule for duplicate column names is unchanged (INSERT rejects duplicates with `STORAGE_DUPLICATE_COLUMN`).
 
 ### `DeleteRow` — tombstone the cursor's current row
 

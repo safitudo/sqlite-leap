@@ -81,12 +81,12 @@
       ]
     },
     {
-      "name": "non-distinct-having-alias-still-wins",
-      "description": "Task #92 regression — without DISTINCT, HAVING continues to resolve to the output alias (matching leap-c's and mainline SQLite's non-DISTINCT behaviour). Asymmetry: DISTINCT triggers an accidental double-substitution in leap-c that collapses alias-shadow-column refs back to the base column. Rust mirrors that behaviour.",
+      "name": "non-distinct-having-base-col-wins",
+      "description": "Phase 6cd — base column wins over alias on shadow collision in HAVING, regardless of DISTINCT. Mainline SQLite's behaviour observed on the upstream sqllogictest corpus (random/groupby/slt_good_{8,10,11,12}.test): a bare identifier in HAVING that names both a projection alias and a base column binds to the base column. `HAVING x > 0` with `-x AS x` compares the BASE x (positive input values), so both groups pass and the projection emits `-10` and `-20`. Supersedes the Task #92 non-DISTINCT fixture (which memorialised leap-c's alias-wins quirk, later found to diverge from mainline).",
       "program": [
         {"sql": "CREATE TABLE t (x INTEGER);", "expect": {"rows": []}},
         {"sql": "INSERT INTO t VALUES (10), (20);", "expect": {"rows": []}},
-        {"sql": "SELECT -x AS x FROM t GROUP BY x HAVING x > 0;", "expect": {"rows": []}}
+        {"sql": "SELECT -x AS x FROM t GROUP BY x HAVING x > 0 ORDER BY x;", "expect": {"rows": [[-20], [-10]]}}
       ]
     },
     {
