@@ -1,0 +1,125 @@
+{
+  "phase": "9h-name-resolution-errors",
+  "description": "Phase 9h — name-resolution error propagation dual-target pin. Closes the three cross-target error-surface findings from the 2026-04-21 fuzz campaign (tests/fuzz/results/2026-04-21-README.md). Bug A: INSERT VALUES with a bare identifier must raise EVAL_COLUMN_WITHOUT_TABLE on both builds (leap-rust previously aborted via SIGABRT). Bug B: SELECT with an unresolved column under GROUP BY must raise STORAGE_COLUMN_NOT_FOUND (or the alias-equivalent COMPILE_UNKNOWN_COLUMN) on both builds. Bug C: a deep recursive CTE whose fixed-point cannot complete must raise RUNTIME_RECURSIVE_CTE_LIMIT, not COMPILE_UNKNOWN_TABLE. All prior phase fixtures MUST stay green.",
+  "cases": [
+    {
+      "name": "bug-a-insert-values-bare-identifier",
+      "description": "INSERT INTO t VALUES (x) with a bare identifier x that is not a column of t (INSERT VALUES is a no-table context). Fuzz reproducer: `INSERT INTO t VALUES (x)` after `CREATE TABLE t(a INT)`. Expected: EVAL_COLUMN_WITHOUT_TABLE on BOTH targets, NEVER a SIGABRT. leap-c already emits this; leap-rust must converge.",
+      "program": [
+        {"sql": "CREATE TABLE t(a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (x);", "expect": {"error": "EVAL_COLUMN_WITHOUT_TABLE"}}
+      ]
+    },
+    {
+      "name": "bug-a-insert-values-bare-identifier-multicol",
+      "description": "Multi-column INSERT VALUES tuple where one entry is a bare identifier: `INSERT INTO t VALUES (1, q)` on `CREATE TABLE t(a INTEGER, b INTEGER)`. The unresolved `q` must raise EVAL_COLUMN_WITHOUT_TABLE, not abort. Shape-matches fuzz reproducer crash_0001 from the 2026-04-21 campaign.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, q);", "expect": {"error": "EVAL_COLUMN_WITHOUT_TABLE"}}
+      ]
+    },
+    {
+      "name": "bug-a-insert-values-multirow-bare-identifier",
+      "description": "Multi-row INSERT VALUES (Phase 6w) where a later tuple contains a bare identifier. Fuzz reproducer crash_0002 shape: `INSERT INTO t VALUES (1), (2), (s)`. Expected: EVAL_COLUMN_WITHOUT_TABLE, not a crash.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1), (2), (s);", "expect": {"error": "EVAL_COLUMN_WITHOUT_TABLE"}}
+      ]
+    },
+    {
+      "name": "bug-a-insert-values-bare-identifier-column-name",
+      "description": "Subtle variant: the bare identifier shares the target column's name. `INSERT INTO t VALUES (a)` on `CREATE TABLE t(a INTEGER)`. Even though `a` is the target column, INSERT VALUES does NOT bind column names in the tuple expression scope (no such SQL feature in v1 — matches Phase 6j/6w semantics). Expected: EVAL_COLUMN_WITHOUT_TABLE on BOTH builds, consistent with bug-a's base case.",
+      "program": [
+        {"sql": "CREATE TABLE t(a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (a);", "expect": {"error": "EVAL_COLUMN_WITHOUT_TABLE"}}
+      ]
+    },
+    {
+      "name": "bug-a-insert-values-bare-identifier-arithmetic",
+      "description": "Bare identifier inside an arithmetic expression in INSERT VALUES — exercises the recursive descent through BinaryOp. `INSERT INTO t VALUES (q + 1)`. Expected: EVAL_COLUMN_WITHOUT_TABLE, not abort.",
+      "program": [
+        {"sql": "CREATE TABLE t(a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (q + 1);", "expect": {"error": "EVAL_COLUMN_WITHOUT_TABLE"}}
+      ]
+    },
+    {
+      "name": "bug-b-select-unresolved-col-group-by",
+      "description": "SELECT with a bare unresolved identifier in the projection list, under a GROUP BY that references a real column. Canonical fuzz reproducer: `SELECT i, SUM(v) FROM t GROUP BY k` on `t(k TEXT, v INTEGER)`. leap-c emits STORAGE_COLUMN_NOT_FOUND; leap-rust must NOT abort. Pre-fix leap-rust panicked at `check_all_column_refs must have resolved outer-scope ref` inside the grouped-aggregated scan-emit phase. The harness's error_name_aliases rule accepts COMPILE_UNKNOWN_COLUMN as the Rust-native spelling.",
+      "program": [
+        {"sql": "CREATE TABLE t(k TEXT, v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('a', 1);", "expect": {"rows": []}},
+        {"sql": "SELECT i, SUM(v) FROM t GROUP BY k;", "expect": {"error": "STORAGE_COLUMN_NOT_FOUND"}}
+      ]
+    },
+    {
+      "name": "bug-b-select-unresolved-col-group-by-no-aggregate",
+      "description": "Same GROUP BY scaffold, but the projection has no aggregate — bare unresolved column alone plus the GROUP BY key. Exercises the pre-aggregate bare-column-collection path at the same point. Expected: STORAGE_COLUMN_NOT_FOUND (or alias-equivalent).",
+      "program": [
+        {"sql": "CREATE TABLE t(k TEXT, v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('a', 1);", "expect": {"rows": []}},
+        {"sql": "SELECT i FROM t GROUP BY k;", "expect": {"error": "STORAGE_COLUMN_NOT_FOUND"}}
+      ]
+    },
+    {
+      "name": "bug-b-select-unresolved-col-group-by-having",
+      "description": "Unresolved column in HAVING (post-projection evaluation, same alias-scope rules). `SELECT SUM(v) FROM t GROUP BY k HAVING i > 0`. Expected: STORAGE_COLUMN_NOT_FOUND for the unresolved `i` in HAVING.",
+      "program": [
+        {"sql": "CREATE TABLE t(k TEXT, v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('a', 1);", "expect": {"rows": []}},
+        {"sql": "SELECT SUM(v) FROM t GROUP BY k HAVING i > 0;", "expect": {"error": "STORAGE_COLUMN_NOT_FOUND"}}
+      ]
+    },
+    {
+      "name": "bug-b-select-unresolved-col-group-by-order-by",
+      "description": "Unresolved column in ORDER BY under GROUP BY — exercises the collect_bare_columns_not_in_group_by walker over the order-by term tree. Expected: STORAGE_COLUMN_NOT_FOUND, not abort.",
+      "program": [
+        {"sql": "CREATE TABLE t(k TEXT, v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('a', 1);", "expect": {"rows": []}},
+        {"sql": "SELECT k, SUM(v) FROM t GROUP BY k ORDER BY i;", "expect": {"error": "STORAGE_COLUMN_NOT_FOUND"}}
+      ]
+    },
+    {
+      "name": "bug-c-recursive-cte-deep-self-reference",
+      "description": "Deep recursive CTE that references itself and must surface RUNTIME_RECURSIVE_CTE_LIMIT on both builds. Direct fuzz reproducer from 2026-04-21 README. leap-c trips the 1000-iter cap inside the fixed-point loop; leap-rust's driver did not implement the fixed-point loop end-to-end and previously raised COMPILE_UNKNOWN_TABLE for `c`. Phase 9h pins RUNTIME_RECURSIVE_CTE_LIMIT as the user-visible error regardless of whether the generator trips the cap or detects the self-reference pre-iteration. The Phase 6bl fixture `phase6bl.json` already pins the same kind for the infinite case `SELECT n+1 FROM c` (no WHERE).",
+      "program": [
+        {"sql": "WITH RECURSIVE c(n) AS (SELECT 1 UNION ALL SELECT n+1 FROM c WHERE n < 1000000) SELECT COUNT(*) FROM c;", "expect": {"error": "RUNTIME_RECURSIVE_CTE_LIMIT"}}
+      ]
+    },
+    {
+      "name": "regression-valid-insert-values-literal",
+      "description": "Regression guard — non-error INSERT VALUES with a literal still works. Ensures the Phase 9h fix does not over-reject valid inputs.",
+      "program": [
+        {"sql": "CREATE TABLE t(a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (42);", "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t;", "expect": {"rows": [[42]]}}
+      ]
+    },
+    {
+      "name": "regression-valid-insert-values-arithmetic",
+      "description": "Regression guard — INSERT VALUES with a literal arithmetic expression (the Phase 6j widening) still works after Phase 9h pin. No column references, no error.",
+      "program": [
+        {"sql": "CREATE TABLE t(a INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1 + 2 * 3);", "expect": {"rows": []}},
+        {"sql": "SELECT a FROM t;", "expect": {"rows": [[7]]}}
+      ]
+    },
+    {
+      "name": "regression-valid-group-by-bare-col-in-group-key",
+      "description": "Regression guard — Phase 6bo bare-column GROUP BY behaviour unchanged: a bare column that IS in the GROUP BY key set still resolves correctly and emits the key value.",
+      "program": [
+        {"sql": "CREATE TABLE t(k TEXT, v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('a', 1), ('b', 2), ('a', 3);", "expect": {"rows": []}},
+        {"sql": "SELECT k, SUM(v) FROM t GROUP BY k ORDER BY k;", "expect": {"rows": [["a", 4], ["b", 2]]}}
+      ]
+    },
+    {
+      "name": "regression-valid-group-by-bare-nonkey-col",
+      "description": "Regression guard — Phase 6bo bare-column-not-in-GROUP-BY semantics unchanged: a real column that is NOT in the GROUP BY key still emits a last-row-seen value. The Phase 9h pin only rejects UNRESOLVED identifiers, not unaligned-but-resolvable ones.",
+      "program": [
+        {"sql": "CREATE TABLE t(k TEXT, v INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES ('a', 1), ('a', 2);", "expect": {"rows": []}},
+        {"sql": "SELECT v, COUNT(*) FROM t GROUP BY k;", "expect": {"rows": [[2, 2]]}}
+      ]
+    }
+  ]
+}

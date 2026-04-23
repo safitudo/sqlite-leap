@@ -1,0 +1,5 @@
+# harness=/Users/stanislav/code/sqlite-leap/src-c/bin/fuzz-exec
+# seeds_dir=/Users/stanislav/code/sqlite-leap/tests/fuzz/corpus/sql/valid seed_count=81
+# out_dir=/tmp/fuzz_post_c
+# rng_seed=13 duration_s=600.0
+# inputs=166860 crashes=0 panics=0 timeouts=0 engine_errors=160798 ok=6062 elapsed_s=600.0

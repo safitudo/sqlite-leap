@@ -46,7 +46,9 @@ Reads the input as a raw byte buffer, splits on ASCII `;` byte (naive byte-split
 
 ## `exec-only` harness
 
-Reads the input as SQL, splits on `;` (same rule as parse-only), parses + compiles + runs each non-empty substatement SEQUENTIALLY against the SAME fresh `:memory:` DB (so `CREATE; INSERT; SELECT` works as a realistic batch). Result rows (if any) are drained but not emitted. Expected outcomes: `OK` iff every substatement executes without error; `ENGINE_ERROR` with the first failing substatement's condition kind.
+Reads the input as SQL, splits on `;` (same rule as parse-only), executes each non-empty substatement SEQUENTIALLY against the SAME fresh `:memory:` DB (so `CREATE; INSERT; SELECT` works as a realistic batch) via the **engine-level pipeline**, not a low-level compile+run shortcut. Result rows (if any) are drained but not emitted. Expected outcomes: `OK` iff every substatement executes without error; `ENGINE_ERROR` with the first failing substatement's condition kind.
+
+**Engine-level pipeline pin (Phase 9h, 2026-04-23).** The harness MUST drive each substatement through the same entry point the CLI and `sqllogictest` runner use — C: `sl_execute(ast, db, ...)` / Rust: `execute_sql(sql, db)` or `execute_ast(ast, db)`. A harness that bypasses that layer (for example, calling `compile()` directly on an `Ast::With` and skipping the engine-level CTE / view dispatch) will surface a different error kind for CTE and view inputs than the CLI does — that divergence is a fuzz-harness artifact, not an engine bug. The 2026-04-21 campaign's Bug C (`RUNTIME_RECURSIVE_CTE_LIMIT` on C vs. `COMPILE_UNKNOWN_TABLE` on Rust for the same recursive-CTE input) was largely driven by the Rust `fuzz_exec` harness taking the low-level path. Both targets' `fuzz-exec` MUST call the same engine entry point that the production CLI calls.
 
 **Limitation**: the naive `;`-split does not handle `;` bytes inside string literals. For the curated seed corpus this is safe (no such input). When mutation-based fuzzing lands, a tokenizer-aware splitter MUST be added at the harness boundary to avoid false positives. (2026-04-18 pin — known gap.)
 

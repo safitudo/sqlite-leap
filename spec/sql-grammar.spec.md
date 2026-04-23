@@ -5728,3 +5728,176 @@ No runtime errors are introduced. `Scalar2 { kind: Nullif }` cannot raise.
 
 `tests/cross-build/phase6bu-nullif.json` is the executable specification for Phase 6bu. All prior phase fixtures MUST stay green.
 
+
+## Phase 9h — name-resolution error propagation (dual-target pin)
+
+Phase 9h is a spec-pin-only phase — no new opcodes, no new tokens, no new
+grammar productions, no new invariants. It exists to close a cross-target
+error-surface gap discovered by the 2026-04-21 fuzz campaign
+(`tests/fuzz/results/2026-04-21-README.md`): leap-c correctly raised a
+structured `ENGINE_ERROR` on two unresolved-identifier inputs, while
+leap-rust aborted the process (`SIGABRT`). The Rust generator had
+introduced an `.expect(...)` assertion inside its column-resolution
+helper, on the implicit assumption that a pre-compile "check all column
+refs" pass always runs first. Two compile paths violated that
+assumption:
+
+- INSERT VALUES expressions (Phase 6j / Phase 6w), which compile each
+  expression with an empty column set and no pre-check;
+- the grouped-aggregated scan-emit phase (Phase 6bo), which collects
+  bare column references from post-group expressions and lowers each
+  one through the general expression compiler without a prior
+  resolution check.
+
+The spec never pinned that **every** `ColumnRef` / `QualifiedColumn`
+lowering site must validate the name before emitting, so the generator
+chose an assertion where a structured error was required. This is the
+"spec pattern leaks a language idiom" failure mode warned about in
+CLAUDE.md's dual-target discipline section.
+
+### Phase 9h pin — name-resolution is a structured-error boundary
+
+1. **No language-level panic, abort, or unchecked assertion is
+   permitted on a name-resolution failure path.** This is a
+   cross-target invariant. A generator that cannot resolve a bare or
+   qualified identifier to a column MUST raise a named
+   `ENGINE_ERROR` condition. Aborting the process (via Rust `panic!`
+   with `panic = abort`, via C `abort()`, via C `assert()` firing in
+   release builds, or any equivalent) is forbidden.
+
+2. **Error-kind selection is determined by the compile context**, not
+   by the generator's ergonomics. The five compile contexts and their
+   pinned error kinds are:
+
+   | Compile context | Unresolved bare `IDENTIFIER` | Unresolved qualified `t.col` |
+   |---|---|---|
+   | `SELECT` projection / WHERE / HAVING / ORDER BY against a known FROM table | `STORAGE_COLUMN_NOT_FOUND { table, column }` | `COMPILE_QUALIFIED_COLUMN_NOT_FOUND { table, column }` |
+   | `SELECT` projection / WHERE / HAVING / ORDER BY against a known multi-table FROM | `STORAGE_COLUMN_NOT_FOUND { table: <enclosing-first-table-or-"<multi>">, column }` OR `COMPILE_UNKNOWN_COLUMN { column }` | `COMPILE_QUALIFIED_COLUMN_NOT_FOUND { table, column }` |
+   | `SELECT` projection / WHERE list with **no FROM** (Phase 6bp `SELECT <expr>`) | `EVAL_COLUMN_WITHOUT_TABLE { column }` | `EVAL_COLUMN_WITHOUT_TABLE { column }` (qualifier is reported as `column` field of the error for parity with the C twin) |
+   | `INSERT VALUES (expr, …)` tuple expression | `EVAL_COLUMN_WITHOUT_TABLE { column }` | `EVAL_COLUMN_WITHOUT_TABLE { column }` |
+   | `UPDATE` assignment RHS / `DELETE` WHERE / `UPDATE` WHERE | `STORAGE_COLUMN_NOT_FOUND { table, column }` (the table is always present for UPDATE/DELETE — see existing Phase 2c-3 text) | `COMPILE_QUALIFIED_COLUMN_NOT_FOUND { table, column }` |
+
+   The first-row "FROM table" rules restate existing Phase 2b text for
+   clarity; the INSERT VALUES and no-FROM rows restate existing Phase
+   2c-1 / Phase 6bp text. The pin is that **every** ColumnRef-emitting
+   code path hits one of these rows, not an unchecked `expect(..)`.
+
+3. **The `COMPILE_UNKNOWN_COLUMN` / `STORAGE_COLUMN_NOT_FOUND` duality
+   is an implementation-stage detail, not a user-visible one.** Some
+   contexts historically raised one spelling, others the other;
+   fixtures pin whichever spelling the authoring phase chose. The
+   harness-layer `error_name_aliases` helper (existing since Phase 6bf)
+   treats the two as equivalent for fixture matching purposes. A new
+   fixture authored under Phase 9h MAY pin either spelling as long as
+   the alias rule accepts the other.
+
+4. **Outer-scope bare-ref resolution (Phase 6ag) is a convenience
+   path, not a post-condition.** Generators that thread an outer-scope
+   stack through `compile_expression` for correlated subquery support
+   MUST return a structured error (not an assertion failure) when the
+   bare name resolves against neither the local column set nor the
+   outer stack. The specific error kind is determined by the outer
+   compile context, per the table above. A generator that panics
+   because "check_all_column_refs must have resolved this" is pinning
+   an internal invariant over a user-visible contract — backwards.
+
+### Phase 9h pin — recursive-CTE error kind
+
+The 2026-04-21 fuzz run also surfaced a non-crash cross-target error-
+kind divergence on deep recursive CTE input:
+
+```
+WITH RECURSIVE c(n) AS (SELECT 1 UNION ALL SELECT n+1 FROM c WHERE n < 1000000)
+SELECT COUNT(*) FROM c;
+```
+
+- leap-c: `ENGINE_ERROR RUNTIME_RECURSIVE_CTE_LIMIT { cte: "c" }` (Phase
+  6bl iteration cap trip, after 1000 fixed-point loops).
+- leap-rust: `ENGINE_ERROR COMPILE_UNKNOWN_TABLE { table: "c" }`.
+
+Both reject; neither crashes. But the Phase 6bl spec says the
+user-visible condition is `RUNTIME_RECURSIVE_CTE_LIMIT`, not
+`COMPILE_UNKNOWN_TABLE`. The leap-rust divergence arises because the
+Rust engine driver's CTE materializer (`run_with_cte` in
+`engine.rs`) does not implement the fixed-point loop end-to-end for
+self-referencing CTEs — it invokes `execute_ast` on the body, which
+compiles the self-reference as an unknown table, surfacing the
+wrong error kind.
+
+Pin (clarifies Phase 6bl, does not widen scope):
+
+- **A self-referencing CTE binding (the body mentions the CTE's own
+  name, at any nesting) MUST surface `RUNTIME_RECURSIVE_CTE_LIMIT
+  { cte: <name> }` when the engine cannot produce the full
+  fixed-point materialization.** This applies regardless of whether
+  the "cannot produce" is because the iteration cap was tripped
+  (the primary Phase 6bl trigger), or because the generator has not
+  yet implemented the fixed-point loop end-to-end (degenerate: zero
+  iterations produced, cap trivially exceeded by 1). The user-
+  visible condition is the same in both sub-cases — they observe
+  only that the recursive materialization could not complete.
+
+- **The spec does NOT require generators to implement the full
+  fixed-point loop in Phase 9h.** The Phase 6bl scope is unchanged;
+  generators that implement the loop raise the cap trip directly,
+  generators that do not MUST still detect the self-reference at
+  CTE-materialize time and raise `RUNTIME_RECURSIVE_CTE_LIMIT`
+  immediately (treating "we cannot iterate" as equivalent to "we
+  exceeded the 1000-iter cap on iteration 1"). This is a strict
+  superset of the previous wording — Phase 6bl said the cap trip
+  raises this kind; Phase 9h adds that a pre-iteration self-
+  reference detection also raises this kind.
+
+- **`COMPILE_UNKNOWN_TABLE` is reserved for genuinely-unknown table
+  names.** A FROM / JOIN reference to a CTE's own name inside the
+  CTE body is NOT a genuinely-unknown table — the body is
+  self-referential by design. The generator must detect that
+  situation before falling through to the catalog lookup and raise
+  `RUNTIME_RECURSIVE_CTE_LIMIT` instead. Only genuinely-unknown
+  names — typos of real tables, references to tables never
+  declared — continue to raise `COMPILE_UNKNOWN_TABLE` /
+  `STORAGE_TABLE_NOT_FOUND`.
+
+### Phase 9h errors (reused, no new kinds)
+
+Every error name referenced above is already defined by a prior
+phase. Phase 9h adds no new error names, no new opcodes, no new
+invariants:
+
+- `EVAL_COLUMN_WITHOUT_TABLE { column }` — Phase 2c-1, Phase 6bp.
+- `STORAGE_COLUMN_NOT_FOUND { table, column }` — Phase 2b.
+- `COMPILE_UNKNOWN_COLUMN { column }` — Phase 6aj.
+- `COMPILE_QUALIFIED_COLUMN_NOT_FOUND { table, column }` — Phase 6e.
+- `RUNTIME_RECURSIVE_CTE_LIMIT { cte }` — Phase 6bl.
+- `COMPILE_UNKNOWN_TABLE { table }` — Phase 9a, reserved for
+  genuinely-unknown names only.
+
+### Phase 9h non-goals
+
+- **Implementing the fixed-point loop on targets that lack it.** The
+  pin is on the error-kind contract, not on the feature. A follow-up
+  phase can land the full fixed-point loop on targets that need it;
+  the Phase 9h pin only covers how failures present.
+- **Unifying `COMPILE_UNKNOWN_COLUMN` and `STORAGE_COLUMN_NOT_FOUND`
+  into one name.** The alias rule is sufficient; renaming either
+  would churn dozens of pre-existing fixtures with no correctness
+  gain.
+- **Changing the `resolve_outer_bare` / outer-scope-stack
+  mechanism.** It remains a valid convenience path for correlated
+  subquery support. Phase 9h only pins that its failure return value
+  MUST propagate as a structured error, not trigger an assertion.
+
+### Test authority (Phase 9h)
+
+`tests/cross-build/phase9h-name-resolution-errors.json` is the
+executable specification for Phase 9h. All three bug classes from the
+2026-04-21 fuzz campaign are pinned there:
+
+- Bug A (INSERT VALUES bare identifier → `EVAL_COLUMN_WITHOUT_TABLE`),
+- Bug B (SELECT unresolved column under GROUP BY →
+  `STORAGE_COLUMN_NOT_FOUND` / alias-equivalent),
+- Bug C (self-referencing recursive CTE that cannot materialize →
+  `RUNTIME_RECURSIVE_CTE_LIMIT`).
+
+Byte-identical verdicts required on both targets. All prior phase
+fixtures MUST stay green.

@@ -1,7 +1,8 @@
 # sqlite-leap — Status Dashboard
 
-**Date:** 2026-04-21 (macOS arm64 / Linux x86_64 via Docker)
+**Date:** 2026-04-23 (macOS arm64 / Linux x86_64 via Docker)
 **Scope:** honest status of the LEAP claims. All numbers reproducible from artifacts in this repo.
+**Last update:** Phase 9h — name-resolution error propagation dual-target pin. Closed 2026-04-21 Rust SIGABRT cluster + cross-target error-kind divergence on recursive CTEs. See `tests/fuzz/results/2026-04-23-README.md`.
 
 ## The claim in one line
 
@@ -34,10 +35,12 @@ Turso has one Rust implementation. sqlite-leap has two implementations from one 
 |---|---:|---:|---|
 | `fuzz-parse` leap-c    | 449 217 |  0* | *one spurious SIGKILL, non-reproducible |
 | `fuzz-parse` leap-rust | 441 214 |  0  | clean |
-| `fuzz-exec`  leap-c    | 444 459 |  0  | clean |
-| `fuzz-exec`  leap-rust | 248 473 | **100** | 2 bug classes (name-resolution panics on unresolved identifiers + GROUP BY on unresolved col). Open finding — spec-level, Rust path should surface `ENGINE_ERROR` instead of `unwrap()`. Concrete reproducers saved. |
+| `fuzz-exec`  leap-c    | 444 459 |  0  | clean (2026-04-21); 166 860 inputs / 0 crashes re-run 2026-04-23 post-Phase 9h |
+| `fuzz-exec`  leap-rust | 164 048 |  **0**  | Phase 9h closed the two 2026-04-21 SIGABRT bug classes. 10-min post-fix smoke @ seed=14: zero crashes, zero panics, zero timeouts. Full campaign cap-size rerun still pending; this row will be re-measured at 1h once the Linux cross-validation lands. |
 
-Full campaign writeup: `tests/fuzz/results/2026-04-21-README.md`.
+Full 2026-04-21 campaign writeup: `tests/fuzz/results/2026-04-21-README.md`.
+Phase 9h post-fix logs: `tests/fuzz/results/2026-04-23-sql-exec-rust-phase9h.log`,
+`tests/fuzz/results/2026-04-23-sql-exec-c-phase9h.log`.
 
 ### Bench (macOS arm64, M2 Ultra — validated CSV after harness fix)
 
