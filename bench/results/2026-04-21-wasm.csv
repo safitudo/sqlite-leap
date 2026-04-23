@@ -1,0 +1,10 @@
+lane,target,value,units,timestamp
+wasm-cold-start,sqlite-leap-wasm,0.006774958,seconds,2026-04-21T10:24:57Z
+wasm-cold-start,sql.js,0.014573417,seconds,2026-04-21T10:25:00Z
+wasm-cold-start,sqlite-wasm,0.028864291,seconds,2026-04-21T10:25:02Z
+wasm-parse-speed,sqlite-leap-wasm,25625,bytes_per_second_single_run,2026-04-23T21:02:26Z
+wasm-parse-speed,sql.js,1896273,bytes_per_second_single_run,2026-04-23T20:55:18Z
+wasm-parse-speed,sqlite-wasm,848437,bytes_per_second_single_run,2026-04-23T20:55:34Z
+wasm-select-in-memory,sqlite-leap-wasm,1330,selects_per_second,2026-04-23T21:07:41Z
+wasm-select-in-memory,sql.js,107144,selects_per_second,2026-04-23T21:02:37Z
+wasm-select-in-memory,sqlite-wasm,135357,selects_per_second,2026-04-23T21:02:40Z

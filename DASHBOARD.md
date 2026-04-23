@@ -50,6 +50,18 @@ Full campaign writeup: `tests/fuzz/results/2026-04-21-README.md`.
 | 5 binary-size (B) | **412 704** | 1 125 552 | 1 219 888 | 13 486 168 | 6 330 224 |
 | 6 memory (B) | **1 671 168** | 2 113 536 | 2 719 744 | 16 728 064 | 9 340 000 |
 
+### WASM lane (lane 7) — leap-wasm vs sql.js vs sqlite-wasm
+
+| sub-lane | sqlite-leap-wasm | sql.js | sqlite-wasm |
+|---|---|---|---|
+| 7a cold-start (s) | **0.00677** | 0.01457 | 0.02886 |
+| 7b parse+exec (B/s) | 25 625 | **1 896 273** | 848 437 |
+| 7c SELECT (sel/s) | 1 330 | 107 144 | **135 357** |
+
+- **Win:** cold-start. leap-wasm beats sql.js by 2.2× and sqlite-wasm by 4.3× — same footprint story as native lane 1.
+- **Loss:** parse+exec and SELECT. Same shape as the native lanes: leap's VDBE dispatch is un-tuned, ~33-100× gap vs the tuned competitors. Consistent story across native + WASM.
+- Methodology + caveats: `bench/lanes/07-wasm/README.md`. CSV: `bench/results/2026-04-21-wasm.csv`.
+
 - **Decisive wins** (footprint axes — cold start, binary size, memory): leap-c beats **mainline, tursodb CLI, and turso-core library** on every lane. Ratios: 2.7× / 2.96× / 1.63× vs mainline; 3.4× / 32.7× / 10× vs tursodb; 3.0× / 15.3× / 5.6× vs turso-core.
 - **Honest losses** (throughput axes — SELECT, INSERT, parse+exec): mainline beats leap-c by **80× on SELECT, 35× on INSERT, 99× on parse+exec**. sqlite-leap has no async I/O in v1 (Phase 5 wired but harness DB-mode prevents lane 4 uplift — see tech debt) and the VDBE is un-tuned. Don't publish as a speed claim.
 - **Lane 2 methodology note (updated 2026-04-21):** corpus now pre-seeds 64 tables (`t0..t63(id,c1..c5)`) so the prior "83% fast-reject on undefined tables" path is gone; every statement targets real tables/columns. That ELIMINATED the false 31 MB/s claim. The lane now legitimately measures parse+execute throughput on a 10 MiB, 131 233-statement mixed workload; single-run (not median-of-5) given leap's 6-minute per-target runtime. 2× priors rule is satisfied — mainline 77× faster than leap-rust, 99× faster than leap-c, no spec-violating inversions. CSV: `bench/results/2026-04-21-lane2-fixed.csv`. For publication we plan to re-measure after VDBE tuning so the gap narrows.
