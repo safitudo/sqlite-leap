@@ -1,0 +1,33 @@
+{
+  "phase": "6bx-c-groupby-star",
+  "description": "Phase 6bx (C, 2026-04-23) — pins the compile-time equivalence `SELECT * ... GROUP BY ...` ≡ `SELECT <col1>, <col2>, ... ... GROUP BY ...` where `<col_i>` is the materialised per-column list of the FROM clause in declaration order. Before this fix leap-c's single-table grouped-aggregated path returned zero-column rows when the projection was PROJ_STAR (sqllogictest flagged as `column-count-mismatch-vs-typestring` against upstream typestrings like `III`). The regression dominated random/groupby/slt_good_{0,1,6,7,13} — ~120 query failures across those 5 files of the 622-file upstream corpus. leap-rust was unaffected (its grouped codegen already threaded STAR through the projection width calculation). Fix shape: a compile-time AST rewrite `expand_projection_star_for_grouped` that replaces PROJ_STAR with a synthesised PROJ_EXPRS list of EXPR_COLUMN_REF (single-table) or EXPR_QUALIFIED_COLUMN (joined) nodes when `sel_has_group_by` is true. Runs before the alias-substitution and positional-ORDER-BY prepasses so downstream passes operate on the materialised projection. Per spec § Phase 6bo bare GROUP BY columns, each synthesised ref is a bare-non-key column reference — some match GROUP BY keys (resolved via the group-key register copy) and the rest fall through to the Phase 6bo last-row-seen emission path.",
+  "cases": [
+    {
+      "name": "star-single-table-groupby-all-keys",
+      "description": "`SELECT * FROM tab0 GROUP BY col0, col1, col2` — STAR expands to (col0, col1, col2), every column is a GROUP BY key so every row in a unique group yields a 3-value output. Mainline SQLite produces 3 rows of 3 values each; leap-c pre-fix produced 3 rows of 0 values each.",
+      "program": [
+        {"sql": "CREATE TABLE tab0 (col0 INTEGER, col1 INTEGER, col2 INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO tab0 VALUES (83, 0, 38), (26, 0, 79), (43, 81, 24);", "expect": {"rows": []}},
+        {"sql": "SELECT * FROM tab0 AS cor0 GROUP BY cor0.col1, cor0.col2, cor0.col0 ORDER BY col0;", "expect": {"rows": [[26, 0, 79], [43, 81, 24], [83, 0, 38]]}}
+      ]
+    },
+    {
+      "name": "star-single-table-groupby-partial-keys",
+      "description": "`SELECT * FROM t GROUP BY col1` — STAR expands to all columns; only col1 is a key, col0 and col2 are bare non-key refs and resolve via the Phase 6bo last-row-seen emission path. Three distinct col1 values → 3 groups.",
+      "program": [
+        {"sql": "CREATE TABLE t (col0 INTEGER, col1 INTEGER, col2 INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10, 100), (2, 20, 200), (3, 30, 300);", "expect": {"rows": []}},
+        {"sql": "SELECT * FROM t GROUP BY col1 ORDER BY col1;", "expect": {"rows": [[1, 10, 100], [2, 20, 200], [3, 30, 300]]}}
+      ]
+    },
+    {
+      "name": "star-non-grouped-unchanged",
+      "description": "Regression guard — `SELECT * FROM t` with no GROUP BY is untouched by the prepass (the existing plain-path STAR expansion handles it). Verifies the prepass's `sel_has_group_by` short-circuit.",
+      "program": [
+        {"sql": "CREATE TABLE t (a INTEGER, b INTEGER);", "expect": {"rows": []}},
+        {"sql": "INSERT INTO t VALUES (1, 10), (2, 20);", "expect": {"rows": []}},
+        {"sql": "SELECT * FROM t ORDER BY a;", "expect": {"rows": [[1, 10], [2, 20]]}}
+      ]
+    }
+  ]
+}

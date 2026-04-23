@@ -2,11 +2,11 @@
 
 **Date:** 2026-04-23 (macOS arm64 / Linux x86_64 via Docker)
 **Scope:** honest status of the LEAP claims. All numbers reproducible from artifacts in this repo.
-**Last update:** Rust corpus 615/622 → **620/622 (99.68%)** via Phase 6cd (HAVING / GROUP BY base-column-wins-on-alias-shadow) + UPDATE duplicate-column rightmost-wins (R-34751-18293). Zero PASS→FAIL regressions; 86/86 phase tests green; 203/203 smoke byte-identical C↔Rust. Log: `tests/sqllogictest/results/2026-04-23-rust-full-v5.log`.
+**Last update:** C corpus 576/622 → **588/622 (94.53%)** via Phase 6cc (duplicate-alias + base-col tiebreak) + Phase 6cd (HAVING / GROUP BY base-column-wins-on-alias-shadow, single alias form) + Phase 6bx-c (PROJ_STAR expansion for grouped SELECTs). Closes all 12 `random/groupby/slt_good_*` FAILs on C. Zero PASS→FAIL regressions; 86/86 phase tests green; 203/203 smoke byte-identical C↔Rust. Log: `tests/sqllogictest/results/2026-04-23-c-full-v5.log`. Rust corpus unchanged at 620/622 (99.68%).
 
 ## The claim in one line
 
-> One language-neutral spec → two engines (C + Rust) → byte-identical output on hand-authored smoke tests, 108/108 bidirectional file-format compatibility with mainline SQLite, and **99.68%** / **92.60%** (Rust / C) end-to-end file-level pass on the full 622-file upstream sqllogictest corpus.
+> One language-neutral spec → two engines (C + Rust) → byte-identical output on hand-authored smoke tests, 108/108 bidirectional file-format compatibility with mainline SQLite, and **99.68%** / **94.53%** (Rust / C) end-to-end file-level pass on the full 622-file upstream sqllogictest corpus.
 
 Turso has one Rust implementation. sqlite-leap has two implementations from one spec. That asymmetry is the stunt.
 
@@ -18,7 +18,7 @@ Turso has one Rust implementation. sqlite-leap has two implementations from one 
 |---|---|---|
 | Smoke suite byte-identical C ↔ Rust | **203/203** | `tests/sqllogictest/smoke/` |
 | Upstream corpus — Rust (622 files) | **620/622 (99.68%)** pass, **0 panics**, 2 timeouts, 0 FAIL | `tests/sqllogictest/results/2026-04-23-rust-full-v5.log` + diff `-v5-diff.md` |
-| Upstream corpus — C (622 files, file-level) | **576/622 (92.60%)** pass, **0 panics**, 33 timeouts, 13 FAIL, 0 regressions from v3 | `tests/sqllogictest/results/2026-04-21-c-full-v4.log` + diff `-v4-diff.md` |
+| Upstream corpus — C (622 files, file-level) | **588/622 (94.53%)** pass, **0 panics**, 33 timeouts, 1 FAIL, 0 regressions from v4 | `tests/sqllogictest/results/2026-04-23-c-full-v5.log` + diff `-v5-diff.md` |
 
 ### Bidirectional file-format compat with mainline SQLite
 
@@ -111,7 +111,13 @@ Rust pass rate: 64.63% → 93.89% → 98.71% → 98.87% → **99.68%** at file l
 - **#143 Phase 6cd HAVING / GROUP BY shadow rule** — base column wins over single-alias shadow (not just duplicate-alias tiebreak). Closes all four `random/groupby/slt_good_{8,10,11,12}.test` residuals that interleaved AMBIGUOUS_ALIAS, AGGREGATE_IN_NON_PROJECTION (nested aggregates from alias substitution), and row-count mismatches. ORDER BY retains alias-wins behaviour. Spec: `spec/sql-grammar.spec.md` § Phase 6aj updates + Phase 6cd. Fixture: `tests/cross-build/phase6aj.json::non-distinct-having-base-col-wins` (supersedes the Task #92 `non-distinct-having-alias-still-wins` memorialisation of leap-c's alias-wins quirk, which diverged from mainline).
 - **#143 UPDATE duplicate-column rightmost-wins** — `UPDATE t SET x=3, x=4, x=5` now follows SQL grammar evidence R-34751-18293 (rightmost assignment wins, others ignored), instead of raising STORAGE_DUPLICATE_COLUMN. Closes `evidence/slt_lang_update.test`. Spec: `spec/sql-grammar.spec.md` § Phase 2c-3 + `spec/vdbe-opcodes.spec.md` § UpdateRow note. Fixture: `tests/cross-build/phase2c3.json::update-duplicate-column-rightmost-wins` (replaces the old error-expecting fixture).
 
-C pass rate: 25.88% → **90.19%** (v3) → **92.60%** (v4, post-#139 derived-table parser port) at file level. +415 files, zero PASS→FAIL regressions, zero panics. Residual 46 non-PASS: 13 FAIL (1 `evidence/slt_lang_update`, 12 `random/groupby/slt_good_*` bare-col cluster), 33 TIMEOUT (22 in `index/random/10/` + `index/random/100/` small-row planner cluster, 11 other large-row or joint-with-Rust). Big unlocks this session's round 2:
+C pass rate: 25.88% → **90.19%** (v3) → **92.60%** (v4, post-#139 derived-table parser port) → **94.53%** (v5, post-#141 groupby cluster) at file level. +427 files vs start-of-session, zero PASS→FAIL regressions, zero panics. Residual 34 non-PASS: 1 FAIL (`evidence/slt_lang_update`, joint debt with Rust), 33 TIMEOUT (22 in `index/random/10/` + `index/random/100/` small-row planner cluster, 11 other large-row or joint-with-Rust). #141 round-2 unlock (this v5):
+- **#141 Phase 6cc (duplicate-alias + base-col tiebreak)** — when two projection slots share an alias name that also matches a base column, C's `alias_rewrite_expr` now resolves post-projection clause references to the base column instead of raising `COMPILE_AMBIGUOUS_ALIAS`. Closes corpus cases with that shape.
+- **#141 Phase 6cd (single-alias shadow rule in GROUP BY / HAVING)** — even for unique aliases, a name that shadows a base column binds to the base column in GROUP BY / HAVING. ORDER BY retains alias-wins behaviour. The clause-context parameter was added to `alias_rewrite_expr`. Cuts the DISTINCT-wrapper's double-substitute loop as a side-effect.
+- **#141 Phase 6bx-c (PROJ_STAR expansion for grouped SELECTs)** — C-local compiler prepass `expand_projection_star_for_grouped` materialises `SELECT * ... GROUP BY ...` into a synthesised `PROJ_EXPRS` with one ColumnRef per declared column, before alias substitution / positional ORDER BY rewrite. Before this the grouped-aggregated compile path used `ast->sel_projection.n` (== 0 for STAR) as projection width, emitting zero-column rows flagged as `column-count-mismatch-vs-typestring`. Fixture pin: `tests/cross-build/phase6bx-c-groupby-star.json`.
+- Combined: all 12 `random/groupby/slt_good_*` FAILs on C flip to PASS. Zero regressions; 86/86 phase tests green.
+
+Round-1 unlocks (v3 → v4):
 - #129 C planner fix — IDX* opcodes missing from pc-remap in 3 splicing paths (emit_inline_exists, emit_inline_in_subquery, splice_opcode) caused infinite loop on IN-subquery + indexed inner WHERE. 147 TIMEOUT→PASS.
 - #133 DISTINCT copy-loop fix — `compile_select_distinct` dropped agg_distinct + scalar*_kind on opcode copy; `SUM(DISTINCT -10)` summed constant N times. 130 random/aggregates + 120 random/expr flipped.
 - #139 Phase 6br derived-table parser port — C parser had rejected `FROM (SELECT …) AS alias` as "Phase 6bq non-goal"; index/view/* corpus uses this shape. All 15 C-only index/view files flip PASS.
@@ -121,7 +127,7 @@ C pass rate: 25.88% → **90.19%** (v3) → **92.60%** (v4, post-#139 derived-ta
 ## Known tech debt
 
 1. **~~VIEW and derived-table support on Rust is in the sqllogictest runner, not the engine.~~** **RESOLVED 2026-04-20.** View + CTE + derived-table handling now lives in `src-rust/src/engine.rs` (`execute_sql` / `execute_ast`) keyed off `Database::views` (per-Database catalog, no thread-local state). `wasm.rs` and `bin/sqllogictest.rs` both route through the engine entrypoint; `view_subst.rs` is deleted. Library consumers that call `engine::execute_sql` against a fresh `Database` get full view semantics with no setup. Integration tests in `src-rust/tests/engine_view.rs` lock in the contract. Corpus pass rate unchanged at 615/622 (98.87%), phase regression 83/83 green.
-2. **Bare non-key columns in GROUP BY + JOIN on leap-c** emit NULL; mainline + leap-rust emit last-row-seen value (via Phase 6bo sorter-trick). Fixture cases documented; divergence not crash.
+2. **Bare non-key columns in GROUP BY + JOIN on leap-c** emit NULL; mainline + leap-rust emit last-row-seen value (via Phase 6bo sorter-trick). Single-table GROUP BY with bare non-key cols now lands correctly on leap-c via the existing Phase 6bo path; the joined-GROUP-BY paths (2-table and N-way, compile_select_joined*) still collapse to NULL as the 6bv crash-avoidance workaround and haven't been promoted to last-row-seen — Rust's joined paths do. Not required for the v5 corpus number (the upstream `random/groupby/*` cases all pass on single-table after the 6cc/6cd/6bx-c landings).
 3. **~~Lane 2 bench corpus references undefined tables~~** — **RESOLVED 2026-04-21.** `bench/lanes/02-parse-speed/generate-corpus.{py,sh}` now pre-seeds 64 CREATE TABLE statements (`t0..t63` with columns `id/c1/c2/c3/c4/c5`) before emitting 10 MiB of random statements that only reference defined tables with real columns. Re-measured: `bench/results/2026-04-21-lane2-fixed.csv` — mainline 2.84 MB/s, turso 311 kB/s, leap-rust 36.8 kB/s, leap-c 28.7 kB/s. Single-run numbers (not median); lane now measures parse+execute throughput and satisfies the 2× priors sanity rule.
 4. **~~Phase 5 async I/O deferred.~~** **IMPLEMENTED 2026-04-21.** Both kqueue (macOS/BSD, `src-{c,rust}/io_backend_kqueue.{c,rs}`) and io_uring (Linux, raw-syscall, `src-{c,rust}/io_backend_iouring.{c,rs}`) backends wired on both targets. Backend-agnostic pager_async state machine (`src-{c,rust}/pager_async.{c,rs}`) dispatches via env var. SQ capacity 64/128 per backend. Epoch-stamped silent-drop cancellation. Spec: `spec/io-backend-{iouring,kqueue}.spec.md`, `spec/pager-async.spec.md`, `schema/io-{submission,completion}.schema.json`. Fixture `phase5-async-{kqueue,iouring}.json` passes on both targets.
 6. **~~Phase 4b deferred — lane 4 still doesn't move.~~** **LANDED 2026-04-23.** Phase 4b WAL append-on-write is implemented on both C and Rust with a `phase4b.json` fixture (6/6 green on both), full spec coverage in `spec/wal.spec.md` § "Phase 4b" (session activation via `LEAP_WAL_APPEND=1`, snapshot-diff dirty-set, multi-frame recovery on reopen, checkpoint-on-close), and the lane 4 harness wired to exercise it via `LEAP_DB_PATH` + `LEAP_WAL_APPEND`. **The lane 4 number did not move** (leap-c 20 296, leap-rust 37 786 — same as pre-4b) because the existing workload is a single 100k-insert transaction = one commit = one frame batch; Phase 4b's win surface is many small commits (OLTP shape). Lane 4 loss vs mainline is VDBE CPU, not WAL I/O. Honest write-up: `bench/results/2026-04-23-lane4-phase4b.README.md`. Follow-up sub-lane (many-commit workload) listed as open scope.
@@ -131,7 +137,7 @@ C pass rate: 25.88% → **90.19%** (v3) → **92.60%** (v4, post-#139 derived-ta
 
 | criterion | status |
 |---|---|
-| sqllogictest pass ≥ mainline's own rate, both builds | Rust **98.87%** / C **92.60%** file-level on macOS (v4 logs committed); Linux Rust smoke 203/203 (the pre-#130 runner-stdio bug is resolved by the runner→engine refactor) |
+| sqllogictest pass ≥ mainline's own rate, both builds | Rust **99.68%** / C **94.53%** file-level on macOS (v5 logs committed); Linux Rust smoke 203/203 (the pre-#130 runner-stdio bug is resolved by the runner→engine refactor) |
 | Reads/writes mainline-compatible DBs, both builds | **Yes — 108/108 roundtrip matrix, 50k-row indexed tables pass `PRAGMA integrity_check` via mainline** |
 | Cross-build equivalence C ↔ Rust | **Yes — 203/203 byte-identical smoke** |
 | All 6 bench lanes beat mainline, Linux+macOS | No — wins footprint lanes, loses throughput lanes. Honest. |
@@ -149,8 +155,8 @@ Everything in this dashboard comes from committed artifacts:
 - `bench/results/2026-04-20-Stanislavs-Mac-Studio-validated.csv` — macOS benchmarks
 - `bench/results/2026-04-20-linux-x86_64.csv` + Dockerfile — Linux cross-val
 - `bench/results/2026-04-20-turso-core-library-variant.csv` — fair engine-vs-engine numbers
-- `tests/sqllogictest/results/2026-04-21-rust-full-v4.log` — 615/622 Rust pass-rate (post-#140 AMBIGUOUS_ALIAS fix)
-- `tests/sqllogictest/results/2026-04-21-c-full-v4.log` — 576/622 C pass-rate (post-#139 derived-table parser port)
+- `tests/sqllogictest/results/2026-04-23-rust-full-v5.log` — 620/622 Rust pass-rate (post-#143 Phase 6cd + duplicate-column rightmost-wins)
+- `tests/sqllogictest/results/2026-04-23-c-full-v5.log` — 588/622 C pass-rate (post-#141 Phase 6cc + 6cd + 6bx-c for the random/groupby cluster)
 - `bench/results/2026-04-21-lane2-fixed.csv` — lane 2 re-measured after corpus regen
 - `tests/roundtrip/results/2026-04-20-matrix.md` — 108/108 bidirectional
 - `tests/cross-build/phase*.json` — engine-level fixtures (86+ phases including Phase 5 async)
