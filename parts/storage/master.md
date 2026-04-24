@@ -82,12 +82,97 @@ Returns `LEAP_RC_*` condition code; on success (implied by returning
 an OK sentinel distinct from any `LEAP_RC_*`) populates
 `*out_cursor`.
 
-The VDBE passes its storage-backing `Database` handle through
-`VdbeState` or via a separate handle provided by the executor
-driver; the exact plumbing is a v2 open question — sub-parts should
-assume a `Database` reference is available in `state.db()` or as a
-function argument, pending a future cross-sub-part interface
-declaration.
+The VDBE accesses its storage-backing `Database` handle through
+`VdbeState::db()` (Rust) / `leap_vdbe_state_db` (C). Opcodes pass
+that handle into the storage surface calls below.
+
+## VDBE table-cursor surface (canonical)
+
+The set of per-cursor operations the VDBE invokes on a
+`CursorHandle` while executing row-family opcodes
+(`parts/vdbe/parts/opcodes-rows/`) and table-scan ops in
+`opcodes-scan/`. Both emissions must match these signatures exactly.
+Index-cursor ops are declared separately in
+`parts/storage/parts/index/master.md`.
+
+### Rust
+
+```rust
+use crate::core::{Value, RuntimeCondition};
+
+// Positional walk
+pub fn cursor_rewind     (c: &mut CursorHandle)               -> Result<bool, RuntimeCondition>; // Ok(false) = empty table
+pub fn cursor_next       (c: &mut CursorHandle)               -> Result<bool, RuntimeCondition>; // Ok(false) = EOF
+pub fn cursor_prev       (c: &mut CursorHandle)               -> Result<bool, RuntimeCondition>; // Ok(false) = BOF
+pub fn cursor_seek_rowid (c: &mut CursorHandle, rowid: i64)   -> Result<bool, RuntimeCondition>; // Ok(true) = found
+
+// Column read — returns an OWNED Value (storage materializes the cell,
+// VDBE hands it to set_register). See "Column ownership" pin below.
+pub fn cursor_column     (c: &CursorHandle, col_index: u32)   -> Result<Value<'static>, RuntimeCondition>;
+
+// Row mutation (only valid on writable cursors)
+pub fn cursor_insert_row (
+    c: &mut CursorHandle,
+    columns: &[&str],
+    values:  &[Value<'_>],
+) -> Result<i64 /* new rowid */, RuntimeCondition>;
+
+pub fn cursor_update_row (
+    c: &mut CursorHandle,
+    columns: &[&str],
+    values:  &[Value<'_>],
+) -> Result<(), RuntimeCondition>;
+
+pub fn cursor_delete_row (c: &mut CursorHandle) -> Result<(), RuntimeCondition>;
+```
+
+### C
+
+```c
+LeapRuntimeCondition leap_storage_cursor_rewind     (LeapCursor*, bool* out_has_row);
+LeapRuntimeCondition leap_storage_cursor_next       (LeapCursor*, bool* out_has_row);
+LeapRuntimeCondition leap_storage_cursor_prev       (LeapCursor*, bool* out_has_row);
+LeapRuntimeCondition leap_storage_cursor_seek_rowid (LeapCursor*, int64_t rowid, bool* out_found);
+
+// cursor_column returns an OWNED LeapValue via out-param. Caller is
+// responsible for leap_value_release on the result (typically by
+// handing it to leap_vdbe_state_set_register which takes ownership).
+LeapRuntimeCondition leap_storage_cursor_column     (const LeapCursor*, uint32_t col_index, LeapValue* out_value);
+
+// Row mutation. The column_names / values arrays are parallel;
+// column_names is a pointer-to-pointer array of NUL-terminated
+// borrowed names (from SQL source). values is an array of pointers
+// to LeapValue owned by the VDBE's register file — the storage
+// layer is free to clone as needed.
+LeapRuntimeCondition leap_storage_cursor_insert_row (
+    LeapCursor*,
+    const char* const* column_names, size_t column_names_len,
+    const LeapValue* const* values, size_t values_len,
+    int64_t* out_rowid
+);
+
+LeapRuntimeCondition leap_storage_cursor_update_row (
+    LeapCursor*,
+    const char* const* column_names, size_t column_names_len,
+    const LeapValue* const* values, size_t values_len
+);
+
+LeapRuntimeCondition leap_storage_cursor_delete_row (LeapCursor*);
+```
+
+### Column ownership
+
+`cursor_column` returns an OWNED value. Rust: the returned `Value`
+is `'static` (or an owned `Cow`), so the VDBE can hand it to
+`set_register` without any further clone. C: the `LeapValue` struct
+populated via out-param has `is_owned = true` for Text/Blob
+payloads, so the VDBE can hand it to `leap_vdbe_state_set_register`
+which takes ownership (the setter releases the prior register value
+via `leap_value_release` before installing the new one).
+
+This is the canonical "storage-materialized value" boundary. No
+sub-part may invert the ownership direction (e.g., return a borrowed
+Value to the VDBE) without a spec change.
 
 ## `CursorHandle` — canonical shape (owned by this part)
 

@@ -2,12 +2,14 @@
 name: vdbe/opcodes-window
 kind: leaf
 inherits:
+  - /spec/memory-discipline.spec.md
   - /schema/opcode.schema.json
+  - /parts/core/master.md
+  - /parts/vdbe/master.md
   - /parts/vdbe/parts/opcodes-agg/master.md
-  - /parts/compiler/parts/window/master.md
 emits:
-  c: { path: src-c/vdbe/opcodes_window.c, headers: [src-c/vdbe/opcodes_window.h] }
-  rust: { path: src-rust/src/vdbe/opcodes_window.rs }
+  c: { path: src-c-v2/vdbe/opcodes_window.c, headers: [src-c-v2/vdbe/opcodes_window.h] }
+  rust: { path: src-rust-v2/vdbe/opcodes_window.rs }
 ---
 
 # Part: vdbe/opcodes-window
@@ -15,15 +17,52 @@ emits:
 Window-function execution. Row-number counter; partition boundary
 detection; per-row aggregate-as-window output.
 
-## Opcodes owned here
+## Canonical enum shape
+
+### Rust
+
+```rust
+use crate::core::Register;
+use crate::vdbe::opcodes_agg::{AccumulatorSlot, AggFuncKind};
+
+pub type WindowSlot = u32;
+
+pub enum WindowKind {
+    RowNumber,
+    Rank,
+    DenseRank,
+    Aggregate(AggFuncKind),   // SUM() OVER (...), COUNT() OVER (...), etc.
+}
+
+pub enum OpcodeWindow {
+    WindowOpen          { slot: WindowSlot, kind: WindowKind, n_partition_keys: u32, n_order_keys: u32 },
+    WindowStep          { slot: WindowSlot, arg_reg: Option<Register> },
+    WindowValue         { slot: WindowSlot, dest_reg: Register },
+    WindowPartitionKey  { slot: WindowSlot, key_idx: u32, dest_reg: Register },
+    WindowClose         { slot: WindowSlot },
+}
+```
+
+## Per-opcode semantics
+
+All return `OpcodeOutcome::Continue` on success (or `Halt` on
+illegal op). None emit rows directly — window output feeds back
+into the compiler's projection pipeline via `WindowValue` into a
+register.
 
 | Name | Semantics |
 |---|---|
-| `WindowOpen(spec)` | Begin a window session with the given PartitionBy/OrderBy spec. Allocates partition state. |
-| `WindowStep(arg_regs)` | Feed one row's values into the window. |
-| `WindowValue(dest_reg)` | Read current window function's value for the active row. |
-| `WindowPartitionKey(dest_reg)` | Read current partition key (for boundary detection). |
-| `WindowClose` | End the window session. |
+| `WindowOpen` | Allocate a window session in `VdbeState::windows[slot]`. Reset per-partition state. |
+| `WindowStep` | Feed a row into the window. For aggregate windows: apply `arg_reg`'s value via the underlying aggregate step. For RowNumber/Rank/DenseRank: advance counters per ORDER BY comparison. |
+| `WindowValue` | Read the current window function's value for the active row into `regs[dest_reg]`. RowNumber → Integer; Rank/DenseRank → Integer; Aggregate → the aggregate's current finalized value (same rules as AggFinal but read-only). |
+| `WindowPartitionKey` | Read the current partition's `key_idx`-th key component into `regs[dest_reg]`. Used by the outer scan to detect partition boundaries. |
+| `WindowClose` | Free the window session. |
+
+## Frame clauses
+
+Out of scope for v2. Compiler rejects `ROWS BETWEEN ...` at compile
+time with `COMPILE_WINDOW_FRAME_UNSUPPORTED`. Runtime never sees a
+frame spec.
 
 ## ROW_NUMBER semantics
 

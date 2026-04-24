@@ -5,9 +5,11 @@ inherits:
   - /schema/opcode.schema.json
   - /schema/value.schema.json
   - /spec/memory-discipline.spec.md
+  - /parts/core/master.md
+  - /parts/vdbe/master.md
 emits:
-  c: { path: src-c/vdbe/opcodes_expr.c, headers: [src-c/vdbe/opcodes_expr.h] }
-  rust: { path: src-rust/src/vdbe/opcodes_expr.rs }
+  c: { path: src-c-v2/vdbe/opcodes_expr.c, headers: [src-c-v2/vdbe/opcodes_expr.h] }
+  rust: { path: src-rust-v2/vdbe/opcodes_expr.rs }
 ---
 
 # Part: vdbe/opcodes-expr
@@ -15,16 +17,78 @@ emits:
 Expression evaluation opcodes. Arithmetic, comparison, logical,
 type, string, scalar function dispatch.
 
-## Opcode families
+## Canonical enum shape
+
+Because this family has ~40 opcodes, it uses a two-level layout:
+per-op variants for unique shapes, plus a compact group variant
+for binary ops with identical shape. Convention:
+
+### Rust
+
+```rust
+use crate::core::{Register, Value};
+
+pub enum BinOpKind {
+    Add, Subtract, Multiply, Divide, Modulo,
+    BitAnd, BitOr, Shl, Shr,
+    Eq, Ne, Lt, Le, Gt, Ge,
+    And, Or,
+    Concat,
+}
+
+pub enum UnaryOpKind {
+    Neg, Not, BitNot,
+    IsNull, NotNull,
+}
+
+pub enum CastKind   { Integer, Real, Text }
+pub enum ScalarKind {
+    Length, Abs, Upper, Lower, Trim, Ltrim, Rtrim,
+    Substr, Replace, Instr, Round,
+    Coalesce, Nullif, Ifnull,
+    Typeof, Hex, Quote, Random,
+    Date, Time, Datetime, Julianday, Strftime,
+    Unicode, Char, Printf,
+}
+
+pub enum OpcodeExpr<'src> {
+    BinOp   { kind: BinOpKind, lhs: Register, rhs: Register, dest_reg: Register },
+    UnaryOp { kind: UnaryOpKind, src: Register, dest_reg: Register },
+    Cast    { kind: CastKind, src: Register, dest_reg: Register },
+    Like    { hay: Register, pat: Register, esc: Option<Register>, dest_reg: Register },
+    Glob    { hay: Register, pat: Register, dest_reg: Register },
+    Collate { src: Register, collation: &'src str, dest_reg: Register },
+    Scalar  { kind: ScalarKind, args: Vec<Register>, dest_reg: Register },
+    CastRealToText { src: Register, dest_reg: Register },
+}
+```
+
+### C
+
+Same-shape layout: discriminator enum + union of operand structs.
+Generator produces it in the idiomatic C style (see opcodes-core
+for reference).
+
+## Opcode semantics
+
+### BinOp
+
+All `BinOp` variants emit `Continue` on success. NULL propagation
+rule (cross-variant): if either operand is `Value::Null`, result is
+`Value::Null` — except for `IS` / `IS NOT` / `IsNull` / `NotNull`
+(those live in UnaryOp for single-operand forms; for the binary
+`IS` / `IS NOT` — not present in this list since SQLite's `IS` is a
+special comparison — see the "IS/IS NOT special case" section).
 
 ### Arithmetic
 
-`Add`, `Subtract`, `Multiply`, `Divide`, `Modulo`, `Neg`,
-`BitAnd`, `BitOr`, `BitNot`, `Shl`, `Shr`. Standard two-operand
-→ dest-register shape. NULL operands yield NULL result.
+`Add`, `Subtract`, `Multiply`, `Divide`, `Modulo`. Affinity rules:
+Integer ⊕ Integer → Integer with overflow promotion to Real; any
+Real operand → Real result.
 
-**DIV/MOD by zero** → NULL (SQLite semantics, Phase 6l / Phase
-121).
+**DIV/MOD by zero** → `Value::Null` (SQLite semantics, Phase 6l /
+Phase 121). NOT `RuntimeCondition::DivZero`; that condition exists
+for diagnostics but is not raised in default operation.
 
 ### Comparison
 
