@@ -1,152 +1,148 @@
 ---
 name: vdbe/opcodes-core
-kind: leaf
-inherits:
-  - /spec/memory-discipline.spec.md
-  - /schema/opcode.schema.json
-  - /schema/value.schema.json
-  - /parts/core/master.md
-  - /parts/storage/master.md
-emits:
-  c:
-    path: src-c-v2/vdbe/opcodes_core.c
-    headers: [src-c-v2/vdbe/opcodes_core.h]
-  rust:
-    path: src-rust-v2/vdbe/opcodes_core.rs
 ---
 
 # Part: vdbe/opcodes-core
 
-The foundational VDBE opcode family: program control, constant
-loading, register moves, cursor lifecycle, row emission. Every
-other opcode family assumes these work.
+The foundational VDBE opcode family: program termination, constant
+load, register moves and copies, cursor lifecycle, and row
+emission. Every other opcode family assumes these work. Shape
+declarations live in `shapes.json`; this file carries only
+semantic intent.
 
-## Opcodes owned here — canonical enum shape
+## Semantic contract
 
-Emit EXACTLY this enum (variant names and field names verbatim;
-target syntax per language):
+Each handler returns an `OpcodeOutcome`. The handler does not touch
+the program counter directly — it yields `Continue`, `Halt`, or
+`EmitRow`, and the outer VDBE loop interprets.
 
-### Rust
+### `Halt`
 
-```rust
-use crate::core::{Value, Register, CursorId};
+Unconditional termination with normal status. Return
+`Halt(HaltStatus::Ok)`.
 
-pub enum OpcodeCore<'src> {
-    Halt,
-    LoadConst  { dest_reg: Register, value: Value<'src> },
-    Move       { src_reg: Register,  dest_reg: Register },
-    Copy       { src_reg: Register,  dest_reg: Register },
-    OpenRead   { cursor: CursorId,   table: &'src str },
-    OpenWrite  { cursor: CursorId,   table: &'src str },
-    Close      { cursor: CursorId },
-    ResultRow  { start_reg: Register, count: u32 },
-}
-```
+### `LoadConst { dest_reg, value }`
 
-### C
+Write a (cloned) copy of `value` into register `dest_reg`,
+releasing any prior payload at that slot. Return `Continue`.
 
-```c
-typedef enum LeapOpcodeCoreKind {
-    LEAP_OPC_HALT = 0,
-    LEAP_OPC_LOAD_CONST,
-    LEAP_OPC_MOVE,
-    LEAP_OPC_COPY,
-    LEAP_OPC_OPEN_READ,
-    LEAP_OPC_OPEN_WRITE,
-    LEAP_OPC_CLOSE,
-    LEAP_OPC_RESULT_ROW,
-} LeapOpcodeCoreKind;
+Ownership: the `value` carried by the opcode is owned. The register
+receives an owned clone. Text/Blob payloads cross a real allocation
+boundary.
 
-typedef struct LeapOpcodeCore {
-    LeapOpcodeCoreKind kind;
-    union {
-        struct { LeapRegister dest_reg; LeapValue value; } load_const;
-        struct { LeapRegister src_reg; LeapRegister dest_reg; } move_;
-        struct { LeapRegister src_reg; LeapRegister dest_reg; } copy;
-        struct { LeapCursorId cursor; const char* table; size_t table_len; } open_read;
-        struct { LeapCursorId cursor; const char* table; size_t table_len; } open_write;
-        struct { LeapCursorId cursor; } close;
-        struct { LeapRegister start_reg; uint32_t count; } result_row;
-    } as;
-} LeapOpcodeCore;
-```
+### `Move { src_reg, dest_reg }`
 
-## Per-opcode semantics
+Move the value out of `src_reg` into `dest_reg`. After execution
+`src_reg` holds `Value::Null`. Return `Continue`.
 
-| Name | Semantics |
-|---|---|
-| `Halt` | Terminates execution. Returns `OpcodeOutcome::Halt(HaltStatus::Ok)`. The outer loop sets pc beyond end. |
-| `LoadConst { dest_reg, value }` | `state.set_register(dest_reg, value.clone())`. Returns `Continue`. |
-| `Move { src_reg, dest_reg }` | `let v = state.take_register(src_reg); state.set_register(dest_reg, v);`. After Move, `regs[src_reg]` is `Value::Null`. If `src == dest`: register becomes Null (net effect of take-then-set to same slot). Returns `Continue`. |
-| `Copy { src_reg, dest_reg }` | `let v = state.get_register(src_reg).clone(); state.set_register(dest_reg, v);`. `regs[src_reg]` unchanged. If `src == dest`: no-op, skip clone. Returns `Continue`. |
-| `OpenRead { cursor, table }` | Ask `storage` to open a read cursor on `table`; on success, `state.set_cursor(cursor, handle)`. If the table doesn't exist: `Halt(HaltStatus::Error(RuntimeCondition::TableNotFound))`. If the cursor slot is already open: **replace silently** (compiler is responsible for Close first). Returns `Continue` on success. |
-| `OpenWrite { cursor, table }` | Same as `OpenRead` but opens a writable cursor. |
-| `Close { cursor }` | `state.take_cursor(cursor)` — releases the handle. If the slot was already empty: no-op (idempotent). Returns `Continue`. |
-| `ResultRow { start_reg, count }` | Returns `OpcodeOutcome::EmitRow { start: start_reg, count }`. Outer loop reads `[start .. start+count)` and pushes to caller's row sink, then advances pc. `count == 0` is ill-formed: `Halt(HaltStatus::Error(RuntimeCondition::OpcodeIllegal))`. |
-
-## Execution protocol
-
-Each opcode function signature (language-neutral):
+Implementation must use the `take_register` primitive (declared on
+`VdbeState`) so Text/Blob payloads transfer without cloning:
 
 ```
-fn execute_opcode_core(
-    op:     &OpcodeCore,
-    state:  &mut VdbeState,
-) -> OpcodeOutcome
+if src_reg == dest_reg:
+    state.set_register(src_reg, Value::Null)
+else:
+    let v = state.take_register(src_reg)   # src becomes Null
+    state.set_register(dest_reg, v)        # dest receives the moved payload
 ```
 
-`OpcodeOutcome` is one of:
+The `src_reg == dest_reg` branch is load-bearing — without it,
+`take_register` would write Null into the slot and `set_register`
+would immediately overwrite with the taken value, leaving the slot
+non-Null and violating the "becomes Null" invariant.
 
-- `Continue` — advance pc by 1.
-- `Jump(target_pc)` — set pc to `target_pc`. NOT used by this
-  family; declared here for uniformity across all opcode-family
-  dispatch.
-- `Halt(status)` — end execution; status is `HaltedOk` |
-  `HaltedError(cond)`.
-- `EmitRow(start, count)` — signal to the outer execution loop
-  that it should read `count` values starting at `regs[start]`
-  and push them to the caller.
+### `Copy { src_reg, dest_reg }`
 
-`Halt` opcode returns `Halt(HaltedOk)`. Other opcodes return
-`Continue` on success, `Halt(HaltedError(cond))` on runtime fault.
+Clone the value from `src_reg` into `dest_reg`. `src_reg` unchanged.
+Return `Continue`.
+
+Edge case: if `src_reg == dest_reg`, no-op — skip the clone.
+
+### `OpenRead { cursor, table }` / `OpenWrite { cursor, table }`
+
+Ask the storage subsystem to open a (read-only | writable) cursor
+on the named `table`. On success, install the returned cursor
+handle at slot `cursor`, releasing any prior handle at that slot
+("replace silently" — the compiler is responsible for a prior
+`Close` when replacement is undesirable). Return `Continue`.
+
+On failure:
+- `TableNotFound` propagates as
+  `Halt(HaltStatus::Error(RuntimeCondition::TableNotFound))`.
+- Any other storage condition propagates as
+  `Halt(HaltStatus::Error(RuntimeCondition::IoError))` — v2 does not
+  pass finer-grained storage diagnostics through the VDBE boundary.
+
+The `table` field is a borrowed string slice over the compiled
+Program's source buffer. It does not outlive the Program.
+
+### `Close { cursor }`
+
+Release the cursor handle at slot `cursor`. Implemented as:
+
+```
+if let Some(handle) = state.take_cursor(cursor):
+    storage.close_cursor(handle)     # consume, release backing resources
+# else: slot already empty — no-op (idempotent)
+```
+
+Return `Continue`. Each target must route the taken handle into the
+`close_cursor` free function declared in `parts/storage/shapes.json`;
+this gives C/Zig a deterministic release point and is a no-op body
+for GC'd targets.
+
+### `ResultRow { start_reg, count }`
+
+Signal row emission: return
+`OpcodeOutcome::EmitRow { start: start_reg, count }`. The outer
+loop reads registers `[start_reg .. start_reg + count)`, pushes
+them to the caller's row sink, and advances the program counter.
+
+Ill-formedness: `count == 0` is invalid (no rows are emitted
+intentionally via `ResultRow`). Return
+`Halt(HaltStatus::Error(RuntimeCondition::OpcodeIllegal))`.
 
 ## Invariants
 
-- `dest_reg` and `src_reg` must be in `[0, state.num_registers)`.
-  Violation → `RUNTIME_OPCODE_ILLEGAL`. (Should be unreachable;
-  compiler validates at emit time.)
-- `cursor` in `OpenRead` / `OpenWrite` / `Close` must be in
-  `[0, state.num_cursors)`. Same enforcement as above.
-- `count` in `ResultRow` satisfies `start_reg + count ≤
-  num_registers`. Same enforcement.
+- `dest_reg` / `src_reg` / `start_reg` must be in
+  `[0, state.num_registers)`. Violation raises
+  `RuntimeCondition::OpcodeIllegal`. Should be unreachable in a
+  well-formed program.
+- `cursor` must be in `[0, state.num_cursors)`. Same enforcement.
+- `start_reg + count <= state.num_registers` for `ResultRow`.
 
-## Memory discipline (per /spec/memory-discipline.spec.md)
+## Memory discipline
 
-- `LoadConst` with `Value::Text` or `Value::Blob` embeds an **owned**
-  byte buffer in the opcode payload — written once at compile time,
-  cloned into register only when the register's holder needs
-  ownership (e.g., when the register value crosses a ResultRow
-  boundary where the caller consumes it).
-- `Copy` preserves ownership semantics: owned values are cloned;
-  borrowed values share the borrow.
-- `Move` transfers ownership and leaves the source register NULL.
-  This is the primitive used by compilers to avoid redundant clones
-  when a value is consumed once.
+- `LoadConst` with `Value::Text` or `Value::Blob` embeds an owned
+  byte buffer inside the opcode at compile time. Writing into the
+  register clones that buffer so the register owns its copy. This
+  mirrors the neutral `owned<T>` rule: every crossing of a
+  mutation boundary transfers or clones ownership.
+- `Move` transfers ownership without clone; the source slot becomes
+  `Null`. Use this when the compiler knows the source value is
+  consumed exactly once.
+- `Copy` clones; both slots end up holding independent owned
+  payloads.
+- Cursor slots: `OpenRead`/`OpenWrite` install an owned
+  `CursorHandle`; the prior handle (if any) is released by the
+  `set_cursor` method, matching the replace-on-write rule.
 
 ## Well-formedness hooks
 
-The compiler assumes:
+The compiler guarantees, and the VDBE assumes:
 
-- Exactly one `Halt` opcode, at the final position, per Program.
+- Exactly one `Halt` opcode, at the final position of the Program.
 - No opcode executes after `Halt` (unreachable code is invalid).
-- `ResultRow` reads only initialized registers — a register may
-  have been `LoadConst`'d, `Copy`'d, `Move`'d into, or written by
-  a row-read opcode (`parts/opcodes-rows/`) but never read without
-  a prior write.
+- `ResultRow` reads only initialized registers — a register must
+  have been `LoadConst`'d, `Copy`'d, `Move`'d into, or written by a
+  row-read opcode (`parts/opcodes-rows/`) before being read.
+
+Violations surface as `RuntimeCondition::OpcodeIllegal`; they
+should never occur in code produced by the compiler.
 
 ## Regeneration envelope
 
-- Target leaf size: 300–500 lines per target.
-- Spec < 200 lines.
-- Test ownership: `tests/opcodes_core.json` with one fixture per
-  opcode covering the Continue / Halt / EmitRow outcomes.
+- Spec (this file): < 200 lines.
+- `shapes.json`: < 100 lines.
+- Each target emission: ~250–450 lines depending on idiom
+  (cursor/storage calls add surface in C relative to Rust).

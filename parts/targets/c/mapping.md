@@ -21,8 +21,8 @@ semantics) and applies these rules.
 | `u8`..`u64` | `uint8_t`..`uint64_t` |
 | `f32`, `f64` | `float`, `double` |
 | `PC` | `size_t` |
-| `str` | `struct LeapStr { const char* ptr; size_t len; }` — borrowed |
-| `bytes` | `struct LeapBytes { const uint8_t* ptr; size_t len; }` — borrowed |
+| `str` | `LeapStr` — borrowed `{ const char* ptr; size_t len; }`; defined once in `src-c/core.h` and `#include`d by every consumer (never re-defined locally) |
+| `bytes` | `LeapBytes` — borrowed `{ const uint8_t* ptr; size_t len; }`; defined once in `src-c/core.h` |
 | `string` | `LeapText` — owned (see parts/core emission) |
 | `blob` | `LeapBlob` — owned (see parts/core emission) |
 | `unit` | `void` (return position only) |

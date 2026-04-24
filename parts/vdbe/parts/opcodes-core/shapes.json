@@ -1,0 +1,63 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/vdbe/parts/opcodes-core",
+  "imports": {
+    "Register":         "/parts/core",
+    "CursorId":         "/parts/core",
+    "Value":            "/parts/core",
+    "OpcodeOutcome":    "/parts/core",
+    "HaltStatus":       "/parts/core",
+    "RuntimeCondition": "/parts/core",
+    "VdbeState":        "/parts/vdbe"
+  },
+  "types": {
+    "OpcodeCore": {
+      "kind": "variant",
+      "doc": "Foundational VDBE opcode family: program termination, constant load, register moves/copies, cursor lifecycle, row emission.",
+      "cases": {
+        "Halt": {
+          "fields": {},
+          "doc": "Terminates execution. Returns Halt(Ok)."
+        },
+        "LoadConst": {
+          "fields": { "dest_reg": "Register", "value": "Value" },
+          "doc": "Copy the embedded constant into dest_reg. The constant carries an owned payload for Text/Blob cases (cloned into the register)."
+        },
+        "Move": {
+          "fields": { "src_reg": "Register", "dest_reg": "Register" },
+          "doc": "Move the value from src_reg to dest_reg. After execution src_reg holds Value::Null. If src == dest, the register becomes Null (net effect of take-then-set on the same slot)."
+        },
+        "Copy": {
+          "fields": { "src_reg": "Register", "dest_reg": "Register" },
+          "doc": "Clone the value from src_reg into dest_reg. src_reg is unchanged. If src == dest, no-op (skip clone)."
+        },
+        "OpenRead": {
+          "fields": { "cursor": "CursorId", "table": "str" },
+          "doc": "Ask storage to open a read-only cursor on `table`; on success install at cursor slot. TableNotFound -> Halt(Error). If slot was occupied: replace silently (compiler is responsible for Close first when needed)."
+        },
+        "OpenWrite": {
+          "fields": { "cursor": "CursorId", "table": "str" },
+          "doc": "Same as OpenRead but opens a writable cursor."
+        },
+        "Close": {
+          "fields": { "cursor": "CursorId" },
+          "doc": "Release the cursor handle at `cursor`. No-op if already empty (idempotent)."
+        },
+        "ResultRow": {
+          "fields": { "start_reg": "Register", "count": "u32" },
+          "doc": "Signal the outer loop to emit a row from registers [start_reg .. start_reg+count). count == 0 is ill-formed -> Halt(Error(OpcodeIllegal))."
+        }
+      }
+    }
+  },
+  "functions": {
+    "execute": {
+      "params": [
+        { "name": "op",    "type": { "borrow": "OpcodeCore" } },
+        { "name": "state", "type": { "mut":    "VdbeState" } }
+      ],
+      "returns": "OpcodeOutcome",
+      "doc": "Execute one core opcode against the state. Per-opcode semantics in master.md. Outer loop interprets the returned outcome."
+    }
+  }
+}

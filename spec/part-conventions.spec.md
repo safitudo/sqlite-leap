@@ -120,6 +120,40 @@ A generator reads:
 From those inputs alone, it produces the target file(s) at paths
 derived by the mapping. No other config source is consulted.
 
+## Generation scope — emission contents
+
+A target emission contains **only**:
+
+1. The types declared in the part's `shapes.json` (aggregates, type
+   aliases, opaque handles).
+2. The functions declared in the part's `shapes.json` (free
+   functions) and the methods declared on its types.
+3. Import/include lines, module/package headers, and whatever small
+   amount of target-language boilerplate the mapping prescribes.
+4. Per-opcode / per-function semantics as described in `master.md`.
+
+A target emission MUST NOT contain:
+
+- **Inline tests.** No `#[test]`, no `test { ... }` blocks, no
+  `unittest.TestCase` subclasses, no `func Test...`, no `main()`
+  test drivers, no `__main__` blocks. Tests live under `tests/` and
+  are language-neutral at that layer.
+- **Stub types or stub free functions** that simulate siblings /
+  imports not yet emitted. Cross-part imports resolve at compile /
+  link / module-load time; they are declared in `shapes.json.imports`
+  and referenced by name. Never invent a placeholder.
+- **Test-only constructors** (`new_for_test`, `make_test_state`,
+  etc.) on opaque types. Constructors that appear in the emission
+  must be declared in `shapes.json` and must be real.
+- **Methods, constants, or helpers not declared in the shape.** If
+  the semantics in `master.md` appear to need a helper the shape
+  does not provide, STOP and report the gap. Do not invent.
+
+Ambiguity handling: if `master.md` + `shapes.json` + the mapping
+cannot be composed into a correct emission without adding something
+not in the shape, the correct action is to stop and surface the
+ambiguity, not to silently extend the surface area.
+
 ## Future language additions
 
 Adding a new target language consists of exactly one act: write

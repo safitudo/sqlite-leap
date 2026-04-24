@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schema/shape.schema.json",
+  "owner": "/parts/storage",
+  "imports": {
+    "RuntimeCondition": "/parts/core"
+  },
+  "types": {
+    "Database": {
+      "kind": "opaque",
+      "doc": "Storage facade handle. Opens cursors, manages transactions, exposes schema introspection. Internals are owned by this part."
+    },
+    "CursorHandle": {
+      "kind": "opaque",
+      "doc": "Opaque cursor handle. The VDBE holds these by value in its cursor slots; it never introspects them. Positional operations (seek, next, column) are routed via free functions declared here."
+    }
+  },
+  "functions": {
+    "open_read_cursor": {
+      "params": [
+        { "name": "db",    "type": { "borrow": "Database" } },
+        { "name": "table", "type": "str" }
+      ],
+      "returns": { "result": { "ok": "CursorHandle", "err": "RuntimeCondition" } },
+      "doc": "Open a read-only cursor on the named table. Err(TableNotFound) if the table doesn't exist."
+    },
+    "open_write_cursor": {
+      "params": [
+        { "name": "db",    "type": { "borrow": "Database" } },
+        { "name": "table", "type": "str" }
+      ],
+      "returns": { "result": { "ok": "CursorHandle", "err": "RuntimeCondition" } },
+      "doc": "Open a writable cursor on the named table. Err(TableNotFound) if the table doesn't exist."
+    },
+    "close_cursor": {
+      "params": [
+        { "name": "handle", "type": "CursorHandle" }
+      ],
+      "returns": "unit",
+      "doc": "Consume a cursor handle and release its backing resources (page pins, index state, writable-lock, etc.). Never fails — closing an already-consumed handle is unreachable because the function takes the handle by ownership. Targets with implicit destructor semantics (Rust Drop, Go GC, Python __del__) may implement this as a no-op body; targets with manual resource management (C, Zig deinit) must release here."
+    }
+  }
+}

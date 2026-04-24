@@ -7,7 +7,9 @@
     "Value":            "/parts/core",
     "OpcodeOutcome":    "/parts/core",
     "HaltStatus":       "/parts/core",
-    "RuntimeCondition": "/parts/core"
+    "RuntimeCondition": "/parts/core",
+    "Database":         "/parts/storage",
+    "CursorHandle":     "/parts/storage"
   },
   "types": {
     "VdbeState": {
@@ -42,6 +44,13 @@
         "doc": "Move v into register r, releasing any prior owned payload."
       },
       {
+        "name": "take_register",
+        "receiver": "mut",
+        "params": [{ "name": "r", "type": "Register" }],
+        "returns": "Value",
+        "doc": "Move the value out of register r and return it as an owned Value; the register is left holding Value::Null. Panics on out-of-bounds — caller (well-formed program) must not trigger. This is the Move-without-clone primitive: Text/Blob payloads are transferred, not copied."
+      },
+      {
         "name": "pc",
         "receiver": "borrow",
         "params": [],
@@ -68,6 +77,37 @@
         "params": [],
         "returns": { "result": { "ok": "PC", "err": "RuntimeCondition" } },
         "doc": "Pop the top return address. Returns Err(OpcodeIllegal) if the stack is empty."
+      },
+      {
+        "name": "cursor_is_open",
+        "receiver": "borrow",
+        "params": [{ "name": "c", "type": "CursorId" }],
+        "returns": "bool",
+        "doc": "True iff the cursor slot currently holds an open handle."
+      },
+      {
+        "name": "set_cursor",
+        "receiver": "mut",
+        "params": [
+          { "name": "c", "type": "CursorId" },
+          { "name": "h", "type": "CursorHandle" }
+        ],
+        "returns": "unit",
+        "doc": "Install a cursor handle at slot c, releasing any prior handle at that slot (replace-on-write)."
+      },
+      {
+        "name": "take_cursor",
+        "receiver": "mut",
+        "params": [{ "name": "c", "type": "CursorId" }],
+        "returns": { "option": "CursorHandle" },
+        "doc": "Move out the cursor handle at slot c. Leaves the slot empty. None if already empty (idempotent)."
+      },
+      {
+        "name": "db",
+        "receiver": "borrow",
+        "params": [],
+        "returns": { "borrow": "Database" },
+        "doc": "Borrow the storage database handle. Used by OpenRead/OpenWrite and by any opcode that calls into storage."
       }
     ]
   },
