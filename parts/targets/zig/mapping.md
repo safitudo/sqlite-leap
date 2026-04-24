@@ -8,7 +8,38 @@ inherits:
 
 # Zig emission mapping
 
-How to render a `shapes.json` as idiomatic Zig (0.12+).
+How to render a `shapes.json` as idiomatic Zig.
+
+## Toolchain pin (required)
+
+**Target Zig version:** 0.16.0+ (tested on 0.16.0_1).
+
+Stdlib APIs this mapping relies on — if any are renamed, moved, or
+removed upstream, the emission must be re-run against the new
+surface (per `feedback_target_toolchain_pin.md`). Hand-patching
+src-zig erodes the "generated, not edited" invariant.
+
+| API | Location | Notes |
+|---|---|---|
+| `std.ArrayList(T)` | `std/array_list.zig` | **Unmanaged variant in 0.16.** No `.init(alloc)` — use `var x: std.ArrayList(T) = .empty;` and pass `alloc` on `.append(alloc, v)`, `.appendSlice(alloc, s)`, `.deinit(alloc)`. |
+| `std.ArrayListUnmanaged(T)` | `std/array_list.zig` | Historical alias; prefer `ArrayList`. `.empty` is the canonical zero-value. |
+| `std.heap.DebugAllocator(.{})` | `std/heap/debug_allocator.zig` | Replacement for 0.12's `GeneralPurposeAllocator`. |
+| `std.Random.DefaultPrng` | `std/Random.zig` | Replaces 0.12's `std.crypto.random`. Seed explicitly; `.random().bytes(&buf)` fills bytes. |
+| `std.c.clock_gettime` | `std/c.zig` | Replaces 0.12's `std.time.timestamp()`. CLOCK_REALTIME = 0. Darwin/Linux/BSD-portable via libc. |
+| `std.c.timespec` | `std/c.zig` | `.sec` + `.nsec` fields; pass to `clock_gettime`. |
+| `std.posix.system.clock_gettime` | `std/posix.zig` | Alternate path without libc linkage. |
+| `std.process.Init` | `std/process.zig` | New in 0.16 — `pub fn main(init: std.process.Init) !void` is the blessed entry shape when you need args/env. |
+| `std.process.Args.Iterator.initAllocator` | `std/process.zig` | Replaces 0.12's `std.process.argsAlloc`. |
+
+## Canonical leaf symbol renames (camelCase everywhere)
+
+All `storage.*` functions use camelCase in Zig emission:
+`closeCursor` (not `close_cursor`), `openReadCursor`, `cursorSeekGe`,
+etc. This is the same convention as the rest of the Zig stdlib.
+Snake-case in shapes.json gets remapped at emission time.
+
+(Detailed constructor rendering rules live under "Functions and
+methods → Constructors" below.)
 
 ## Primitive type table
 
@@ -146,6 +177,44 @@ Zig reserves `if`, `return`, `goto` (the last only partially).
 Reserved-word case names get a trailing underscore. Empty-field
 cases use `void` as the case type.
 
+### Recursive variants (self-referencing fields)
+
+A variant whose field type transitively references its own name
+(e.g. `Expr` with `Binary { lhs: Expr, rhs: Expr }`) uses a pointer
+to the recursive type: `*Expr`. The allocator is passed through the
+constructor/parser function (Zig convention — no ambient allocator).
+
+```zig
+pub const Expr = union(enum) {
+    int_lit: struct { text: []const u8 },
+    binary:  struct { op: BinaryOp, lhs: *Expr, rhs: *Expr },
+    // ...
+};
+```
+
+`{ "list": "Expr" }` renders as `std.ArrayListUnmanaged(Expr)` — no
+extra pointer. Recursive children are owned by their parent node:
+a `destroy` method must recurse before freeing.
+
+**Result-location aliasing rule (Zig 0.16+, MANDATORY).** When
+assigning a recursive-variant struct literal to a variable that also
+appears as an operand inside the literal, hoist the recursive child
+constructions into named locals FIRST. Zig's result-location
+semantics otherwise read partially-overwritten memory mid-construction,
+producing silently-corrupt AST nodes (valid tag, garbage payload).
+
+```zig
+// WRONG — reads `lhs` while it's being overwritten
+lhs = .{ .binary = .{ .op = op, .lhs = boxExpr(alloc, lhs), .rhs = rhs_box } };
+
+// RIGHT — hoist boxing into a local, then assign
+const lhs_box = boxExpr(alloc, lhs);
+lhs = .{ .binary = .{ .op = op, .lhs = lhs_box, .rhs = rhs_box } };
+```
+
+Applies anywhere a variable is both the destination and a transitively-read
+operand: Pratt parsers, recursive compilers, tree transformers.
+
 ## Functions and methods
 
 ### Free functions
@@ -193,6 +262,50 @@ Method names convert snake_case to camelCase per Zig convention.
 Parameter names that shadow the method name or built-ins are
 suffix-renamed (e.g., `pc` → `new_pc` when the enclosing method is
 named `setPc`).
+
+### Constructors
+
+Neutral `constructors.TypeName = [{ "name": "new", ... }]` renders as
+`pub fn <camelCaseName>(...) TypeName` inside the type's struct body.
+For types whose internal representation requires heap allocation
+(slice fields, `std.ArrayList`, etc.), a Zig-convention `allocator:
+std.mem.Allocator` parameter is prepended to the declared parameter
+list and the return type becomes `std.mem.Allocator.Error!TypeName`.
+This per-target augmentation does NOT leak back into other targets'
+rendering — it's how Zig idiomatically expresses "this ctor allocates":
+
+```
+constructors.VdbeState = [{
+  "name": "new",
+  "params": [
+    { "name": "num_registers",  "type": "u32" },
+    { "name": "num_cursors",    "type": "u32" },
+    { "name": "num_aggregates", "type": "u32" },
+    { "name": "num_windows",    "type": "u32" },
+    { "name": "db",             "type": { "borrow": "Database" } }
+  ],
+  "returns": "VdbeState"
+}]
+```
+
+→
+
+```zig
+pub fn new(
+    allocator: std.mem.Allocator,
+    num_registers: u32,
+    num_cursors: u32,
+    num_aggregates: u32,
+    num_windows: u32,
+    db: *const Database,
+) std.mem.Allocator.Error!VdbeState { /* ... */ }
+```
+
+Every Zig constructor pairs with a `pub fn deinit(self: *VdbeState)
+void` that releases heap-owned payloads (registers, cursors,
+aggregates, windows). `deinit` is NOT declared in `shapes.json` — it's
+a Zig-only lifetime counterpart to the declared constructor. Other
+targets have no analogous method.
 
 ### Error returns
 

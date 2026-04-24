@@ -1,0 +1,52 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/parser/parts/update-stmt",
+
+  "imports": {
+    "Token":      "/parts/parser/parts/tokenizer",
+    "TokenKind":  "/parts/parser/parts/tokenizer",
+    "Expr":       "/parts/parser/parts/expr",
+    "ParseError": "/parts/parser/parts/expr"
+  },
+
+  "types": {
+    "UpdateAssignment": {
+      "kind": "record",
+      "doc": "One `col = expr` assignment inside a SET clause. Multiple assignments form a list. The column is referenced by unqualified name; the compiler resolves to a table column index.",
+      "fields": {
+        "column": "string",
+        "value":  "Expr"
+      }
+    },
+
+    "UpdateStmt": {
+      "kind": "record",
+      "doc": "Parsed UPDATE statement. Covers `UPDATE <table> SET col=expr[, col=expr]... [WHERE expr]`. OR-conflict, RETURNING, FROM-clause joins, schema-qualified tables, and CTEs are deferred.",
+      "fields": {
+        "table":       "string",
+        "assignments": { "list": "UpdateAssignment" },
+        "where_":      { "optional": "Expr" }
+      }
+    },
+
+    "UpdateParseOk": {
+      "kind": "record",
+      "doc": "Successful parse: the UpdateStmt plus the index of the next token after the statement.",
+      "fields": {
+        "stmt": "UpdateStmt",
+        "next": "u32"
+      }
+    }
+  },
+
+  "functions": {
+    "parse_update": {
+      "doc": "Parse `UPDATE <table> SET <col>=<expr>[, ...] [WHERE <expr>]`. Delegates to parse_expr for every value expression (both in SET and WHERE). Rejects OR-conflict, RETURNING, FROM joins, and schema-qualified tables with `deferred: <construct>` messages.",
+      "params": [
+        { "name": "tokens", "type": { "borrow": { "list": "Token" } } },
+        { "name": "start",  "type": "u32" }
+      ],
+      "returns": { "result": { "ok": "UpdateParseOk", "err": "ParseError" } }
+    }
+  }
+}

@@ -1,0 +1,100 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/parser/parts/expr",
+
+  "imports": {
+    "Token":    "/parts/parser/parts/tokenizer",
+    "TokenKind": "/parts/parser/parts/tokenizer"
+  },
+
+  "types": {
+    "UnaryOp": {
+      "kind": "variant",
+      "doc": "Prefix operators admitted by the expression parser: arithmetic negation and logical negation. Wider SQLite set (BitNot ~, unary +) is deferred.",
+      "cases": {
+        "Neg": { "doc": "Unary minus: `-expr`." },
+        "Not": { "doc": "Logical NOT: `NOT expr`." }
+      }
+    },
+
+    "BinaryOp": {
+      "kind": "variant",
+      "doc": "Infix operators admitted by the expression parser, at full SQLite precedence tiers (see master.md §Precedence). IS and the compound comparison operators like BETWEEN/IN/LIKE are deferred.",
+      "cases": {
+        "Or":      { "doc": "`OR`  — logical, lowest precedence." },
+        "And":     { "doc": "`AND` — logical, just above OR." },
+        "Eq":      { "doc": "`=` or `==` — equality. Both spellings fold to Eq; the parser does not preserve the surface spelling." },
+        "NotEq":   { "doc": "`!=` or `<>` — inequality. Both fold to NotEq." },
+        "Lt":      { "doc": "`<`." },
+        "Le":      { "doc": "`<=`." },
+        "Gt":      { "doc": "`>`." },
+        "Ge":      { "doc": "`>=`." },
+        "BitOr":   { "doc": "`|` — bitwise OR." },
+        "BitAnd":  { "doc": "`&` — bitwise AND." },
+        "ShiftL":  { "doc": "`<<` — left shift." },
+        "ShiftR":  { "doc": "`>>` — right shift." },
+        "Plus":    { "doc": "`+` — arithmetic addition." },
+        "Minus":   { "doc": "`-` — arithmetic subtraction." },
+        "Mul":     { "doc": "`*` — arithmetic multiplication." },
+        "Div":     { "doc": "`/` — arithmetic division." },
+        "Mod":     { "doc": "`%` — arithmetic modulo." },
+        "Concat":  { "doc": "`||` — string concatenation, HIGHEST binary precedence per SQLite." }
+      }
+    },
+
+    "Expr": {
+      "kind": "variant",
+      "doc": "Expression AST node. Recursive via Binary/Unary/Call — a target-mapping note covers how each target renders self-referencing variant fields (Rust: Box; C: pointer; Go: pointer; Python/Zig: see mapping). Owned text payloads (string, not str) because the AST outlives the source buffer in typical parser use.",
+      "cases": {
+        "IntLit":  { "doc": "Integer literal. Text preserves the original spelling (decimal or hex 0x...).",
+                     "fields": { "text": "string" } },
+        "RealLit": { "doc": "Real literal. Text preserves the original spelling (may include `.` or exponent).",
+                     "fields": { "text": "string" } },
+        "StrLit": { "doc": "String literal. Text is the source lexeme INCLUDING surrounding single quotes; escaped `''` pairs NOT yet unescaped (defer to a later semantic pass).",
+                     "fields": { "text": "string" } },
+        "Null":    { "doc": "`NULL` keyword literal." },
+        "Col":     { "doc": "Column reference. Unqualified; table-qualified (`t.col`) is deferred to a later probe.",
+                     "fields": { "name": "string" } },
+        "Call":    { "doc": "Function call: `NAME(arg0, arg1, ...)`. The `*` wildcard argument (e.g. `count(*)`) is deferred; `NAME()` with no args is allowed.",
+                     "fields": { "name": "string", "args": { "list": "Expr" } } },
+        "Unary":   { "doc": "Unary (prefix) operator applied to a sub-expression.",
+                     "fields": { "op": "UnaryOp", "arg": "Expr" } },
+        "Binary":  { "doc": "Binary (infix) operator applied to two sub-expressions. `lhs op rhs` — left-associative by the precedence table in master.md.",
+                     "fields": { "op": "BinaryOp", "lhs": "Expr", "rhs": "Expr" } },
+        "IsNull":  { "doc": "Postfix null-test: `arg IS NULL` (negated=false) or `arg IS NOT NULL` (negated=true). Lower precedence than comparison; higher than AND/OR. The general `IS` operator and `IS DISTINCT FROM` are deferred.",
+                     "fields": { "arg": "Expr", "negated": "bool" } }
+      }
+    },
+
+    "ParseError": {
+      "kind": "record",
+      "doc": "Parse error carrying the offending token's position (or the synthetic Eof's position if the error is unexpected-end-of-input) plus an owned message.",
+      "fields": {
+        "token_index": "u32",
+        "line":        "u32",
+        "column":      "u32",
+        "message":     "string"
+      }
+    },
+
+    "ParseOk": {
+      "kind": "record",
+      "doc": "Successful parse: the produced expression plus the index of the NEXT token to consume (for composing parse_expr inside larger parsers). `next` will equal `tokens.len() - 1` (the Eof index) when the whole token stream was one expression.",
+      "fields": {
+        "expr": "Expr",
+        "next": "u32"
+      }
+    }
+  },
+
+  "functions": {
+    "parse_expr": {
+      "doc": "Parse a single SQL expression starting at `start` in the token list `tokens`. Implements a Pratt / operator-precedence algorithm per master.md §Precedence. Tokens MUST terminate with exactly one `Eof` (the tokenizer's contract). Returns ParseOk on success or ParseError on the first failure.",
+      "params": [
+        { "name": "tokens", "type": { "borrow": { "list": "Token" } } },
+        { "name": "start",  "type": "u32" }
+      ],
+      "returns": { "result": { "ok": "ParseOk", "err": "ParseError" } }
+    }
+  }
+}

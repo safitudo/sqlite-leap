@@ -9,7 +9,14 @@
     "HaltStatus":       "/parts/core",
     "RuntimeCondition": "/parts/core",
     "Database":         "/parts/storage",
-    "CursorHandle":     "/parts/storage"
+    "CursorHandle":     "/parts/storage",
+    "OpcodeCore":       "/parts/vdbe/parts/opcodes-core",
+    "OpcodeRows":       "/parts/vdbe/parts/opcodes-rows",
+    "OpcodeScan":       "/parts/vdbe/parts/opcodes-scan",
+    "OpcodeExpr":       "/parts/vdbe/parts/opcodes-expr",
+    "OpcodeAgg":        "/parts/vdbe/parts/opcodes-agg",
+    "OpcodeWindow":     "/parts/vdbe/parts/opcodes-window",
+    "OpcodeControl":    "/parts/vdbe/parts/opcodes-control"
   },
   "types": {
     "VdbeState": {
@@ -39,6 +46,46 @@
         "Rank":      { "fields": {} },
         "DenseRank": { "fields": {} },
         "Aggregate": { "fields": { "kind": "AggFuncKind" } }
+      }
+    },
+    "RowSink": {
+      "kind": "alias",
+      "of": {
+        "fn": {
+          "params": [
+            { "name": "state",     "type": { "borrow": "VdbeState" } },
+            { "name": "start_reg", "type": "Register" },
+            { "name": "count",     "type": "u32" }
+          ],
+          "returns": "unit"
+        }
+      },
+      "doc": "User-supplied callback invoked for each EmitRow outcome. Reads state.get_register(start_reg + i) for i in [0, count) to observe the emitted row. MUST NOT mutate state. Each target picks the idiomatic callable representation: bare function pointer (Rust/C/Zig), function value (Go), callable object (Python). Capture / lifetime are the caller's responsibility."
+    },
+    "Opcode": {
+      "kind": "compose",
+      "doc": "Flat tagged union over the seven opcode families. Dispatch matches outer tag and delegates to the family's execute. No additional classification layers — Correctness pin #1.",
+      "cases": {
+        "Core":    { "of": "OpcodeCore",    "doc": "Halt / ResultRow / register ops." },
+        "Rows":    { "of": "OpcodeRows",    "doc": "Row-at-cursor reads and writes." },
+        "Scan":    { "of": "OpcodeScan",    "doc": "Cursor open/next/seek/close family." },
+        "Expr":    { "of": "OpcodeExpr",    "doc": "Pure-register arithmetic, comparison, coerce, like, etc." },
+        "Agg":     { "of": "OpcodeAgg",     "doc": "AggReset / AggStep / AggFinal driver." },
+        "Window":  { "of": "OpcodeWindow",  "doc": "Window function open/step/close/value driver." },
+        "Control": { "of": "OpcodeControl", "doc": "Goto / If / IfNot / JumpIfNull / Gosub / Return." }
+      }
+    },
+    "Program": {
+      "kind": "record",
+      "doc": "Compiled bytecode plus sizing, plus the row-emission callback. Produced by the compiler; consumed by execute_program.",
+      "fields": {
+        "opcodes":        { "list": "Opcode" },
+        "opcode_count":   "u32",
+        "num_registers":  "u32",
+        "num_cursors":    "u32",
+        "num_aggregates": "u32",
+        "num_windows":    "u32",
+        "row_sink":       "RowSink"
       }
     }
   },
@@ -237,6 +284,32 @@
         "doc": "Free the window session at slot. Releases any inner aggregate accumulator and key storage. Idempotent — closing an already-closed slot is a no-op."
       }
     ]
+  },
+  "constructors": {
+    "VdbeState": [
+      {
+        "name": "new",
+        "params": [
+          { "name": "num_registers",  "type": "u32" },
+          { "name": "num_cursors",    "type": "u32" },
+          { "name": "num_aggregates", "type": "u32" },
+          { "name": "num_windows",    "type": "u32" },
+          { "name": "db",             "type": { "borrow": "Database" } }
+        ],
+        "returns": "VdbeState",
+        "doc": "Allocate a fresh state. Sizing params size the register file, cursor slot table, aggregate accumulator table, and window session table. `db` is borrowed for the duration of the state. All slots initialized per the §\"VdbeState implementation\" invariants in master.md: registers = Null, cursor slots = empty, pc = 0, return stack empty, aggregate/window slots empty."
+      }
+    ]
+  },
+  "functions": {
+    "execute_program": {
+      "params": [
+        { "name": "program", "type": { "borrow": "Program" } },
+        { "name": "state",   "type": { "mut": "VdbeState" } }
+      ],
+      "returns": "HaltStatus",
+      "doc": "Main dispatch loop. Canonical pseudo-code in §\"Execution loop\" of master.md. Signature is CANONICAL: caller constructs VdbeState via VdbeState.new first, then hands it to execute_program. The loop does NOT own the Database or the state. This keeps state lifetime in the caller's hands for composition (multiple runs, warm reuse, golden harness replays)."
+    }
   },
   "constants": {
     "RETURN_STACK_MAX_DEPTH": {

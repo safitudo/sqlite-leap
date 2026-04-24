@@ -1,0 +1,42 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/parser/parts/delete-stmt",
+
+  "imports": {
+    "Token":      "/parts/parser/parts/tokenizer",
+    "TokenKind":  "/parts/parser/parts/tokenizer",
+    "Expr":       "/parts/parser/parts/expr",
+    "ParseError": "/parts/parser/parts/expr"
+  },
+
+  "types": {
+    "DeleteStmt": {
+      "kind": "record",
+      "doc": "Parsed DELETE statement: target table plus optional WHERE expression. Absence of WHERE means 'delete every row'. RETURNING, schema-qualified tables, CTE prefix, DELETE ... FROM ... WHERE EXISTS (subquery) all deferred.",
+      "fields": {
+        "table":  "string",
+        "where_": { "optional": "Expr" }
+      }
+    },
+
+    "DeleteParseOk": {
+      "kind": "record",
+      "doc": "Successful parse output: the DeleteStmt plus the index of the next token after the statement.",
+      "fields": {
+        "stmt": "DeleteStmt",
+        "next": "u32"
+      }
+    }
+  },
+
+  "functions": {
+    "parse_delete": {
+      "doc": "Parse `DELETE FROM <table> [WHERE <expr>]`. Rejects RETURNING, schema-qualified tables, and subqueries-in-FROM (none admitted) with `deferred: <construct>` messages. Delegates to parse_expr for WHERE.",
+      "params": [
+        { "name": "tokens", "type": { "borrow": { "list": "Token" } } },
+        { "name": "start",  "type": "u32" }
+      ],
+      "returns": { "result": { "ok": "DeleteParseOk", "err": "ParseError" } }
+    }
+  }
+}

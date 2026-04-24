@@ -1,0 +1,38 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/compiler/parts/update-compile",
+
+  "imports": {
+    "UpdateStmt":       "/parts/parser/parts/update-stmt",
+    "UpdateAssignment": "/parts/parser/parts/update-stmt",
+    "Expr":             "/parts/parser/parts/expr",
+    "Register":         "/parts/core",
+    "Opcode":           "/parts/vdbe",
+    "TableSchema":      "/parts/compiler/parts/select-compile",
+    "ColumnSchema":     "/parts/compiler/parts/select-compile",
+    "CompileError":     "/parts/compiler/parts/expr-compile"
+  },
+
+  "types": {
+    "CompileUpdateOk": {
+      "kind": "record",
+      "doc": "Compiled UPDATE: the opcode list, register count, cursor count. rows_affected is not known at compile time (depends on WHERE match count); caller collects via VDBE execution.",
+      "fields": {
+        "opcodes":       { "list": "Opcode" },
+        "num_registers": "u32",
+        "num_cursors":   "u32"
+      }
+    }
+  },
+
+  "functions": {
+    "compile_update": {
+      "doc": "Compile `UPDATE t SET col=expr,... [WHERE expr]` into a VDBE opcode sequence. Opens a write cursor, rewinds, iterates rows; if WHERE is present, filters via compile_expr_in_schema + IfNot. For matching rows: compiles each assignment's expression into a register; emits UpdateRow with the listed column names + values starting at the first assignment's register. Probe scope: no constraint checks, no RETURNING, single-table only.",
+      "params": [
+        { "name": "stmt",   "type": { "borrow": "UpdateStmt" } },
+        { "name": "schema", "type": { "borrow": "TableSchema" } }
+      ],
+      "returns": { "result": { "ok": "CompileUpdateOk", "err": "CompileError" } }
+    }
+  }
+}

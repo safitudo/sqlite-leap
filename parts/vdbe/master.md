@@ -107,49 +107,42 @@ fn dispatch(op: &Opcode, state: &mut VdbeState) -> OpcodeOutcome:
 
 ## Composition surface
 
-`Opcode`, `Program`, `RowSink`, and `execute_program` are emitted as
-part of this composition. They are not declared in `shapes.json`
-because the current shape grammar cannot express function types
-(RowSink is a callback); promoting them awaits a shape-schema
-extension. Until then, the canonical shapes below are authoritative
-and all targets MUST converge on them.
+`Opcode`, `Program`, `RowSink`, `VdbeState.new`, and `execute_program`
+are **declared in `shapes.json`** (the `compose`, `record`, `alias`
+(with `fn`), `constructors`, and `functions` sections respectively).
+The declarations there are authoritative; the notes below summarize
+the role of each for readers who stop at the prose.
 
-`Opcode` — flat tagged union, one case per family. Cases:
+- **`Opcode`** — `compose` over the seven sibling opcode-family
+  types (`OpcodeCore`, `OpcodeRows`, `OpcodeScan`, `OpcodeExpr`,
+  `OpcodeAgg`, `OpcodeWindow`, `OpcodeControl`). Flat union, one case
+  per family. Dispatch is a single match on the outer tag.
 
-```
-Opcode =
-  Core(OpcodeCore)       Rows(OpcodeRows)       Scan(OpcodeScan)
-  Expr(OpcodeExpr)       Agg(OpcodeAgg)         Window(OpcodeWindow)
-  Control(OpcodeControl)
-```
+- **`Program`** — `record` carrying the compiled opcode list,
+  sizing (registers / cursors / aggregates / windows), and a
+  `row_sink` field of type `RowSink`.
 
-Each payload type is owned by the corresponding sub-part; this
-composition only wires the outer tag and the dispatch switch.
+- **`RowSink`** — alias to the function type
+  `fn(borrow<VdbeState>, Register, u32) -> unit`. Callback invoked
+  on each `EmitRow` outcome; it reads `state.get_register(start + i)`
+  for `i in [0, count)` to observe the emitted row and MUST NOT
+  mutate `state`. Each target picks the idiomatic callable form:
+  bare function pointer (Rust/C/Zig), function value (Go), callable
+  object (Python). Capture / lifetime are the caller's concern.
 
-`Program` — record with these fields (names are canonical; each
-target may rename per its convention, but the roles are fixed):
+- **`VdbeState.new(num_registers, num_cursors, num_aggregates,
+  num_windows, db)`** — constructor declared under `constructors` in
+  `shapes.json`. The only legal way for an external caller to
+  materialize a `VdbeState`. Internal state is initialized per
+  §"VdbeState implementation".
 
-- `opcodes: list<Opcode>` — the bytecode.
-- `opcode_count: u32` — `len(opcodes)`; some targets store it
-  separately to avoid recomputing at every PC check.
-- `num_registers: u32` — sizes the register file at state init.
-- `num_cursors: u32` — sizes the cursor slot table.
-- `num_aggregates: u32` — sizes the aggregate accumulator table.
-- `num_windows: u32` — sizes the window session table.
-- `row_sink: RowSink` — user-supplied callback invoked for each
-  `EmitRow` outcome.
-
-`RowSink` — callable with signature
-`(state: &VdbeState, start_reg: Register, count: u32) -> unit`.
-The callback reads `state.get_register(start_reg + i)` for
-`i in [0, count)` to observe the emitted row. Must not mutate
-`state`. Each target picks the idiomatic callback representation:
-bare function pointer, closure trait object, function value,
-callable object. Capture/lifetime are the caller's responsibility.
-
-`execute_program` — free function, signature
-`(program: &Program, state: &mut VdbeState) -> HaltStatus`.
-Loop logic is the pseudo-code in §Execution loop above.
+- **`execute_program(program: &Program, state: &mut VdbeState)
+  -> HaltStatus`** — canonical signature, pinned in `shapes.json`.
+  Caller constructs `state` first; `execute_program` does NOT own
+  the `Database` or the state. This is what lets the cross-target
+  equivalence harness warm-replay programs and keeps state
+  lifetime in the caller. Loop body is the pseudo-code in
+  §Execution loop above.
 
 ## `VdbeState` implementation
 
@@ -195,12 +188,15 @@ the only interface.
 
 ## Entry points (public API from this emission)
 
-- `execute_program(program, db, row_sink) -> HaltStatus` — opens a
-  fresh `VdbeState` over `program` + `db`, runs the loop to
-  completion or halt, returns the final status.
-- `VdbeState` constructor (private to this module but exposed for
-  tests in the outer harness) — takes `program` sizing + `db`
-  borrow, initializes all slots.
+- `VdbeState.new(num_registers, num_cursors, num_aggregates,
+  num_windows, db)` — constructor declared in `shapes.json` under
+  `constructors.VdbeState`. Initializes all slots per §"VdbeState
+  implementation". `row_sink` is NOT passed here; it lives on
+  `Program`.
+- `execute_program(program: &Program, state: &mut VdbeState)
+  -> HaltStatus` — declared in `shapes.json` under `functions`.
+  Runs the loop in §"Execution loop" to completion or halt,
+  returns the final status. Caller owns the `VdbeState` lifetime.
 
 ## Well-formedness invariants
 
@@ -265,6 +261,21 @@ Load-bearing rules this emission MUST satisfy.
 
 12. **`RETURN_STACK_MAX_DEPTH = 64`**. Use the declared constant;
     do not invent a different depth.
+
+13. **Canonical `execute_program` signature**
+    `(program: &Program, state: &mut VdbeState) -> HaltStatus`.
+    The caller constructs the `VdbeState` via `VdbeState.new` and
+    passes it in. This emission MUST NOT construct the state
+    internally nor accept a `Database` in place of a state —
+    doing so breaks the cross-target equivalence harness (which
+    warm-reuses state across replays) and forks the signature per
+    target. Declared in `shapes.json`.
+
+14. **Canonical `VdbeState.new` signature**
+    `(num_registers: u32, num_cursors: u32, num_aggregates: u32,
+    num_windows: u32, db: &Database) -> VdbeState`. Row sink is
+    NOT a constructor arg — it travels on `Program`. Declared in
+    `shapes.json`.
 
 ## Storage dependency
 

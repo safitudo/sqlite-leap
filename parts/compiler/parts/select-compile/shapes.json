@@ -1,0 +1,58 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/compiler/parts/select-compile",
+
+  "imports": {
+    "SelectStmt":     "/parts/parser/parts/select-stmt",
+    "ProjectionItem": "/parts/parser/parts/select-stmt",
+    "TableRef":       "/parts/parser/parts/select-stmt",
+    "OrderByItem":    "/parts/parser/parts/select-stmt",
+    "Expr":           "/parts/parser/parts/expr",
+    "Register":       "/parts/core",
+    "Value":          "/parts/core",
+    "Opcode":         "/parts/vdbe",
+    "CompileError":   "/parts/compiler/parts/expr-compile"
+  },
+
+  "types": {
+    "ColumnSchema": {
+      "kind": "record",
+      "doc": "A single column's metadata: its name and its index within a row (0-based). For the probe, the compiler accepts a pre-built TableSchema rather than resolving it itself — schema introspection is a later part.",
+      "fields": {
+        "name":  "string",
+        "index": "u32"
+      }
+    },
+
+    "TableSchema": {
+      "kind": "record",
+      "doc": "Caller-supplied metadata for the single table referenced in the FROM clause (or the implicit single-row for no-FROM SELECTs). For no-FROM SELECTs, pass an empty column list and an empty name.",
+      "fields": {
+        "name":    "string",
+        "columns": { "list": "ColumnSchema" }
+      }
+    },
+
+    "CompileSelectOk": {
+      "kind": "record",
+      "doc": "Compiled SELECT: the opcode list (ready to wrap in a Program), the count of registers needed, and the count of cursors needed. The caller allocates these via VdbeState.new.",
+      "fields": {
+        "opcodes":       { "list": "Opcode" },
+        "num_registers": "u32",
+        "num_cursors":   "u32",
+        "result_count":  "u32"
+      }
+    }
+  },
+
+  "functions": {
+    "compile_select": {
+      "doc": "Compile a parsed SELECT statement into a VDBE opcode sequence, given a TableSchema for its FROM table (or an empty TableSchema for no-FROM SELECTs). Emits opcodes that execute the query and invoke the caller's ResultRow sink for each row that passes WHERE. Caller must wrap in Program, instantiate VdbeState, and run execute_program. Probe scope per master.md — no JOIN, no ORDER BY, no aggregates.",
+      "params": [
+        { "name": "stmt",   "type": { "borrow": "SelectStmt" } },
+        { "name": "schema", "type": { "borrow": "TableSchema" } }
+      ],
+      "returns": { "result": { "ok": "CompileSelectOk", "err": "CompileError" } }
+    }
+  }
+}

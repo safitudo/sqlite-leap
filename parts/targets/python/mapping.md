@@ -15,6 +15,113 @@ hierarchies with a common marker base class**, combined with
 `match`/`case` at call sites. Errors use **exceptions** — the native
 Python idiom — rather than `Result`-style return tuples.
 
+## Toolchain pin (required)
+
+**Target Python version:** 3.10+ (tested on 3.10, 3.11, 3.12).
+Reason: `match`/`case` structural pattern matching is load-bearing
+for variant dispatch; this is a 3.10+ feature.
+
+Stdlib surfaces this mapping relies on:
+
+| API | Module | Notes |
+|---|---|---|
+| `@dataclass(frozen=True, slots=True)` | dataclasses | Variant case shells. `slots=True` matters for RSS footprint. |
+| `typing.Union`, `Optional`, `Any` | typing | `option<T>` → `Optional[T]`; `result<T, E>` raises an exception instead. |
+| `match`/`case` | language | Dispatch on variant via `case OpcodeFoo(field=_): ...` patterns. |
+| `abc.ABC` | abc | Marker base class for each variant's closed hierarchy. |
+| `struct.unpack_from` | struct | On-disk big-endian reads (`>H`, `>I`, `>Q`, `>d`). |
+| `int.from_bytes(b, 'big', signed=...)` | builtin | For odd widths (`i24_be`, `i48_be`) not covered by struct. |
+| `base64.b64encode` / `b64decode` | base64 | Blob round-tripping in eq-harness corpus only. |
+| `json.dumps` / `loads` | json | For eq-harness runners; **never** from lib code. |
+| `pathlib.Path` | pathlib | Path handling in runners + tests. |
+
+**Forbidden on emitted lib code:** no `import unittest`, no
+`class ...Test*`, no `if __name__ == "__main__":` guards, no
+`_Stub*` placeholder classes. See §"Generation scope" in
+part-conventions.spec.md.
+
+**Package layout:** all emitted library code lives under
+`src-python/leap_sqlite/<part_path>/<leaf>.py`. Runners (not
+library) may live under `src-python/` directly.
+
+## Storage codecs
+
+For leaves using on-disk file-format grammar (`varint_be`,
+`list_sized_by`, `codec`, `u*_be` big-endian primitives),
+Python's canonical decoders:
+
+### Big-endian integer primitives
+
+Use `struct.unpack_from` for widths 1 / 2 / 4 / 8:
+
+| Primitive | Python |
+|---|---|
+| `u8` / `i8` | `data[off]` / `struct.unpack_from(">b", data, off)[0]` |
+| `u16_be` | `struct.unpack_from(">H", data, off)[0]` |
+| `u32_be` | `struct.unpack_from(">I", data, off)[0]` |
+| `u64_be` | `struct.unpack_from(">Q", data, off)[0]` |
+| `i16_be` / `i32_be` / `i64_be` | same with `>h` / `>i` / `>q` |
+| `f64_be` | `struct.unpack_from(">d", data, off)[0]` |
+
+For non-power-of-2 widths (24-bit, 48-bit), use
+`int.from_bytes(data[off:off+N], "big", signed=...)`.
+
+### `varint_be` — SQLite 1–9 byte big-endian huffman varint
+
+```python
+def read_varint_be(data: bytes, off: int) -> tuple[int, int]:
+    """Returns (value as signed int64, bytes_consumed in 1..9)."""
+    v = 0
+    for i in range(8):
+        b = data[off + i]
+        v = (v << 7) | (b & 0x7F)
+        if (b & 0x80) == 0:
+            return (v - (1 << 64) if v >= (1 << 63) else v, i + 1)
+    # 9th byte: consume all 8 bits.
+    v = (v << 8) | data[off + 8]
+    return (v - (1 << 64) if v >= (1 << 63) else v, 9)
+```
+
+### `SqliteSerialTypeSequence` codec
+
+Decodes the cell body's `(record_header_length, type_1, ...,
+type_N, body_bytes)` per the serial-type table. Signature:
+
+```python
+def decode_serial_type_sequence(
+    data: bytes, off: int, total_payload: int
+) -> list[dict]:
+    """Returns a list of Value dicts: {"t": "Null"|"Integer"|"Real"|
+    "Text"|"Blob", "v": <value>} (v omitted when t == "Null")."""
+```
+
+Implementation: read `header_length` varint, then read varints
+until consumed == header_length; that's the list of serial types.
+Walk the body using the widths from the serial-type table.
+
+### `list_sized_by` binding
+
+Emit as a `range(cell_count)` loop, with `cell_count` resolved
+from the sibling field already decoded:
+
+```python
+header = decode_page_header(data, off)
+pointers = [
+    struct.unpack_from(">H", data, off + 8 + 2*i)[0]
+    for i in range(header.cell_count)
+]
+```
+
+### `when`-gated fields
+
+Emit as `Optional[T]` with a conditional assignment:
+
+```python
+right_child: Optional[int] = None
+if page_type in (0x02, 0x05):
+    right_child = struct.unpack_from(">I", data, off + 8)[0]
+```
+
 ## Primitive type table
 
 | Neutral | Python |
@@ -173,6 +280,26 @@ match op:
     case OpcodeControlReturn():
         # ...
 ```
+
+### Recursive variants (self-referencing fields)
+
+Python references are implicit: a dataclass field whose type annotation
+is the enclosing class name just works at runtime. Use a string
+forward-reference to satisfy the type checker. `list[Expr]` needs no
+special handling.
+
+```python
+@dataclass(frozen=True)
+class ExprBinary:
+    op: BinaryOp
+    lhs: "Expr"
+    rhs: "Expr"
+
+Expr = ExprIntLit | ExprBinary | ExprUnary | ...
+```
+
+Because Python's dataclass equality is structural, recursive equality
+works naturally without an explicit walker.
 
 ## Functions and methods
 

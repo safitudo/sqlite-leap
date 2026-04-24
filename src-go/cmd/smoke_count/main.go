@@ -50,7 +50,14 @@ func main() {
 		RowSink:       sink,
 	}
 	db := &storage.Database{}
-	halt := exec.ExecuteProgram(program, db)
+	state := vdbe.NewVdbeState(
+		program.NumRegisters,
+		program.NumCursors,
+		program.NumAggregates,
+		program.NumWindows,
+		db,
+	)
+	halt := exec.ExecuteProgram(program, state)
 	fmt.Printf("halt=%#v captured=%d (ok=%t)\n", halt, captured, capturedOk)
 	if !capturedOk || captured != 3 {
 		fmt.Println("FAIL: expected Integer(3)")

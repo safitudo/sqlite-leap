@@ -42,7 +42,14 @@ fn main() {
         opcodes,
         row_sink: sink,
     };
-    let halt = execute_program(&program, &db);
+    let mut state = VdbeState::new(
+        program.num_registers,
+        program.num_cursors,
+        program.num_aggregates,
+        program.num_windows,
+        &db,
+    );
+    let halt = execute_program(&program, &mut state);
     let captured = unsafe { SINK_CAPTURED };
     println!("halt={:?} captured={:?}", halt, captured);
     assert!(captured == Some(3), "expected Integer(3), got {:?}", captured);

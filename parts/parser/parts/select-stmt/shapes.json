@@ -1,0 +1,77 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/parser/parts/select-stmt",
+
+  "imports": {
+    "Token":     "/parts/parser/parts/tokenizer",
+    "TokenKind": "/parts/parser/parts/tokenizer",
+    "Expr":      "/parts/parser/parts/expr",
+    "ParseError": "/parts/parser/parts/expr"
+  },
+
+  "types": {
+    "ProjectionItem": {
+      "kind": "variant",
+      "doc": "One item in a SELECT projection list.",
+      "cases": {
+        "Star":      { "doc": "`*` — all columns of the FROM rows." },
+        "TableStar": { "doc": "`t.*` — all columns of a qualified table.",
+                        "fields": { "table": "string" } },
+        "Expr":      { "doc": "`expr` or `expr AS alias` — a single computed column. Alias is present if the query wrote `AS <ident>` or an unquoted ident followed the expression (SQLite's implicit-alias rule — for the probe, only explicit `AS` produces an alias; bare-ident-after-expr is deferred).",
+                        "fields": { "expr": "Expr", "alias": { "option": "string" } } }
+      }
+    },
+
+    "TableRef": {
+      "kind": "variant",
+      "doc": "Source of rows in a FROM clause. Probe scope: single named table (optionally aliased). JOINs, derived tables, and subqueries are deferred.",
+      "cases": {
+        "Named": { "doc": "A bare table name, optionally aliased via `AS alias` or bare-ident follow.",
+                    "fields": { "name": "string", "alias": { "option": "string" } } }
+      }
+    },
+
+    "OrderByItem": {
+      "kind": "record",
+      "doc": "One entry in ORDER BY. `desc = true` for DESC; ASC is the default. NULLS FIRST / NULLS LAST are deferred.",
+      "fields": {
+        "expr": "Expr",
+        "desc": "bool"
+      }
+    },
+
+    "SelectStmt": {
+      "kind": "record",
+      "doc": "Parsed SELECT statement (single, non-compound). Compound SELECTs (UNION/INTERSECT/EXCEPT), CTEs, GROUP BY, and HAVING are deferred to a follow-up leaf. The probe covers: DISTINCT flag, projection list, FROM (single table), WHERE, ORDER BY, LIMIT/OFFSET. All `option<Expr>` are present iff the clause was written.",
+      "fields": {
+        "distinct":   "bool",
+        "projection": { "list": "ProjectionItem" },
+        "from":       { "option": "TableRef" },
+        "where_":     { "option": "Expr" },
+        "order_by":   { "list": "OrderByItem" },
+        "limit":      { "option": "Expr" },
+        "offset":     { "option": "Expr" }
+      }
+    },
+
+    "SelectParseOk": {
+      "kind": "record",
+      "doc": "Successful SELECT parse: the statement plus the index of the next un-consumed token (typically the terminating `;` or `Eof`).",
+      "fields": {
+        "stmt": "SelectStmt",
+        "next": "u32"
+      }
+    }
+  },
+
+  "functions": {
+    "parse_select": {
+      "doc": "Parse a SELECT statement starting at `start` in `tokens`. The token at `start` must be `KwSelect`. Returns SelectParseOk on success or ParseError (shared with parts/parser/parts/expr) on first failure. Consumes everything up to but not including the terminating `;` or `Eof`; the caller is responsible for checking/consuming the terminator.",
+      "params": [
+        { "name": "tokens", "type": { "borrow": { "list": "Token" } } },
+        { "name": "start",  "type": "u32" }
+      ],
+      "returns": { "result": { "ok": "SelectParseOk", "err": "ParseError" } }
+    }
+  }
+}

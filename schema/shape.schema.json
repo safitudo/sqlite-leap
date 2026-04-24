@@ -26,6 +26,14 @@
         "items": { "$ref": "#/$defs/FnDef" }
       }
     },
+    "constructors": {
+      "type": "object",
+      "description": "Constructor groups attached to opaque types. Key = type name; value = array of fn defs that return an instance of that type. Needed because opaque types hide representation — external callers cannot initialize fields, so the constructor surface must be declared.",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "$ref": "#/$defs/FnDef" }
+      }
+    },
     "functions": {
       "type": "object",
       "description": "Free functions owned by this part. Key = function name.",
@@ -50,7 +58,8 @@
         { "$ref": "#/$defs/AliasDef" },
         { "$ref": "#/$defs/OpaqueDef" },
         { "$ref": "#/$defs/RecordDef" },
-        { "$ref": "#/$defs/VariantDef" }
+        { "$ref": "#/$defs/VariantDef" },
+        { "$ref": "#/$defs/ComposeDef" }
       ]
     },
     "AliasDef": {
@@ -81,11 +90,38 @@
         "kind": { "const": "record" },
         "fields": {
           "type": "object",
-          "additionalProperties": { "$ref": "#/$defs/TypeRef" }
+          "description": "Map of field name -> FieldSpec. A FieldSpec is either a bare TypeRef (unconditional field) or an object with an optional 'when' discriminator gate. The latter lets the record express layouts where a field's presence depends on the value of a prior (sibling) field — e.g. SQLite's 'right_child' pointer that only exists on interior B-tree pages.",
+          "additionalProperties": { "$ref": "#/$defs/FieldSpec" }
         },
         "doc": { "type": "string" }
       },
       "required": ["kind", "fields"]
+    },
+    "FieldSpec": {
+      "oneOf": [
+        { "$ref": "#/$defs/TypeRef" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Conditional field — present iff the 'when' predicate holds on an earlier field's value. Earlier = lexically prior in the same record's fields map. Each target emits this as an Option/nullable wrapper plus a decode-time predicate.",
+          "properties": {
+            "type": { "$ref": "#/$defs/TypeRef" },
+            "when": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Gate predicate. Currently supports equality on a sibling field's value ('eq') and membership in a set ('in').",
+              "properties": {
+                "field": { "type": "string", "description": "Name of the sibling field whose value gates presence." },
+                "eq":    { "description": "Field present iff sibling equals this value." },
+                "in":    { "type": "array", "description": "Field present iff sibling value ∈ this list." }
+              },
+              "required": ["field"]
+            },
+            "doc": { "type": "string" }
+          },
+          "required": ["type", "when"]
+        }
+      ]
     },
     "VariantDef": {
       "type": "object",
@@ -115,6 +151,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "name": { "type": "string", "description": "Function/method/constructor name. Required when the FnDef appears inside a list (methods, constructors); optional when the FnDef is the value of a keyed map entry (functions)." },
         "params": {
           "type": "array",
           "items": {
@@ -131,16 +168,39 @@
         "doc": { "type": "string" },
         "receiver": {
           "enum": ["borrow", "mut"],
-          "description": "For methods: how the receiver (first implicit arg) is taken. 'borrow' = immutable self, 'mut' = mutable self. Omit for free functions."
+          "description": "For methods: how the receiver (first implicit arg) is taken. 'borrow' = immutable self, 'mut' = mutable self. Omit for free functions and constructors."
         }
       },
       "required": ["params", "returns"]
+    },
+    "ComposeDef": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Cross-part tagged union. Each case wraps a single imported type (declared in shapes.json.imports). Used to express a flat union (e.g. Opcode = OpcodeCore | OpcodeAgg | ...) where the inner variants live in sibling parts. Unlike 'variant', a compose case is ALWAYS a 1-field wrap around an imported type — the goal is composition, not a new algebra.",
+      "properties": {
+        "kind": { "const": "compose" },
+        "cases": {
+          "type": "object",
+          "description": "Key = case tag (emitted as the variant discriminator in the target). Value.of = imported type the case wraps; must appear in shapes.json.imports.",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "of":  { "type": "string", "description": "Name of an imported type." },
+              "doc": { "type": "string" }
+            },
+            "required": ["of"]
+          }
+        },
+        "doc": { "type": "string" }
+      },
+      "required": ["kind", "cases"]
     },
     "TypeRef": {
       "oneOf": [
         {
           "type": "string",
-          "description": "Named type reference. Primitive: bool i8 i16 i32 i64 u8 u16 u32 u64 f32 f64 str bytes string blob unit PC. Otherwise resolves to a user-defined type by name (this file or via imports)."
+          "description": "Named type reference. Primitive scalars: bool i8 i16 i32 i64 u8 u16 u32 u64 f32 f64 str bytes string blob unit PC. Primitive big-endian integers (for on-disk file-format decoding): u16_be u24_be u32_be u48_be u64_be i8_be i16_be i24_be i32_be i48_be i64_be f64_be — each target maps these to a byte-to-int decoder. Self-describing: varint_be (SQLite's 1-9 byte big-endian huffman varint for rowids and record headers). Otherwise resolves to a user-defined type by name (this file or via imports)."
         },
         {
           "type": "object",
@@ -166,6 +226,47 @@
               "type": "array",
               "items": { "$ref": "#/$defs/TypeRef" },
               "minItems": 2
+            },
+            "fn": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Function / callback type. Expresses a first-class function value — e.g. a RowSink invoked by the VDBE each time a program emits a row. Each target maps this to its native callable (Rust fn ptr, C function pointer, Go func, Python callable, Zig *const fn).",
+              "properties": {
+                "params": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "name": { "type": "string" },
+                      "type": { "$ref": "#/$defs/TypeRef" }
+                    },
+                    "required": ["name", "type"]
+                  }
+                },
+                "returns": { "$ref": "#/$defs/TypeRef" }
+              },
+              "required": ["params", "returns"]
+            },
+            "list_sized_by": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Homogeneous list of `elem` whose length is bound by a sibling field (`length_field`) in the enclosing record. Used for on-disk arrays sized by a prior count field — e.g. SQLite's cell-pointer array (cell_count × u16_be). The schema cannot verify the sibling exists and is an integer; targets check at emission time.",
+              "properties": {
+                "elem":         { "$ref": "#/$defs/TypeRef" },
+                "length_field": { "type": "string", "description": "Name of the sibling field inside the enclosing record that holds the length." }
+              },
+              "required": ["elem", "length_field"]
+            },
+            "codec": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Format-specific decoder. When a format's framing doesn't map cleanly onto the shape grammar — e.g. SQLite's serial-type tagged sequence where the discriminator byte encodes both the type AND the length — declare a named codec here and let each target's mapping.md supply the concrete decoder function. The schema is intentionally opaque; all semantics live in per-target prose.",
+              "properties": {
+                "name":    { "type": "string", "description": "Codec identifier, e.g. 'SqliteSerialTypeSequence'. Targets dispatch on this name." },
+                "decodes": { "$ref": "#/$defs/TypeRef", "description": "The conceptual output type the codec produces (usually a list<Value> or a record)." }
+              },
+              "required": ["name", "decodes"]
             }
           }
         }

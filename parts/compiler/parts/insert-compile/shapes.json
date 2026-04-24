@@ -1,0 +1,40 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/compiler/parts/insert-compile",
+
+  "imports": {
+    "InsertStmt":   "/parts/parser/parts/insert-stmt",
+    "InsertRow":    "/parts/parser/parts/insert-stmt",
+    "Expr":         "/parts/parser/parts/expr",
+    "Register":     "/parts/core",
+    "Value":        "/parts/core",
+    "Opcode":       "/parts/vdbe",
+    "TableSchema":  "/parts/compiler/parts/select-compile",
+    "ColumnSchema": "/parts/compiler/parts/select-compile",
+    "CompileError": "/parts/compiler/parts/expr-compile"
+  },
+
+  "types": {
+    "CompileInsertOk": {
+      "kind": "record",
+      "doc": "Compiled INSERT: the opcode list (ready to wrap in a Program), register count, cursor count, and the rows-affected count (equals the number of row-groups in the source INSERT). Caller wraps in Program and runs execute_program.",
+      "fields": {
+        "opcodes":        { "list": "Opcode" },
+        "num_registers":  "u32",
+        "num_cursors":    "u32",
+        "rows_affected":  "u32"
+      }
+    }
+  },
+
+  "functions": {
+    "compile_insert": {
+      "doc": "Compile a parsed INSERT statement into a VDBE opcode sequence, given a TableSchema for the target table. For each row in stmt.rows, compile its values (via compile_expr), then emit an InsertRow opcode followed by Next/Halt housekeeping. If `stmt.columns` is empty, every row must supply exactly schema.columns.len() values (schema order). If `stmt.columns` is non-empty, every row must match that arity, and the emitted InsertRow carries borrowed `column_names`. Probe scope: no constraint checks, no DEFAULT substitution, no OR-conflict, no RETURNING — the compiler only emits the happy path.",
+      "params": [
+        { "name": "stmt",   "type": { "borrow": "InsertStmt" } },
+        { "name": "schema", "type": { "borrow": "TableSchema" } }
+      ],
+      "returns": { "result": { "ok": "CompileInsertOk", "err": "CompileError" } }
+    }
+  }
+}

@@ -12,6 +12,37 @@ How to render a `shapes.json` file as idiomatic C99+. The generator
 consumes a leaf's `shapes.json` plus its `master.md` (prose
 semantics) and applies these rules.
 
+## Toolchain pin (required)
+
+**Target C dialect:** C11 (tested on clang 15 / Apple clang on macOS, gcc 11+ on Linux).
+**Build assumptions:** `-std=c11 -Wall -Wno-unused-parameter`. No C++ dialect features.
+
+Stdlib headers + POSIX APIs this mapping relies on. If the target
+dropped a header we lean on, re-emission beats a hand-patch.
+
+| Header / API | Usage |
+|---|---|
+| `<stdint.h>` | Fixed-width integer types (`uint8_t`, `int64_t`, `size_t` via `<stddef.h>`). |
+| `<stddef.h>` | `size_t`, `NULL`, `ptrdiff_t`. |
+| `<stdbool.h>` | `bool` TypeRef → `bool`. |
+| `<stdlib.h>` | `malloc` / `calloc` / `free` — all heap through these; never `new`/`delete`-style. |
+| `<string.h>` | `memcpy`, `memset`, `strlen` — byte-level ops only. |
+| `<stdio.h>` | Diagnostics only (`fprintf(stderr, ...)`). Never on the hot path. |
+| `<assert.h>` | `assert()` is OK for invariants; must be conditionally compiled in release via `NDEBUG`. |
+| `<errno.h>` + `errno` | Only for translating syscall errors into `LeapRuntimeCondition`. |
+
+**Pointer discipline:** all lifetimes explicit via comment
+annotations (`borrowed; caller owns`, `transferred`, `optional out-
+param`). Opaque types forward-declared as `typedef struct X X;`;
+full definition in the `.c` file.
+
+**EARLY/LATE header split:** inner-part composition headers (e.g.
+`vdbe/mod.h`) that form circular include chains with sibling
+family headers must split into EARLY (enums + non-circular
+includes) and LATE (composed union + method surface), with LATE
+gated by `LEAP_<PART>_MOD_H_LATE_OPT_IN`. See `src-c/vdbe/mod.h`
+for the pattern.
+
 ## Primitive type table
 
 | Neutral | C |
@@ -149,8 +180,70 @@ Union-field name: the case name lowered to snake_case; if the
 snake_case form collides with a C keyword (`goto`, `return`, `if`,
 etc.), suffix a single underscore.
 
+**Single-field record collapse (important — read carefully).** When a
+record-variant case has exactly one field, the union member collapses
+to that field's *type* directly, named after the CASE (not the field):
+
+```
+"Integer": { "fields": { "text": "str" } }   (single field)
+"Binary":  { "fields": { "op": "..", "lhs": "..", "rhs": ".." } }  (multi-field)
+```
+
+→
+
+```c
+union {
+    LeapStr            integer;   // collapsed: case is named, field name is dropped
+    struct { ... }     binary;    // wrapped: multi-field gets a named struct
+} as;
+```
+
+Access is `tok->as.integer` (single-field) vs `tok->as.binary.lhs`
+(multi-field). This rule is load-bearing across parts: a downstream
+consumer of Token must know whether to write `.integer` or
+`.integer.text`. The answer is ALWAYS the collapsed form for
+single-field records.
+
+Multi-field cases use an inline `struct { ... }` as shown in the
+Form B example above — field names intact.
+
 **Choosing a form** is mechanical: if any case has a non-empty
 `fields` map, use Form B. Otherwise use Form A.
+
+### Recursive variants (self-referencing fields)
+
+A variant whose field type transitively references the variant's own
+name (e.g. `Expr` with `Binary { lhs: Expr, rhs: Expr }`) renders as
+a **struct pointer** in C: the field type is `struct Expr *`, and
+the struct is forward-declared before its definition so the recursive
+reference resolves.
+
+```
+types.Expr = {
+  "kind": "variant",
+  "cases": {
+    "Binary": { "fields": { "lhs": "Expr", "rhs": "Expr" } }
+  }
+}
+```
+
+→
+
+```c
+typedef struct Expr Expr;           /* forward declare */
+struct Expr {
+    enum ExprTag tag;
+    union {
+        struct { Expr *lhs; Expr *rhs; } Binary;
+    } u;
+};
+```
+
+`{ "list": "Expr" }` renders as a heap `Expr *items; size_t len` pair
+(no extra indirection). Ownership of recursive children is
+pass-by-construction: the parent owns its recursive children, which
+means destruction must walk the tree (pin this in master.md §Ownership
+if the part allocates).
 
 ## Functions and methods
 
@@ -221,6 +314,13 @@ static const form unless the constant must be preprocessor-visible.
 - Enum constants: `LEAP_` + SHOUTY_SNAKE version of the type name +
   `_` + SHOUTY_SNAKE of the case name. Example:
   `LEAP_OPCODE_CONTROL_JUMP_IF_NULL`.
+- **CamelCase → SHOUTY_SNAKE rule**: insert an underscore at every
+  transition from lower→upper, upper→lower(with prior upper), or
+  letter→digit, then uppercase. So `LParen` → `L_PAREN`, `KwSelect`
+  → `KW_SELECT`, `NotEqBang` → `NOT_EQ_BANG`, `CurrentDate`
+  → `CURRENT_DATE`, `TokenKind` → `TOKEN_KIND`. This is the single
+  rule every C agent must apply identically; divergence (e.g.
+  `LPAREN` vs `L_PAREN`) breaks cross-part linking.
 - Functions: `leap_` + snake_case of the owning type + `_` +
   snake_case of the function name.
 - Struct fields: snake_case of the neutral field name.

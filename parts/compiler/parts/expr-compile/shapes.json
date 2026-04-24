@@ -1,0 +1,44 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/compiler/parts/expr-compile",
+
+  "imports": {
+    "Expr":       "/parts/parser/parts/expr",
+    "BinaryOp":   "/parts/parser/parts/expr",
+    "UnaryOp":    "/parts/parser/parts/expr",
+    "Register":   "/parts/core",
+    "Value":      "/parts/core",
+    "Opcode":     "/parts/vdbe"
+  },
+
+  "types": {
+    "CompileError": {
+      "kind": "record",
+      "doc": "Compilation error. For this probe the only failure modes are (a) integer / real literal text that does not parse, (b) AST nodes outside the probe scope (Call, Col). Both produce a CompileError with an owned message.",
+      "fields": {
+        "message": "string"
+      }
+    },
+
+    "CompileOk": {
+      "kind": "record",
+      "doc": "Successful compile: the emitted opcode list, the register holding the final result, and the next free register index (reg_base + count of registers used by this expression's sub-tree).",
+      "fields": {
+        "code":       { "list": "Opcode" },
+        "result_reg": "Register",
+        "next_reg":   "Register"
+      }
+    }
+  },
+
+  "functions": {
+    "compile_expr": {
+      "doc": "Compile a parser expression AST node into a sequence of VDBE opcodes, writing the result into an allocated register and returning the opcode list + result register + next free register index. Pure function: no mutation of shared state, no side effects. The caller controls register allocation by passing `reg_base` — emitted opcodes write into reg_base, reg_base+1, ... up to CompileOk.next_reg - 1. See master.md §Algorithm for the pre-order walk.",
+      "params": [
+        { "name": "expr",     "type": { "borrow": "Expr" } },
+        { "name": "reg_base", "type": "Register" }
+      ],
+      "returns": { "result": { "ok": "CompileOk", "err": "CompileError" } }
+    }
+  }
+}

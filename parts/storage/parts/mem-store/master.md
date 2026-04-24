@@ -1,0 +1,230 @@
+---
+name: mem-store
+kind: leaf
+emits:
+  rust: { path: src-rust/storage.rs }
+  c:    { path: src-c/storage.c, headers: [src-c/storage.h] }
+---
+
+# In-memory storage (behavioral test harness)
+
+Minimal HashMap-backed Database + CursorHandle implementation. Scope
+is exactly what the VDBE SELECT execution path needs: read-only
+cursors with rewind/next/column. Writes, rowid seeks, indexes, seeks
+by key, cursor invalidation on DDL — all out of scope for this leaf;
+they belong to the btree-backed real storage part.
+
+**This leaf replaces the stub `src-rust/storage.rs`** (currently a set
+of `unimplemented!()` shells). After this leaf runs, every VDBE read
+opcode terminates in a working function instead of a panic.
+
+## Scope
+
+Admitted:
+- `Database` that owns a list of named tables; caller installs tables
+  before invoking the VDBE.
+- `CursorHandle` that remembers a table index + row index + validity
+  flag, with a shared-mutability reference to the table's row buffer
+  so that writes via one cursor are visible to reads via another.
+- `open_read_cursor`, `open_write_cursor`, `close_cursor`,
+  `cursor_rewind`, `cursor_next`, `cursor_column`,
+  `cursor_insert_row`, `cursor_delete_row`.
+
+Shared-mutability note: the current signature of `cursor_insert_row`
+does NOT pass `&Database`. Therefore the cursor must internally
+carry a shareable, mutable handle to the table's rows. In Rust this
+is idiomatically `Rc<RefCell<Vec<Vec<Value>>>>`; in C it is a
+pointer into the `Database.tables` array. Either way, `Database`
+itself exposes `tables: Vec<MemTable>` where each MemTable's `rows`
+field is stored such that multiple cursors can both read and mutate
+through it without cloning. **This is a change from mem-store v1**,
+which captured a clone at open time; we now need cursor writes to be
+visible to subsequent cursor reads on the same Database.
+
+Deferred (these symbols MUST still be exported as stubs so the VDBE
+code compiles; each stub returns `RuntimeCondition::IoError` and is a
+runtime-only panic path — NOT `unimplemented!()`, since that kills
+execution even when the opcode is never reached):
+
+- `open_index_cursor`
+- `cursor_seek_ge`, `cursor_seek_gt`, `cursor_seek_le`, `cursor_seek_lt`
+- `cursor_seek_rowid`, `cursor_idx_next`, `cursor_idx_rowid`
+- `cursor_prev`
+- `cursor_update_row`
+
+These stubs preserve the surface the rest of the tree compiles
+against; they return `Err(RuntimeCondition::IoError)` rather than
+panicking. A SELECT program that doesn't use them will never hit
+them.
+
+## Correctness pins
+
+1. **database_new yields an empty catalog** — `Database { tables: [] }`
+   or target-equivalent; no tables installed.
+2. **database_install_table adds by name** — after install,
+   `open_read_cursor(db, "t")` succeeds for the installed name and
+   returns a fresh cursor.
+3. **Replace-on-conflict** — calling `database_install_table` twice
+   with the same name overwrites the existing entry (last-write-wins,
+   probe-simple semantics).
+4. **Table not found is TableNotFound** — `open_read_cursor` on an
+   unknown table returns `Err(RuntimeCondition::TableNotFound)` if
+   that variant exists, otherwise the closest equivalent (e.g.
+   `StorageTableNotFound` per the core enum). Probe pin: use the
+   exact variant the Rust `core::RuntimeCondition` declares — no
+   new enum members invented.
+5. **Fresh cursor is not valid** — immediately after `open_read_cursor`,
+   `cursor.is_valid == false`. `cursor_column` on a not-yet-rewound
+   cursor returns err.
+6. **cursor_rewind on empty table returns Ok(false)** — cursor's
+   `is_valid` stays false.
+7. **cursor_rewind on non-empty table** — returns `Ok(true)`,
+   `cursor.row_index == 0`, `cursor.is_valid == true`.
+8. **cursor_next advances** — after rewind to row 0, `cursor_next`
+   returns `Ok(true)` if row 1 exists (and sets `row_index = 1`,
+   still valid), else `Ok(false)` (`is_valid = false`, `row_index`
+   implementation-defined but consistent).
+9. **cursor_next past end** — once `is_valid == false` (exhausted),
+   calling `cursor_next` again returns `Ok(false)`; does not panic.
+10. **cursor_column by index** — returns a CLONE of the stored Value
+    (the cursor does not give out borrows into the database, so the
+    caller can keep the value after advancing). Out-of-range index
+    returns `Err(RuntimeCondition::IoError)`.
+11. **close_cursor is a no-op** — safe to call on any cursor state;
+    does not affect the Database.
+12. **No panics on valid opcode sequences** — a VDBE program that
+    does `OpenRead`, `Rewind`, loop `{Column..., Next}`, `Close`, `Halt`
+    runs to completion without an `unimplemented!()` / panic,
+    regardless of whether the table is empty.
+13. **Deferred stubs are reachable without panic** — calling any
+    of the deferred functions returns `Err(RuntimeCondition::IoError)`.
+    No `unimplemented!()` macros, no `todo!()` macros. This keeps
+    the binary robust to future VDBE opcodes that reach them
+    unexpectedly.
+14. **Exports match the current src-rust/storage.rs public surface** —
+    every `pub fn` currently declared there must still exist, with
+    the same signature. The implementation body is what changes;
+    the interface is FROZEN by what the VDBE currently imports.
+15. **cursor_delete_row keeps scan invariant** — after deleting the
+    row at `row_index = i`, the cursor is positioned such that the
+    NEXT call to `cursor_next` returns the row that logically
+    follows the deleted one (i.e. does not skip the row that shifts
+    into position i). Implementation: remove index i from the vec;
+    if i > 0, set `row_index = i - 1`; if i == 0, set
+    `row_index = u32::MAX` (sentinel meaning "before-first"). Then
+    extend `cursor_next` to treat `row_index == u32::MAX` as
+    "advance to 0" rather than "error". This is how a full-table
+    `DELETE FROM t` manages to remove every row in one pass.
+
+## Version history (mem-store)
+
+- **v1 (pre-2026-04-24):** read-only cursor; INSERT/UPDATE/DELETE stubs.
+- **v2:** shared-mutability write path via Rc<RefCell> (Rust) / pointer-into-Database (C).
+- **v3:** cursor_delete_row LIVE with scan-invariant preservation.
+- **v4 (2026-04-24):** `MemTable.column_names` added; `database_install_table` takes a column_names list; `cursor_update_row` LIVE — resolves column names to row indices via MemTable.column_names and overwrites specified slots. If a target emission of an earlier version is still on disk, callers pass an empty column_names list to preserve existing behavior for INSERT/SELECT/DELETE; UPDATE will error with IoError (or SchemaMissing if the target adds that variant).
+
+## Error return discipline
+
+Every function whose return is `result<_, RuntimeCondition>` MUST
+propagate the `RuntimeCondition` value itself, not a
+target-idiomatic wrapper that hides it. Concretely:
+
+- **Rust:** `Result<T, RuntimeCondition>` — not a custom error enum.
+- **C:** the out-param pattern already returns `LeapRuntimeCondition`.
+- **Go:** `(T, RuntimeCondition, bool)` or `(T, *RuntimeCondition)` —
+  NOT `error` / `errors.New`. Callers use `errors.As` only when
+  wrapping is unavoidable; default is direct return.
+- **Zig:** `!union(T, RuntimeCondition)` or the mapping's error-union
+  equivalent — not `anyerror`.
+- **Python:** `Union[T, RuntimeCondition]` or raise a
+  `RuntimeConditionError` that carries the condition as a field.
+
+Rationale: VDBE opcode handlers dispatch on the condition value
+(e.g. `InvalidCursor` vs `IoError` have different halt semantics).
+Generic error types erase this dispatch and force string parsing.
+
+## Clone allocator for Text / Blob reads
+
+`cursor_column` returns `Value` by value. For `Value::Text` /
+`Value::Blob`, that requires cloning the bytes out of the table
+storage. Targets without an ambient allocator (Zig, some C layouts)
+may need to thread an allocator into cursor_column. The shape
+currently has no allocator parameter — resolution:
+
+- **Rust / Go / Python:** allocators are ambient; no change.
+- **C:** the existing `clone_value` helper in storage.c uses
+  `malloc`/`strdup`; this is accepted since the C runtime provides
+  a process-wide allocator.
+- **Zig:** the runner's single-allocator harness (e.g.
+  `std.heap.page_allocator`) suffices for behavioral smokes. For
+  general use, either (a) cursor_column takes an explicit allocator
+  in a future shape revision, or (b) the Zig mapping pins a
+  well-known allocator at the module level. Current choice: (b)
+  — document the allocator-at-module-level convention in Zig mapping,
+  revisit if btree-backed storage surfaces richer requirements.
+
+## Regeneration envelope
+
+- Line budget: **~150-220 lines** of Rust. ~60 lines for the five
+  live functions + struct defs; ~80 lines for the deferred stubs
+  that return IoError; ~20 lines for docs.
+- No dependencies beyond std.
+- Public items: `Database`, `CursorHandle`, and every `pub fn`
+  that currently exists in `src-rust/storage.rs`.
+
+## Current src-rust/storage.rs public surface (frozen)
+
+Every entry below must reappear in the regenerated file with the
+same signature. Bodies for the five LIVE functions do real work;
+the rest return `Err(RuntimeCondition::IoError)`.
+
+LIVE (do the real thing):
+- `open_read_cursor(db: &Database, table: &str) -> Result<CursorHandle, RuntimeCondition>`
+- `close_cursor(handle: CursorHandle)` — no-op
+- `cursor_rewind(cursor: &mut CursorHandle) -> Result<bool, RuntimeCondition>`
+- `cursor_next(cursor: &mut CursorHandle) -> Result<bool, RuntimeCondition>`
+- `cursor_column(cursor: &CursorHandle, col_index: u32) -> Result<Value, RuntimeCondition>`
+
+Note: the current signature of `cursor_rewind`, `cursor_next`,
+`cursor_column` does NOT take `&Database` — they must store enough
+state on the CursorHandle to resolve rows on their own. The
+generated implementation therefore either (a) stores an `Rc<>` /
+`Arc<>` back to the table's row data on the cursor, or (b) stores
+an owned clone of the row set on the cursor at rewind time. For
+the probe, **(b) is fine and simpler**: at `cursor_rewind`, the
+cursor can capture a clone of the row list; `row_index` walks it.
+This keeps the cursor signature free of `&Database` — matching the
+VDBE's existing calling convention.
+
+STUBS (return `Err(RuntimeCondition::IoError)`):
+- `open_write_cursor`, `open_index_cursor`
+- `cursor_seek_ge`, `cursor_seek_gt`, `cursor_seek_le`, `cursor_seek_lt`
+- `cursor_seek_rowid`, `cursor_idx_next`, `cursor_idx_rowid`
+- `cursor_prev`
+- `cursor_insert_row`, `cursor_update_row`, `cursor_delete_row`
+
+Bodies for these stubs: `Err(RuntimeCondition::IoError)` (not
+`unimplemented!()`). For functions that return `()` (like
+`close_cursor`), keep the no-op body.
+
+## Smoke probe
+
+`src-rust/examples/select_compile_smoke.rs` is extended (or a
+companion `select_behavioral_smoke.rs` created) to:
+
+1. Construct a `Database`.
+2. Install a table `t` with two columns and three rows:
+   `[[Integer(1), Text("a")], [Integer(2), Text("b")], [Integer(3), Text("c")]]`.
+3. Compile `SELECT * FROM t` with the matching TableSchema.
+4. Execute the compiled program through `execute_program` (or
+   whatever VDBE driver exists) with a `row_sink` that collects
+   emitted rows into a Vec.
+5. Assert the collected rows match the installed rows.
+6. Repeat for `SELECT * FROM t WHERE a = 2` and assert exactly one
+   row is emitted (`[Integer(2), Text("b")]`).
+
+If the driver surface isn't directly invocable yet, the probe may
+restrict itself to verifying that the LIVE functions are reachable
+(no `unimplemented!()` triggered) by constructing a cursor, rewinding,
+reading columns, and advancing — all without going through the VDBE.
+That's still a strictly stronger claim than "stub".

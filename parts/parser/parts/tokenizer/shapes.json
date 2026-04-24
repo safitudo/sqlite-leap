@@ -1,0 +1,604 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/parser/parts/tokenizer",
+  "types": {
+    "TokenKind": {
+      "kind": "variant",
+      "doc": "Lexical token kinds produced by the SQL tokenizer. Full scope: 147 SQLite keywords + literal kinds (Integer/Real/Str/Blob/Ident/Param) + punctuation (including two-char operators <= >= <> != == ||  << >>). Keyword recognition is case-insensitive ASCII.",
+      "cases": {
+        "KwAbort": {
+          "doc": "ABORT keyword (case-insensitive)."
+        },
+        "KwAction": {
+          "doc": "ACTION keyword (case-insensitive)."
+        },
+        "KwAdd": {
+          "doc": "ADD keyword (case-insensitive)."
+        },
+        "KwAfter": {
+          "doc": "AFTER keyword (case-insensitive)."
+        },
+        "KwAll": {
+          "doc": "ALL keyword (case-insensitive)."
+        },
+        "KwAlter": {
+          "doc": "ALTER keyword (case-insensitive)."
+        },
+        "KwAlways": {
+          "doc": "ALWAYS keyword (case-insensitive)."
+        },
+        "KwAnalyze": {
+          "doc": "ANALYZE keyword (case-insensitive)."
+        },
+        "KwAnd": {
+          "doc": "AND keyword (case-insensitive)."
+        },
+        "KwAs": {
+          "doc": "AS keyword (case-insensitive)."
+        },
+        "KwAsc": {
+          "doc": "ASC keyword (case-insensitive)."
+        },
+        "KwAttach": {
+          "doc": "ATTACH keyword (case-insensitive)."
+        },
+        "KwAutoincrement": {
+          "doc": "AUTOINCREMENT keyword (case-insensitive)."
+        },
+        "KwBefore": {
+          "doc": "BEFORE keyword (case-insensitive)."
+        },
+        "KwBegin": {
+          "doc": "BEGIN keyword (case-insensitive)."
+        },
+        "KwBetween": {
+          "doc": "BETWEEN keyword (case-insensitive)."
+        },
+        "KwBy": {
+          "doc": "BY keyword (case-insensitive)."
+        },
+        "KwCascade": {
+          "doc": "CASCADE keyword (case-insensitive)."
+        },
+        "KwCase": {
+          "doc": "CASE keyword (case-insensitive)."
+        },
+        "KwCast": {
+          "doc": "CAST keyword (case-insensitive)."
+        },
+        "KwCheck": {
+          "doc": "CHECK keyword (case-insensitive)."
+        },
+        "KwCollate": {
+          "doc": "COLLATE keyword (case-insensitive)."
+        },
+        "KwColumn": {
+          "doc": "COLUMN keyword (case-insensitive)."
+        },
+        "KwCommit": {
+          "doc": "COMMIT keyword (case-insensitive)."
+        },
+        "KwConflict": {
+          "doc": "CONFLICT keyword (case-insensitive)."
+        },
+        "KwConstraint": {
+          "doc": "CONSTRAINT keyword (case-insensitive)."
+        },
+        "KwCreate": {
+          "doc": "CREATE keyword (case-insensitive)."
+        },
+        "KwCross": {
+          "doc": "CROSS keyword (case-insensitive)."
+        },
+        "KwCurrent": {
+          "doc": "CURRENT keyword (case-insensitive)."
+        },
+        "KwCurrentDate": {
+          "doc": "CURRENT_DATE keyword (case-insensitive)."
+        },
+        "KwCurrentTime": {
+          "doc": "CURRENT_TIME keyword (case-insensitive)."
+        },
+        "KwCurrentTimestamp": {
+          "doc": "CURRENT_TIMESTAMP keyword (case-insensitive)."
+        },
+        "KwDatabase": {
+          "doc": "DATABASE keyword (case-insensitive)."
+        },
+        "KwDefault": {
+          "doc": "DEFAULT keyword (case-insensitive)."
+        },
+        "KwDeferrable": {
+          "doc": "DEFERRABLE keyword (case-insensitive)."
+        },
+        "KwDeferred": {
+          "doc": "DEFERRED keyword (case-insensitive)."
+        },
+        "KwDelete": {
+          "doc": "DELETE keyword (case-insensitive)."
+        },
+        "KwDesc": {
+          "doc": "DESC keyword (case-insensitive)."
+        },
+        "KwDetach": {
+          "doc": "DETACH keyword (case-insensitive)."
+        },
+        "KwDistinct": {
+          "doc": "DISTINCT keyword (case-insensitive)."
+        },
+        "KwDo": {
+          "doc": "DO keyword (case-insensitive)."
+        },
+        "KwDrop": {
+          "doc": "DROP keyword (case-insensitive)."
+        },
+        "KwEach": {
+          "doc": "EACH keyword (case-insensitive)."
+        },
+        "KwElse": {
+          "doc": "ELSE keyword (case-insensitive)."
+        },
+        "KwEnd": {
+          "doc": "END keyword (case-insensitive)."
+        },
+        "KwEscape": {
+          "doc": "ESCAPE keyword (case-insensitive)."
+        },
+        "KwExcept": {
+          "doc": "EXCEPT keyword (case-insensitive)."
+        },
+        "KwExclude": {
+          "doc": "EXCLUDE keyword (case-insensitive)."
+        },
+        "KwExclusive": {
+          "doc": "EXCLUSIVE keyword (case-insensitive)."
+        },
+        "KwExists": {
+          "doc": "EXISTS keyword (case-insensitive)."
+        },
+        "KwExplain": {
+          "doc": "EXPLAIN keyword (case-insensitive)."
+        },
+        "KwFail": {
+          "doc": "FAIL keyword (case-insensitive)."
+        },
+        "KwFilter": {
+          "doc": "FILTER keyword (case-insensitive)."
+        },
+        "KwFirst": {
+          "doc": "FIRST keyword (case-insensitive)."
+        },
+        "KwFollowing": {
+          "doc": "FOLLOWING keyword (case-insensitive)."
+        },
+        "KwFor": {
+          "doc": "FOR keyword (case-insensitive)."
+        },
+        "KwForeign": {
+          "doc": "FOREIGN keyword (case-insensitive)."
+        },
+        "KwFrom": {
+          "doc": "FROM keyword (case-insensitive)."
+        },
+        "KwFull": {
+          "doc": "FULL keyword (case-insensitive)."
+        },
+        "KwGenerated": {
+          "doc": "GENERATED keyword (case-insensitive)."
+        },
+        "KwGlob": {
+          "doc": "GLOB keyword (case-insensitive)."
+        },
+        "KwGroup": {
+          "doc": "GROUP keyword (case-insensitive)."
+        },
+        "KwGroups": {
+          "doc": "GROUPS keyword (case-insensitive)."
+        },
+        "KwHaving": {
+          "doc": "HAVING keyword (case-insensitive)."
+        },
+        "KwIf": {
+          "doc": "IF keyword (case-insensitive)."
+        },
+        "KwIgnore": {
+          "doc": "IGNORE keyword (case-insensitive)."
+        },
+        "KwImmediate": {
+          "doc": "IMMEDIATE keyword (case-insensitive)."
+        },
+        "KwIn": {
+          "doc": "IN keyword (case-insensitive)."
+        },
+        "KwIndex": {
+          "doc": "INDEX keyword (case-insensitive)."
+        },
+        "KwIndexed": {
+          "doc": "INDEXED keyword (case-insensitive)."
+        },
+        "KwInitially": {
+          "doc": "INITIALLY keyword (case-insensitive)."
+        },
+        "KwInner": {
+          "doc": "INNER keyword (case-insensitive)."
+        },
+        "KwInsert": {
+          "doc": "INSERT keyword (case-insensitive)."
+        },
+        "KwInstead": {
+          "doc": "INSTEAD keyword (case-insensitive)."
+        },
+        "KwIntersect": {
+          "doc": "INTERSECT keyword (case-insensitive)."
+        },
+        "KwInto": {
+          "doc": "INTO keyword (case-insensitive)."
+        },
+        "KwIs": {
+          "doc": "IS keyword (case-insensitive)."
+        },
+        "KwIsnull": {
+          "doc": "ISNULL keyword (case-insensitive)."
+        },
+        "KwJoin": {
+          "doc": "JOIN keyword (case-insensitive)."
+        },
+        "KwKey": {
+          "doc": "KEY keyword (case-insensitive)."
+        },
+        "KwLast": {
+          "doc": "LAST keyword (case-insensitive)."
+        },
+        "KwLeft": {
+          "doc": "LEFT keyword (case-insensitive)."
+        },
+        "KwLike": {
+          "doc": "LIKE keyword (case-insensitive)."
+        },
+        "KwLimit": {
+          "doc": "LIMIT keyword (case-insensitive)."
+        },
+        "KwMatch": {
+          "doc": "MATCH keyword (case-insensitive)."
+        },
+        "KwMaterialized": {
+          "doc": "MATERIALIZED keyword (case-insensitive)."
+        },
+        "KwNatural": {
+          "doc": "NATURAL keyword (case-insensitive)."
+        },
+        "KwNo": {
+          "doc": "NO keyword (case-insensitive)."
+        },
+        "KwNot": {
+          "doc": "NOT keyword (case-insensitive)."
+        },
+        "KwNothing": {
+          "doc": "NOTHING keyword (case-insensitive)."
+        },
+        "KwNotnull": {
+          "doc": "NOTNULL keyword (case-insensitive)."
+        },
+        "KwNull": {
+          "doc": "NULL keyword (case-insensitive)."
+        },
+        "KwNulls": {
+          "doc": "NULLS keyword (case-insensitive)."
+        },
+        "KwOf": {
+          "doc": "OF keyword (case-insensitive)."
+        },
+        "KwOffset": {
+          "doc": "OFFSET keyword (case-insensitive)."
+        },
+        "KwOn": {
+          "doc": "ON keyword (case-insensitive)."
+        },
+        "KwOr": {
+          "doc": "OR keyword (case-insensitive)."
+        },
+        "KwOrder": {
+          "doc": "ORDER keyword (case-insensitive)."
+        },
+        "KwOthers": {
+          "doc": "OTHERS keyword (case-insensitive)."
+        },
+        "KwOuter": {
+          "doc": "OUTER keyword (case-insensitive)."
+        },
+        "KwOver": {
+          "doc": "OVER keyword (case-insensitive)."
+        },
+        "KwPartition": {
+          "doc": "PARTITION keyword (case-insensitive)."
+        },
+        "KwPlan": {
+          "doc": "PLAN keyword (case-insensitive)."
+        },
+        "KwPragma": {
+          "doc": "PRAGMA keyword (case-insensitive)."
+        },
+        "KwPreceding": {
+          "doc": "PRECEDING keyword (case-insensitive)."
+        },
+        "KwPrimary": {
+          "doc": "PRIMARY keyword (case-insensitive)."
+        },
+        "KwQuery": {
+          "doc": "QUERY keyword (case-insensitive)."
+        },
+        "KwRaise": {
+          "doc": "RAISE keyword (case-insensitive)."
+        },
+        "KwRange": {
+          "doc": "RANGE keyword (case-insensitive)."
+        },
+        "KwRecursive": {
+          "doc": "RECURSIVE keyword (case-insensitive)."
+        },
+        "KwReferences": {
+          "doc": "REFERENCES keyword (case-insensitive)."
+        },
+        "KwRegexp": {
+          "doc": "REGEXP keyword (case-insensitive)."
+        },
+        "KwReindex": {
+          "doc": "REINDEX keyword (case-insensitive)."
+        },
+        "KwRelease": {
+          "doc": "RELEASE keyword (case-insensitive)."
+        },
+        "KwRename": {
+          "doc": "RENAME keyword (case-insensitive)."
+        },
+        "KwReplace": {
+          "doc": "REPLACE keyword (case-insensitive)."
+        },
+        "KwRestrict": {
+          "doc": "RESTRICT keyword (case-insensitive)."
+        },
+        "KwReturning": {
+          "doc": "RETURNING keyword (case-insensitive)."
+        },
+        "KwRight": {
+          "doc": "RIGHT keyword (case-insensitive)."
+        },
+        "KwRollback": {
+          "doc": "ROLLBACK keyword (case-insensitive)."
+        },
+        "KwRow": {
+          "doc": "ROW keyword (case-insensitive)."
+        },
+        "KwRows": {
+          "doc": "ROWS keyword (case-insensitive)."
+        },
+        "KwSavepoint": {
+          "doc": "SAVEPOINT keyword (case-insensitive)."
+        },
+        "KwSelect": {
+          "doc": "SELECT keyword (case-insensitive)."
+        },
+        "KwSet": {
+          "doc": "SET keyword (case-insensitive)."
+        },
+        "KwTable": {
+          "doc": "TABLE keyword (case-insensitive)."
+        },
+        "KwTemp": {
+          "doc": "TEMP keyword (case-insensitive)."
+        },
+        "KwTemporary": {
+          "doc": "TEMPORARY keyword (case-insensitive)."
+        },
+        "KwThen": {
+          "doc": "THEN keyword (case-insensitive)."
+        },
+        "KwTies": {
+          "doc": "TIES keyword (case-insensitive)."
+        },
+        "KwTo": {
+          "doc": "TO keyword (case-insensitive)."
+        },
+        "KwTransaction": {
+          "doc": "TRANSACTION keyword (case-insensitive)."
+        },
+        "KwTrigger": {
+          "doc": "TRIGGER keyword (case-insensitive)."
+        },
+        "KwUnbounded": {
+          "doc": "UNBOUNDED keyword (case-insensitive)."
+        },
+        "KwUnion": {
+          "doc": "UNION keyword (case-insensitive)."
+        },
+        "KwUnique": {
+          "doc": "UNIQUE keyword (case-insensitive)."
+        },
+        "KwUpdate": {
+          "doc": "UPDATE keyword (case-insensitive)."
+        },
+        "KwUsing": {
+          "doc": "USING keyword (case-insensitive)."
+        },
+        "KwVacuum": {
+          "doc": "VACUUM keyword (case-insensitive)."
+        },
+        "KwValues": {
+          "doc": "VALUES keyword (case-insensitive)."
+        },
+        "KwView": {
+          "doc": "VIEW keyword (case-insensitive)."
+        },
+        "KwVirtual": {
+          "doc": "VIRTUAL keyword (case-insensitive)."
+        },
+        "KwWhen": {
+          "doc": "WHEN keyword (case-insensitive)."
+        },
+        "KwWhere": {
+          "doc": "WHERE keyword (case-insensitive)."
+        },
+        "KwWindow": {
+          "doc": "WINDOW keyword (case-insensitive)."
+        },
+        "KwWith": {
+          "doc": "WITH keyword (case-insensitive)."
+        },
+        "KwWithout": {
+          "doc": "WITHOUT keyword (case-insensitive)."
+        },
+        "Integer": {
+          "doc": "Integer literal (decimal digits, or hex 0x...; text span includes any 0x prefix; no sign — unary minus is an operator).",
+          "fields": {
+            "text": "str"
+          }
+        },
+        "Real": {
+          "doc": "Real literal (digits with '.' or exponent form 1e10 / 1.5E-3).",
+          "fields": {
+            "text": "str"
+          }
+        },
+        "Str": {
+          "doc": "Single-quoted string literal. Text span includes the surrounding quotes. Embedded quotes are doubled ('' ) — the tokenizer does NOT unescape.",
+          "fields": {
+            "text": "str"
+          }
+        },
+        "Blob": {
+          "doc": "BLOB literal: X'...' or x'...' with hex digits. Text span includes the leading X/x and both quotes.",
+          "fields": {
+            "text": "str"
+          }
+        },
+        "Ident": {
+          "doc": "Non-keyword identifier. Unquoted (ASCII alpha/_, then [A-Za-z0-9_]*) or double-quoted (\\\"name\\\") or bracket-quoted ([name]) or backtick-quoted (`name`). Text span includes surrounding quotes if any.",
+          "fields": {
+            "text": "str"
+          }
+        },
+        "Param": {
+          "doc": "Parameter placeholder: '?', '?NNN', ':name', '@name', '$name'. Text span includes the leading sigil.",
+          "fields": {
+            "text": "str"
+          }
+        },
+        "LParen": {
+          "doc": "`(`"
+        },
+        "RParen": {
+          "doc": "`)`"
+        },
+        "Comma": {
+          "doc": "`,`"
+        },
+        "Semi": {
+          "doc": "`;`"
+        },
+        "Dot": {
+          "doc": "`.`"
+        },
+        "Star": {
+          "doc": "`*`"
+        },
+        "Eq": {
+          "doc": "`=`"
+        },
+        "EqEq": {
+          "doc": "`==`"
+        },
+        "Lt": {
+          "doc": "`<`"
+        },
+        "Gt": {
+          "doc": "`>`"
+        },
+        "LtEq": {
+          "doc": "`<=`"
+        },
+        "GtEq": {
+          "doc": "`>=`"
+        },
+        "NotEq": {
+          "doc": "`<>`"
+        },
+        "NotEqBang": {
+          "doc": "`!=`"
+        },
+        "Plus": {
+          "doc": "`+`"
+        },
+        "Minus": {
+          "doc": "`-`"
+        },
+        "Slash": {
+          "doc": "`/`"
+        },
+        "Percent": {
+          "doc": "`%`"
+        },
+        "Concat": {
+          "doc": "`||`"
+        },
+        "BitAnd": {
+          "doc": "`&`"
+        },
+        "BitOr": {
+          "doc": "`|`"
+        },
+        "BitNot": {
+          "doc": "`~`"
+        },
+        "ShiftL": {
+          "doc": "`<<`"
+        },
+        "ShiftR": {
+          "doc": "`>>`"
+        },
+        "Eof": {
+          "doc": "End of input sentinel — emitted exactly once at stream end."
+        }
+      }
+    },
+    "Token": {
+      "kind": "record",
+      "doc": "A lexed token: kind, byte span into the source, 1-based line/column of the token's FIRST byte.",
+      "fields": {
+        "kind": "TokenKind",
+        "byte_start": "u32",
+        "byte_end": "u32",
+        "line": "u32",
+        "column": "u32"
+      }
+    },
+    "LexError": {
+      "kind": "record",
+      "doc": "Lexical error. Tokenizer stops on first error. Message is an owned string so it survives the source buffer's lifetime.",
+      "fields": {
+        "byte_offset": "u32",
+        "line": "u32",
+        "column": "u32",
+        "message": "string"
+      }
+    }
+  },
+  "functions": {
+    "tokenize": {
+      "doc": "Lex the entire `source` buffer into a token stream. Returns a list of Tokens ending with a single Eof on success, or a LexError on first lexical failure. Whitespace and comments (-- line, /* block */) are skipped (never emitted). Keyword recognition is case-insensitive (SELECT / Select / select lex to the same kind).",
+      "params": [
+        {
+          "name": "source",
+          "type": "str"
+        }
+      ],
+      "returns": {
+        "result": {
+          "ok": {
+            "list": "Token"
+          },
+          "err": "LexError"
+        }
+      }
+    }
+  }
+}

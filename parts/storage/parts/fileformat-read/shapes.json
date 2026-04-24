@@ -1,0 +1,74 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/storage/parts/fileformat-read",
+
+  "types": {
+    "DbHeader": {
+      "kind": "record",
+      "doc": "The 100-byte SQLite database header at file offset 0. Fixed layout per sqlite.org/fileformat2.html. Readers MUST validate magic + reserved zeros; downstream cannot trust a corrupted header. All multibyte integers are big-endian on disk.",
+      "fields": {
+        "magic":                "blob",
+        "page_size":            "u16_be",
+        "write_version":        "u8",
+        "read_version":         "u8",
+        "reserved_space":       "u8",
+        "max_embed_frac":       "u8",
+        "min_embed_frac":       "u8",
+        "leaf_frac":            "u8",
+        "change_counter":       "u32_be",
+        "db_size_in_pages":     "u32_be",
+        "first_freelist_trunk": "u32_be",
+        "freelist_page_count":  "u32_be",
+        "schema_cookie":        "u32_be",
+        "schema_format":        "u32_be",
+        "default_page_cache":   "u32_be",
+        "largest_root_btree":   "u32_be",
+        "text_encoding":        "u32_be",
+        "user_version":         "u32_be",
+        "incremental_vacuum":   "u32_be",
+        "application_id":       "u32_be",
+        "reserved":             "blob",
+        "version_valid_for":    "u32_be",
+        "sqlite_version":       "u32_be"
+      }
+    },
+    "PageHeader": {
+      "kind": "record",
+      "doc": "B-tree page header. Leaf pages (0x0A index-leaf, 0x0D table-leaf) have 8 bytes; interior pages (0x02 index-interior, 0x05 table-interior) have 12 bytes including a trailing right_child pointer. The conditional 'right_child' field uses the schema's 'when' gate — present iff page_type ∈ {0x02, 0x05}.",
+      "fields": {
+        "page_type":              "u8",
+        "first_freeblock":        "u16_be",
+        "cell_count":             "u16_be",
+        "cell_content_offset":    "u16_be",
+        "fragmented_free_bytes":  "u8",
+        "right_child": {
+          "type": "u32_be",
+          "when": { "field": "page_type", "in": [2, 5] },
+          "doc": "Rightmost child page pointer on interior pages. Absent on leaf pages."
+        }
+      }
+    },
+    "CellPointerArray": {
+      "kind": "record",
+      "doc": "The array of cell pointers that immediately follows a PageHeader. Each pointer is a u16_be byte-offset (within the page) at which a cell payload begins. The array length equals the enclosing PageHeader.cell_count — so this type is declared as `list_sized_by` against a sibling count field at its use-site.",
+      "fields": {
+        "cell_count": "u16_be",
+        "pointers":   { "list_sized_by": { "elem": "u16_be", "length_field": "cell_count" } }
+      }
+    },
+    "CellPayload": {
+      "kind": "record",
+      "doc": "A table-leaf cell payload. The record header + body layout is SQLite's 'serial type sequence' framing: a header_length varint, then N varint type tags where each tag encodes BOTH the type (Null/Int*/Real/Blob/Text) AND, for variable-width kinds, the byte-length of the body. The discriminator-encodes-length pattern doesn't decompose into the shape grammar's primitives, so it's declared as a named codec that each target implements in-mapping.",
+      "fields": {
+        "payload_length": "varint_be",
+        "rowid":          "varint_be",
+        "values": {
+          "codec": {
+            "name":    "SqliteSerialTypeSequence",
+            "decodes": { "list": "Value" }
+          }
+        }
+      }
+    }
+  }
+}

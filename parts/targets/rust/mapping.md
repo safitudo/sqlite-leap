@@ -12,6 +12,126 @@ How to render a `shapes.json` file as idiomatic Rust. The generator
 consumes a leaf's `shapes.json` plus its `master.md` (prose
 semantics) and applies these rules.
 
+## Toolchain pin (required)
+
+**Target Rust version:** edition 2021, rustc 1.75+ (tested on stable 1.80).
+
+Stdlib + crate surfaces this mapping relies on. If any are renamed,
+split, or removed upstream, the emission must be re-run against the
+new surface (per `feedback_target_toolchain_pin.md`). Hand-patching
+src-rust erodes the "generated, not edited" invariant.
+
+| API | Module | Notes |
+|---|---|---|
+| `Vec<T>` / `Box<T>` | `alloc`/std | Default growable list for `list<T>`. |
+| `String` / `&str` / `&[u8]` | std | `string` → `String`; `str`/`bytes` → `&str`/`&[u8]`. |
+| `Option<T>` / `Result<T, E>` | core | `option` / `result` TypeRefs emit verbatim. |
+| `std::mem::take` / `replace` | std::mem | Register/slot `take_*` operations (index-over-borrow idiom). |
+| `HashMap` / `BTreeMap` | std::collections | Only when prose specifies map-like aggregate + ordering. |
+| `fn(...) -> ...` | core | `fn` TypeRefs emit as bare fn pointers (zero-capture callbacks). |
+| dev-dep `serde_json = "1"` | — | For eq-harness runners only; **never** imported from lib code. |
+| dev-dep `base64 = "0.22"` | — | For blob round-tripping in eq-harness corpus. Dev-only. |
+
+## Storage codecs
+
+For leaves using on-disk file-format grammar (`varint_be`,
+`list_sized_by`, `codec`, `u*_be` big-endian primitives),
+Rust's canonical decoders:
+
+### Big-endian integer primitives
+
+Use `u16::from_be_bytes` / `u32::from_be_bytes` / `u64::from_be_bytes`
+/ `i64::from_be_bytes` / `f64::from_be_bytes` for power-of-2 widths:
+
+| Primitive | Rust |
+|---|---|
+| `u8` | `data[off]` |
+| `i8` | `data[off] as i8` |
+| `u16_be` | `u16::from_be_bytes(data[off..off+2].try_into().unwrap())` |
+| `u32_be` | `u32::from_be_bytes(data[off..off+4].try_into().unwrap())` |
+| `u64_be` | `u64::from_be_bytes(data[off..off+8].try_into().unwrap())` |
+| `i16_be`/`i32_be`/`i64_be` | same with `iN::from_be_bytes` |
+| `f64_be` | `f64::from_be_bytes(data[off..off+8].try_into().unwrap())` |
+
+For odd widths (`u24_be`, `i24_be`, `i48_be`), build from bytes:
+
+```rust
+fn read_u24_be(data: &[u8], off: usize) -> u32 {
+    ((data[off] as u32) << 16) | ((data[off+1] as u32) << 8) | (data[off+2] as u32)
+}
+fn read_i48_be(data: &[u8], off: usize) -> i64 {
+    let mut v: i64 = 0;
+    for i in 0..6 { v = (v << 8) | data[off+i] as i64; }
+    // Sign-extend from 48 bits.
+    if v & (1i64 << 47) != 0 { v |= !0i64 << 48; }
+    v
+}
+```
+
+### `varint_be` — SQLite 1–9 byte big-endian huffman varint
+
+```rust
+/// Returns (value, bytes_consumed in 1..=9).
+fn read_varint_be(data: &[u8], off: usize) -> (i64, usize) {
+    let mut v: u64 = 0;
+    for i in 0..8 {
+        let b = data[off + i];
+        v = (v << 7) | ((b & 0x7F) as u64);
+        if b & 0x80 == 0 {
+            return (v as i64, i + 1);
+        }
+    }
+    // 9th byte: take all 8 bits.
+    v = (v << 8) | data[off + 8] as u64;
+    (v as i64, 9)
+}
+```
+
+### `SqliteSerialTypeSequence` codec
+
+Decodes the cell body's `(record_header_length_varint,
+serial_type_1_varint, ..., serial_type_N_varint, body_bytes)`
+into a `Vec<Value>` per the serial-type table. Signature:
+
+```rust
+fn decode_serial_type_sequence(
+    data: &[u8], off: usize, total_payload: usize
+) -> Vec<Value>
+```
+
+Implementation: read `header_length` varint, then read varints
+until consumed == header_length; that's the list of serial types.
+Walk the body using the widths from the serial-type table. Serial
+types: 0 → Null; 1..6 → signed big-endian integers of width
+{1,2,3,4,6,8}; 7 → f64_be; 8 → Integer(0); 9 → Integer(1); 10,11
+reserved; N≥12 even → Blob of length (N-12)/2; N≥13 odd → Text of
+length (N-13)/2.
+
+### `list_sized_by` binding
+
+Emit as a `for i in 0..count` loop against the sibling field:
+
+```rust
+let header = decode_page_header(data, off);
+let pointers: Vec<u16> = (0..header.cell_count)
+    .map(|i| u16::from_be_bytes(
+        data[off + 8 + 2*i as usize..off + 10 + 2*i as usize]
+            .try_into().unwrap()))
+    .collect();
+```
+
+### `when`-gated fields
+
+Emit as `Option<T>` with a conditional bind:
+
+```rust
+let right_child: Option<u32> = if matches!(page_type, 0x02 | 0x05) {
+    Some(u32::from_be_bytes(data[off+8..off+12].try_into().unwrap()))
+} else {
+    None
+};
+```
+
 ## Primitive type table
 
 | Neutral | Rust |
@@ -109,6 +229,33 @@ pub enum OpcodeControl {
 
 Never use tuple-variants in the output; struct-variants everywhere
 for uniformity.
+
+### Recursive variants (self-referencing fields)
+
+A variant whose field type transitively references the variant's own
+name (e.g. `Expr` with `Binary { lhs: Expr, rhs: Expr }`) must be
+rendered with `Box<Self>` at each recursive field in Rust, since a
+Rust enum cannot contain itself by value.
+
+```
+types.Expr = {
+  "kind": "variant",
+  "cases": {
+    "Binary": { "fields": { "lhs": "Expr", "rhs": "Expr" } }
+  }
+}
+```
+
+→
+
+```rust
+pub enum Expr {
+    Binary { lhs: Box<Expr>, rhs: Box<Expr> },
+}
+```
+
+`{ "list": "Expr" }` stays `Vec<Expr>` (Vec already heap-allocates);
+no Box wrap needed inside a list.
 
 ## Functions and methods
 

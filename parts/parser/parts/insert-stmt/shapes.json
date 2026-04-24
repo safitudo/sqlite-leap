@@ -1,0 +1,51 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/parser/parts/insert-stmt",
+
+  "imports": {
+    "Token":      "/parts/parser/parts/tokenizer",
+    "TokenKind":  "/parts/parser/parts/tokenizer",
+    "Expr":       "/parts/parser/parts/expr",
+    "ParseError": "/parts/parser/parts/expr"
+  },
+
+  "types": {
+    "InsertStmt": {
+      "kind": "record",
+      "doc": "Parsed INSERT statement. Covers `INSERT INTO table [(col, ...)] VALUES (expr, ...), (expr, ...), ...`. Named column list is optional; when absent, callers must supply values for every table column in schema order. Multi-row VALUES is a single statement; each inner paren-group is one row. RETURNING, OR-conflict clauses, INSERT INTO ... SELECT, and DEFAULT VALUES are deferred.",
+      "fields": {
+        "table":    "string",
+        "columns":  { "list": "string" },
+        "rows":     { "list": "InsertRow" }
+      }
+    },
+
+    "InsertRow": {
+      "kind": "record",
+      "doc": "One row's worth of inserted expressions. Length must either (a) match `InsertStmt.columns` when columns is non-empty, or (b) be any positive count when columns is empty — the compiler validates against the table schema. Parser does not check column/value count equality; it accepts what's syntactically valid.",
+      "fields": {
+        "values": { "list": "Expr" }
+      }
+    },
+
+    "InsertParseOk": {
+      "kind": "record",
+      "doc": "Successful parse output: the InsertStmt plus the position of the next token after the statement (the caller verifies it is `;` or Eof).",
+      "fields": {
+        "stmt": "InsertStmt",
+        "next": "u32"
+      }
+    }
+  },
+
+  "functions": {
+    "parse_insert": {
+      "doc": "Parse an INSERT statement starting at `tokens[start]`. Delegates to `parse_expr` for every embedded value expression. Returns err(ParseError) with a `deferred: <construct>` message when encountering RETURNING, OR, SELECT-source, DEFAULT VALUES, or a trailing comma. On success, returns the statement and the token index immediately after the final `)`.",
+      "params": [
+        { "name": "tokens", "type": { "borrow": { "list": "Token" } } },
+        { "name": "start",  "type": "u32" }
+      ],
+      "returns": { "result": { "ok": "InsertParseOk", "err": "ParseError" } }
+    }
+  }
+}

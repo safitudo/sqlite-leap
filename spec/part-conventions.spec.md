@@ -154,6 +154,32 @@ cannot be composed into a correct emission without adding something
 not in the shape, the correct action is to stop and surface the
 ambiguity, not to silently extend the surface area.
 
+**Enforcement:** `generators/leaplint.py` walks every `src-*/` file
+bearing the `Generated from` marker and rejects the forbidden
+patterns above on a per-target basis. CI gate — treat lint failure
+as a spec violation, not as debt. Run after every generation pass.
+
+### Runner exception
+
+Some parts emit **runners** — standalone files with an authorized
+entry point (a `main` in Rust/C/Zig/Go or a `__main__` guard in
+Python). Runners are the probe mechanism for cross-target parity
+(file-format read, eq-harness, smoke binaries). The part's
+`master.md` declares these via an `emits:` block with the runner
+path, and the §Output contract pin authorizes the entry point.
+
+To opt into the runner exception, the emitted file must include
+the marker `leaplint: runner` within its first 8 lines. The
+linter then waives entry-point rules only (main-guard, fn main,
+int main, pub-main, bare-main). All other §Generation-scope rules
+— inline tests, stubs, invented helpers, NotImplementedError, etc.
+— still apply.
+
+**Who can add the marker?** Only files that the part's master.md
+explicitly authorizes as runners. Target-emission agents must not
+add the marker unilaterally; it belongs in the emission because
+the spec pin required it.
+
 ## Future language additions
 
 Adding a new target language consists of exactly one act: write

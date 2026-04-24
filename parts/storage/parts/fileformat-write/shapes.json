@@ -1,0 +1,40 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/storage/parts/fileformat-write",
+
+  "imports": {
+    "Value": "/parts/core"
+  },
+
+  "types": {
+    "WriteError": {
+      "kind": "record",
+      "doc": "Write-side failure. Causes: (a) row does not fit in the remaining page free space (page-full — deferred split path); (b) unsupported Value payload (blob in this probe); (c) I/O failure bubbling up from the file-write syscall.",
+      "fields": {
+        "message": "string"
+      }
+    },
+
+    "WriteOk": {
+      "kind": "record",
+      "doc": "Successful write: the new DbHeader.change_counter, the rowid assigned to the inserted row, and the total bytes written (== file size, since the probe handles only single-page tables).",
+      "fields": {
+        "new_change_counter": "u32",
+        "assigned_rowid":     "i64",
+        "bytes_written":      "u32"
+      }
+    }
+  },
+
+  "functions": {
+    "insert_row": {
+      "doc": "Append a single row to a mainline-SQLite `.db` file backing a single-page table. Reads the file, decodes DbHeader + PageHeader + existing cells, appends one cell with the given Values encoded per SQLite's record format (serial-type varint sequence + payload), rewrites the page with an updated cell pointer array, bumps DbHeader.change_counter, and writes the file back atomically (rename-from-temp). Probe scope — single-table, single-page, rowid auto-assigned as max(existing)+1 (or 1 if empty). See master.md.",
+      "params": [
+        { "name": "db_path",    "type": "str" },
+        { "name": "table_name", "type": "str" },
+        { "name": "values",     "type": { "borrow": { "list": "Value" } } }
+      ],
+      "returns": { "result": { "ok": "WriteOk", "err": "WriteError" } }
+    }
+  }
+}

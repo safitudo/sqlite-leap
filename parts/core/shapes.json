@@ -59,7 +59,8 @@
         "ConstraintType":         { "fields": {} },
         "RecursiveCteLimit":      { "fields": {} },
         "SubqueryMoreThanOneRow": { "fields": {} },
-        "IoError":                { "fields": {} }
+        "IoError":                { "fields": {} },
+        "SchemaMissing":          { "fields": {} }
       }
     }
   },

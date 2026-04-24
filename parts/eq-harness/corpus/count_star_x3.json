@@ -1,0 +1,22 @@
+{
+  "name": "count_star_x3",
+  "doc":  "Reset a CountStar accumulator, step it 3 times, finalize into reg[0], emit reg[0] as a result row, halt. Expected: one row containing Integer(3).",
+  "program": {
+    "num_registers":  1,
+    "num_cursors":    0,
+    "num_aggregates": 1,
+    "num_windows":    0,
+    "opcodes": [
+      { "family": "Agg",  "op": "AggReset", "acc_slot": 0, "kind": "CountStar" },
+      { "family": "Agg",  "op": "AggStep",  "acc_slot": 0, "kind": "CountStar", "arg_reg": 0, "sep_reg": null },
+      { "family": "Agg",  "op": "AggStep",  "acc_slot": 0, "kind": "CountStar", "arg_reg": 0, "sep_reg": null },
+      { "family": "Agg",  "op": "AggStep",  "acc_slot": 0, "kind": "CountStar", "arg_reg": 0, "sep_reg": null },
+      { "family": "Agg",  "op": "AggFinal", "acc_slot": 0, "kind": "CountStar", "dest_reg": 0 },
+      { "family": "Core", "op": "ResultRow", "start_reg": 0, "count": 1 },
+      { "family": "Core", "op": "Halt" }
+    ]
+  },
+  "expected_rows": [
+    [ { "t": "Integer", "v": 3 } ]
+  ]
+}

@@ -14,6 +14,32 @@ Go has no native sum types; the mapping uses the **marker-interface
 pattern** (a la `go/ast`, `database/sql`, `encoding/xml`) for
 variants. Pattern-match at the call site with a type switch.
 
+## Toolchain pin (required)
+
+**Target Go version:** 1.21+ (tested on 1.22).
+**Build assumptions:** modules mode; `go build ./...` from the
+`src-go/` root.
+
+Stdlib surfaces this mapping relies on:
+
+| API | Package | Notes |
+|---|---|---|
+| slices (`[]T`, `append`, `copy`) | builtin | Default growable list for `list<T>`. |
+| `map[K]V` | builtin | For map-like aggregates when declared. |
+| error interface (`error` + `errors.New`) | errors | `result` TypeRefs collapse to Go's idiomatic `(T, error)` return pair. |
+| `fmt.Errorf` | fmt | For wrapping runtime conditions into error values. |
+| `encoding/json` | encoding/json | For eq-harness runners only. Never from lib code. |
+| `encoding/base64` | encoding/base64 | For blob round-tripping in eq-harness corpus. Dev-only. |
+| generics (`[T any]`) | language | Used sparingly; prefer concrete types when a shape declares them. |
+
+**Package layout:** one Go package per shape leaf, rooted at
+`src-go/<part_path>/<leaf>/`. The package name matches the last
+segment. Inner parts (composers) sit one level up at
+`src-go/<part_path>/`.
+
+**Forbidden on emitted lib code:** no `init()` functions, no
+package-level mutable state, no global goroutines.
+
 ## Primitive type table
 
 | Neutral | Go |
@@ -166,6 +192,29 @@ func (c RuntimeCondition) Error() string { /* switch / name table */ }
 The enum form implements `error` when used as the `err` arm of a
 `result<_, RuntimeCondition>`. Rule: if every case has
 `fields: {}`, emit the enum form; otherwise, the interface form.
+
+### Recursive variants (self-referencing fields)
+
+A variant whose field type transitively references its own name uses
+a **pointer to the interface type** (`*Expr` where `Expr` is the marker
+interface). Because Go stores interface values as (type, pointer)
+pairs already, concrete case structs reference `*Expr` (pointer to the
+interface) for recursive fields — cleaner than nesting interface
+values by value and avoids an extra heap allocation at the case level.
+
+```go
+type Expr interface{ isExpr() }
+
+type ExprBinary struct {
+    Op  BinaryOp
+    Lhs *Expr
+    Rhs *Expr
+}
+func (ExprBinary) isExpr() {}
+```
+
+`{ "list": "Expr" }` renders as `[]Expr` — no pointer needed since
+Go slices hold interface values directly.
 
 ## Functions and methods
 

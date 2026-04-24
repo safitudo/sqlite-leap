@@ -1,0 +1,37 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/compiler/parts/delete-compile",
+
+  "imports": {
+    "DeleteStmt":   "/parts/parser/parts/delete-stmt",
+    "Expr":         "/parts/parser/parts/expr",
+    "Register":     "/parts/core",
+    "Opcode":       "/parts/vdbe",
+    "TableSchema":  "/parts/compiler/parts/select-compile",
+    "ColumnSchema": "/parts/compiler/parts/select-compile",
+    "CompileError": "/parts/compiler/parts/expr-compile"
+  },
+
+  "types": {
+    "CompileDeleteOk": {
+      "kind": "record",
+      "doc": "Compiled DELETE: the opcode list, register count, cursor count. rows_affected is NOT known at compile time (depends on how many rows match WHERE at runtime) — the caller collects it via execute_program's result.",
+      "fields": {
+        "opcodes":       { "list": "Opcode" },
+        "num_registers": "u32",
+        "num_cursors":   "u32"
+      }
+    }
+  },
+
+  "functions": {
+    "compile_delete": {
+      "doc": "Compile `DELETE FROM t [WHERE expr]` into a VDBE opcode sequence. Opens a write cursor, rewinds, iterates rows; if WHERE is present, compiles it and branches past DeleteRow on false. After DeleteRow, Next to continue. Probe scope: no constraint cascade, no RETURNING, single-table only.",
+      "params": [
+        { "name": "stmt",   "type": { "borrow": "DeleteStmt" } },
+        { "name": "schema", "type": { "borrow": "TableSchema" } }
+      ],
+      "returns": { "result": { "ok": "CompileDeleteOk", "err": "CompileError" } }
+    }
+  }
+}
