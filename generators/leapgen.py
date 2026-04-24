@@ -117,7 +117,7 @@ def walk_imports(shapes_path: Path, seen: set[Path]) -> list[Path]:
 
 
 def derive_output_paths(part_name: str, target: str) -> list[Path]:
-    """Name -> path. Hyphens become underscores. C is .h+.c pair. Go is package-dir."""
+    """Name -> path. Hyphens become underscores. C is .h+.c pair. Go is package-dir. Python lives under src-python/leap_sqlite/."""
     under = part_name.replace("-", "_")
     if target == "c":
         return [REPO_ROOT / f"src-c/{under}.h", REPO_ROOT / f"src-c/{under}.c"]
@@ -125,6 +125,8 @@ def derive_output_paths(part_name: str, target: str) -> list[Path]:
         parent = "/".join(under.split("/")[:-1])
         leaf = under.split("/")[-1]
         return [REPO_ROOT / f"src-go/{parent}/{leaf}/{leaf}.go"]
+    if target == "python":
+        return [REPO_ROOT / f"src-python/leap_sqlite/{under}.py"]
     ext = TARGETS[target]["ext"]
     return [REPO_ROOT / f"src-{target}/{under}.{ext}"]
 

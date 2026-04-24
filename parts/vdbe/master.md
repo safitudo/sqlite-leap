@@ -7,7 +7,7 @@ emits:
   c:      { path: src-c/vdbe/mod.c, headers: [src-c/vdbe/mod.h] }
   zig:    { path: src-zig/vdbe/mod.zig }
   go:     { path: src-go/vdbe/vdbe.go }
-  python: { path: src-python/vdbe/__init__.py }
+  python: { path: src-python/leap_sqlite/vdbe/__init__.py }
 ---
 
 # Part: vdbe
@@ -104,6 +104,52 @@ fn dispatch(op: &Opcode, state: &mut VdbeState) -> OpcodeOutcome:
     Opcode::Window(op)  -> opcodes_window::execute(op, state)
     Opcode::Control(op) -> opcodes_control::execute(op, state)
 ```
+
+## Composition surface
+
+`Opcode`, `Program`, `RowSink`, and `execute_program` are emitted as
+part of this composition. They are not declared in `shapes.json`
+because the current shape grammar cannot express function types
+(RowSink is a callback); promoting them awaits a shape-schema
+extension. Until then, the canonical shapes below are authoritative
+and all targets MUST converge on them.
+
+`Opcode` — flat tagged union, one case per family. Cases:
+
+```
+Opcode =
+  Core(OpcodeCore)       Rows(OpcodeRows)       Scan(OpcodeScan)
+  Expr(OpcodeExpr)       Agg(OpcodeAgg)         Window(OpcodeWindow)
+  Control(OpcodeControl)
+```
+
+Each payload type is owned by the corresponding sub-part; this
+composition only wires the outer tag and the dispatch switch.
+
+`Program` — record with these fields (names are canonical; each
+target may rename per its convention, but the roles are fixed):
+
+- `opcodes: list<Opcode>` — the bytecode.
+- `opcode_count: u32` — `len(opcodes)`; some targets store it
+  separately to avoid recomputing at every PC check.
+- `num_registers: u32` — sizes the register file at state init.
+- `num_cursors: u32` — sizes the cursor slot table.
+- `num_aggregates: u32` — sizes the aggregate accumulator table.
+- `num_windows: u32` — sizes the window session table.
+- `row_sink: RowSink` — user-supplied callback invoked for each
+  `EmitRow` outcome.
+
+`RowSink` — callable with signature
+`(state: &VdbeState, start_reg: Register, count: u32) -> unit`.
+The callback reads `state.get_register(start_reg + i)` for
+`i in [0, count)` to observe the emitted row. Must not mutate
+`state`. Each target picks the idiomatic callback representation:
+bare function pointer, closure trait object, function value,
+callable object. Capture/lifetime are the caller's responsibility.
+
+`execute_program` — free function, signature
+`(program: &Program, state: &mut VdbeState) -> HaltStatus`.
+Loop logic is the pseudo-code in §Execution loop above.
 
 ## `VdbeState` implementation
 

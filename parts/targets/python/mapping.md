@@ -275,16 +275,16 @@ variant cases immutable by default.
 
 ## File layout strategy
 
-- **Strategy:** single-file per leaf, `__init__.py` per intermediate package directory (emitted by the root generator).
+- **Strategy:** single-file per leaf, `__init__.py` per intermediate package directory (emitted by the root generator). The top-level `src-python/leap_sqlite/` directory IS the `leap_sqlite` package root — callers add `src-python/` to `sys.path`, then `from leap_sqlite.<path> import <Name>` resolves via Python's normal import machinery (no shim).
 - **Path derivation:**
-  - Leaf: `src-python/<name-with-underscores>.py`
-  - Inner: `src-python/<name-with-underscores>/__init__.py`
+  - Leaf: `src-python/leap_sqlite/<name-with-underscores>.py`
+  - Inner: `src-python/leap_sqlite/<name-with-underscores>/__init__.py`
   - Hyphens become underscores (Python identifiers disallow hyphens).
 - **Examples:**
-  - `core` → `src-python/core.py`
-  - `vdbe/opcodes-control` → `src-python/vdbe/opcodes_control.py`
-  - `vdbe` (inner) → `src-python/vdbe/__init__.py`
-- **Intermediate package files:** any nested leaf (e.g., `vdbe/opcodes-control`) requires `src-python/vdbe/__init__.py` to exist. The ROOT generator emits these as empty or minimal re-export files; individual leaves do not emit them.
+  - `core` → `src-python/leap_sqlite/core.py`
+  - `vdbe/opcodes-control` → `src-python/leap_sqlite/vdbe/opcodes_control.py`
+  - `vdbe` (inner) → `src-python/leap_sqlite/vdbe/__init__.py`
+- **Intermediate package files:** any nested leaf (e.g., `vdbe/opcodes-control`) requires `src-python/leap_sqlite/vdbe/__init__.py` to exist. The ROOT generator emits these as empty or minimal re-export files; individual leaves do not emit them. The top-level `src-python/leap_sqlite/__init__.py` itself is also emitted (empty is fine) so the package imports cleanly.
 - **Cross-leaf imports:** `from leap_sqlite.<path> import <Name>`, using the root package name `leap_sqlite` (project-wide constant).
 - **Override hook:** `emits.python.path` in front-matter.
 
