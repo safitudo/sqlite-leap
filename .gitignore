@@ -2,9 +2,9 @@
 src-c/
 src-rust/
 src-wasm/
-src-c-v2/
-src-rust-v2/
-src-wasm-v2/
+src-zig/
+src-go/
+src-python/
 
 # Rust build artifacts (in case cargo is run from repo root)
 target/

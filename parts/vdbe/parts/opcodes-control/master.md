@@ -1,42 +1,99 @@
 ---
 name: vdbe/opcodes-control
-kind: leaf
-inherits:
-  - /schema/opcode.schema.json
-  - /parts/vdbe/parts/opcodes-core/master.md
-emits:
-  c: { path: src-c/vdbe/opcodes_control.c, headers: [src-c/vdbe/opcodes_control.h] }
-  rust: { path: src-rust/src/vdbe/opcodes_control.rs }
 ---
 
 # Part: vdbe/opcodes-control
 
-Control-flow opcodes. Unconditional and conditional jumps.
+Control-flow opcodes: unconditional jump, boolean-guarded jumps,
+null-guarded jump, bounded-depth subroutine calls. Shape
+declarations live in `shapes.json`; this file describes only
+the semantic contract of each opcode.
 
-## Opcodes owned here
+## Semantic contract
 
-| Name | Semantics |
-|---|---|
-| `Goto(target_pc)` | Unconditional jump. |
-| `If(cond_reg, target_pc)` | Jump if `regs[cond_reg]` is truthy. Truthy = not-NULL and not integer 0. |
-| `IfNot(cond_reg, target_pc)` | Jump if `regs[cond_reg]` is NULL or 0. |
-| `JumpIfNull(reg, target_pc)` | Jump if `regs[reg]` is NULL. |
-| `Gosub(target_pc)` | Push return pc, jump to target. Used by some subquery patterns. |
-| `Return` | Pop return pc, jump to it. |
+Each opcode below returns an `OpcodeOutcome`. The outer VDBE loop
+consumes the outcome — the opcode handler itself never touches the
+program counter directly (that's the loop's job).
 
-## Jump target invariants
+### `Goto { target }`
 
-- All targets must be in `[0, len(program.opcodes))`. Compiler
-  validates.
-- Jumps into the middle of a contiguous block (e.g., jumping past
-  `Gosub` to a `Return`) are legal if all targets are well-formed
-  opcode positions.
+Unconditional jump. Returns `Jump(target)`.
+
+### `If { cond_reg, target }`
+
+Read register `cond_reg`. If the value is **truthy**, return
+`Jump(target)`; else return `Continue`.
+
+### `IfNot { cond_reg, target }`
+
+Read register `cond_reg`. If the value is **falsy**, return
+`Jump(target)`; else return `Continue`.
+
+### `JumpIfNull { reg, target }`
+
+Read register `reg`. If the value is `Value::Null`, return
+`Jump(target)`; else return `Continue`.
+
+### `Gosub { target }`
+
+Push the address `pc + 1` onto the return stack, then return
+`Jump(target)`. If the return stack is already at
+`RETURN_STACK_MAX_DEPTH`, return
+`Halt(Error(RuntimeCondition::OpcodeIllegal))` instead — this is a
+well-formedness violation (the compiler should have prevented
+unbounded recursion).
+
+### `Return`
+
+Pop the top of the return stack. Return `Jump(popped_pc)`. If the
+stack is empty, return `Halt(Error(RuntimeCondition::OpcodeIllegal))`.
+
+## Truthiness rule
+
+`If` / `IfNot` interpret register values as follows:
+
+| Value     | Truthy? |
+|-----------|---------|
+| `Null`    | false   |
+| `Integer(0)` | false |
+| `Integer(n != 0)` | true |
+| `Real(0.0)` | false (positive and negative zero both falsy) |
+| `Real(non-zero, non-NaN)` | true |
+| `Real(NaN)` | false |
+| `Text(_)` | true (regardless of content — empty strings are still truthy here; SQL's own truthiness differs at higher layers) |
+| `Blob(_)` | true (regardless of content) |
+
+This is the **VDBE-internal** truthiness. The SQL-level truth value
+for `WHERE x` comes from a prior `Cast` / comparison that reduces
+to an Integer or Null before `If` sees it; the compiler is
+responsible for that lowering.
+
+## Return-stack bound
+
+`RETURN_STACK_MAX_DEPTH = 64`. This prevents pathological
+programs (or compiler bugs) from causing unbounded memory growth
+via runaway `Gosub`. The bound is observable in diagnostics as
+`RuntimeCondition::OpcodeIllegal` at the offending `Gosub`.
+
+## Memory discipline
+
+All opcodes in this family are pure with respect to register and
+cursor state: none allocate, none free, none clone a `Value`. The
+only state mutation is `pc` (implicit via the returned outcome) and
+the return stack (for `Gosub` / `Return`). Cross-target emissions
+should reflect this: no `clone` / `release` calls anywhere in this
+file's implementations.
 
 ## Phase pins
 
-None owned here — control flow is baseline infrastructure.
+- **Phase 2** — initial VDBE control-flow opcodes; stable since the
+  first v1 green run.
+- **#78** — closed-cursor fault surface consistency (fixed upstream
+  in `opcodes-rows`, not here; listed because the return-stack
+  fault path reuses the same `OpcodeIllegal` condition).
 
 ## Regeneration envelope
 
-- Target leaf size: 150–300 lines per target.
-- Spec < 80 lines.
+- Spec (this file): < 150 lines.
+- `shapes.json`: < 60 lines.
+- Each target emission: ~150–250 lines (Rust), ~200–300 lines (C).

@@ -1,0 +1,78 @@
+{
+  "$schema": "../../schema/shape.schema.json",
+  "owner": "/parts/core",
+  "imports": {},
+  "types": {
+    "Register": {
+      "kind": "opaque",
+      "representation": "u32",
+      "doc": "VDBE register slot index. Distinct from CursorId."
+    },
+    "CursorId": {
+      "kind": "opaque",
+      "representation": "u32",
+      "doc": "VDBE cursor slot index. Distinct from Register."
+    },
+    "Value": {
+      "kind": "variant",
+      "doc": "Runtime value. Text/Blob carry owned payloads at this level; sub-parts may borrow within a call.",
+      "cases": {
+        "Null":    { "fields": {} },
+        "Integer": { "fields": { "v": "i64" } },
+        "Real":    { "fields": { "v": "f64" } },
+        "Text":    { "fields": { "v": "string" } },
+        "Blob":    { "fields": { "v": "blob" } }
+      }
+    },
+    "OpcodeOutcome": {
+      "kind": "variant",
+      "doc": "Per-opcode execution result. EmitRow tells the outer loop to materialize a row; opcode still advances PC by 1.",
+      "cases": {
+        "Continue": { "fields": {} },
+        "Jump":     { "fields": { "target": "PC" } },
+        "Halt":     { "fields": { "status": "HaltStatus" } },
+        "EmitRow":  { "fields": { "start": "Register", "count": "u32" } }
+      }
+    },
+    "HaltStatus": {
+      "kind": "variant",
+      "doc": "Why execution stopped.",
+      "cases": {
+        "Ok":    { "fields": {} },
+        "Error": { "fields": { "condition": "RuntimeCondition" } }
+      }
+    },
+    "RuntimeCondition": {
+      "kind": "variant",
+      "doc": "Closed set of runtime fault categories. Adding a condition is a spec change.",
+      "cases": {
+        "OpcodeIllegal":          { "fields": {} },
+        "CursorClosed":           { "fields": {} },
+        "CursorNotWritable":      { "fields": {} },
+        "TableNotFound":          { "fields": {} },
+        "TypeMismatch":           { "fields": {} },
+        "ArithOverflow":          { "fields": {} },
+        "DivZero":                { "fields": {} },
+        "ConstraintNotNull":      { "fields": {} },
+        "ConstraintUnique":       { "fields": {} },
+        "ConstraintCheck":        { "fields": {} },
+        "ConstraintType":         { "fields": {} },
+        "RecursiveCteLimit":      { "fields": {} },
+        "SubqueryMoreThanOneRow": { "fields": {} },
+        "IoError":                { "fields": {} }
+      }
+    }
+  },
+  "functions": {
+    "value_is_null": {
+      "params": [{ "name": "v", "type": { "borrow": "Value" } }],
+      "returns": "bool",
+      "doc": "True iff the value is Value::Null. Pure predicate; no state."
+    },
+    "value_is_truthy": {
+      "params": [{ "name": "v", "type": { "borrow": "Value" } }],
+      "returns": "bool",
+      "doc": "VDBE-internal truthiness per parts/vdbe/parts/opcodes-control/master.md §Truthiness rule. Null/Integer(0)/Real(0.0)/Real(NaN) → false; Text/Blob → true (non-emptiness irrelevant). Pure predicate; no state."
+    }
+  }
+}

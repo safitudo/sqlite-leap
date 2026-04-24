@@ -1,10 +1,8 @@
 ---
 name: root
-kind: inner
 inherits:
   - /CLAUDE.md
   - /ARCHITECTURE-v2.md
-  - /spec/memory-discipline.spec.md
   - /spec/durability.spec.md
 ---
 
@@ -52,10 +50,21 @@ tokenizer  →  parser  →  compiler  →  vdbe  ←  executor
 
 ## Cross-cutting specs (stay at /spec/)
 
-These are invariants that cut across parts and own no emission:
+### Universal — implicitly inherited by every part
 
-- `/spec/memory-discipline.spec.md` — ownership/borrow rules for
-  both targets; every compiler sub-part must honor it.
+Every part in `/parts/` automatically inherits the following; they
+do NOT need to appear in any leaf's `inherits:` block:
+
+- `/spec/part-conventions.spec.md` — front-matter + derivation rules
+- `/spec/type-system.spec.md` — neutral type vocabulary
+- `/spec/memory-discipline.spec.md` — ownership / borrow rules
+- `/schema/shape.schema.json` — meta-schema for `shapes.json`
+
+### Non-universal cross-cutting specs
+
+These are invariants that bind specific parts (not all) and own no
+emission. A part lists them in its own `inherits:` only if relevant:
+
 - `/spec/durability.spec.md` — fsync/barrier rules; binds storage +
   io-backend.
 - `/spec/sqllogictest-runner.spec.md` — test-runner behavior; binds

@@ -1,0 +1,53 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/vdbe/parts/opcodes-control",
+  "imports": {
+    "Register":      "/parts/core",
+    "Value":         "/parts/core",
+    "OpcodeOutcome": "/parts/core",
+    "HaltStatus":    "/parts/core",
+    "VdbeState":     "/parts/vdbe"
+  },
+  "types": {
+    "OpcodeControl": {
+      "kind": "variant",
+      "doc": "Control-flow opcodes: unconditional jump, boolean-guarded jumps, null-guarded jump, bounded-depth Gosub/Return.",
+      "cases": {
+        "Goto": {
+          "fields": { "target": "PC" },
+          "doc": "Unconditional jump to target."
+        },
+        "If": {
+          "fields": { "cond_reg": "Register", "target": "PC" },
+          "doc": "If register cond_reg is truthy, jump to target; else continue."
+        },
+        "IfNot": {
+          "fields": { "cond_reg": "Register", "target": "PC" },
+          "doc": "If register cond_reg is falsy, jump to target; else continue."
+        },
+        "JumpIfNull": {
+          "fields": { "reg": "Register", "target": "PC" },
+          "doc": "If register reg holds Value::Null, jump to target; else continue."
+        },
+        "Gosub": {
+          "fields": { "target": "PC" },
+          "doc": "Push current PC+1 onto the return stack, then jump to target."
+        },
+        "Return": {
+          "fields": {},
+          "doc": "Pop the return stack; jump to the popped PC."
+        }
+      }
+    }
+  },
+  "functions": {
+    "execute": {
+      "params": [
+        { "name": "op",    "type": { "borrow": "OpcodeControl" } },
+        { "name": "state", "type": { "mut":    "VdbeState" } }
+      ],
+      "returns": "OpcodeOutcome",
+      "doc": "Execute one control opcode against the state. Returns Continue, Jump(target), or Halt(Error(OpcodeIllegal)) on return-stack underflow/overflow."
+    }
+  }
+}

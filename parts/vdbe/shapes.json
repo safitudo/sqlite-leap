@@ -1,0 +1,80 @@
+{
+  "$schema": "../../schema/shape.schema.json",
+  "owner": "/parts/vdbe",
+  "imports": {
+    "Register":         "/parts/core",
+    "CursorId":         "/parts/core",
+    "Value":            "/parts/core",
+    "OpcodeOutcome":    "/parts/core",
+    "HaltStatus":       "/parts/core",
+    "RuntimeCondition": "/parts/core"
+  },
+  "types": {
+    "VdbeState": {
+      "kind": "opaque",
+      "doc": "Mutable execution state: register file, cursor slots, program counter, return stack, aggregate and window sessions. Sub-parts use the methods declared below; direct field access is forbidden."
+    }
+  },
+  "methods": {
+    "VdbeState": [
+      {
+        "name": "num_registers",
+        "receiver": "borrow",
+        "params": [],
+        "returns": "u32",
+        "doc": "Upper bound of the register file; Register values are in [0, num_registers)."
+      },
+      {
+        "name": "get_register",
+        "receiver": "borrow",
+        "params": [{ "name": "r", "type": "Register" }],
+        "returns": { "borrow": "Value" },
+        "doc": "Immutable view of the value in register r. Panics on out-of-bounds — caller (well-formed program) must not trigger."
+      },
+      {
+        "name": "set_register",
+        "receiver": "mut",
+        "params": [
+          { "name": "r", "type": "Register" },
+          { "name": "v", "type": "Value" }
+        ],
+        "returns": "unit",
+        "doc": "Move v into register r, releasing any prior owned payload."
+      },
+      {
+        "name": "pc",
+        "receiver": "borrow",
+        "params": [],
+        "returns": "PC",
+        "doc": "Current program counter."
+      },
+      {
+        "name": "set_pc",
+        "receiver": "mut",
+        "params": [{ "name": "pc", "type": "PC" }],
+        "returns": "unit",
+        "doc": "Set the program counter. Caller ensures pc is within the Program."
+      },
+      {
+        "name": "return_stack_push",
+        "receiver": "mut",
+        "params": [{ "name": "pc", "type": "PC" }],
+        "returns": { "result": { "ok": "unit", "err": "RuntimeCondition" } },
+        "doc": "Push a return address onto the Gosub/Return stack. Returns Err(OpcodeIllegal) if depth exceeds RETURN_STACK_MAX_DEPTH."
+      },
+      {
+        "name": "return_stack_pop",
+        "receiver": "mut",
+        "params": [],
+        "returns": { "result": { "ok": "PC", "err": "RuntimeCondition" } },
+        "doc": "Pop the top return address. Returns Err(OpcodeIllegal) if the stack is empty."
+      }
+    ]
+  },
+  "constants": {
+    "RETURN_STACK_MAX_DEPTH": {
+      "type": "u32",
+      "value": 64
+    }
+  }
+}

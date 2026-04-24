@@ -1,260 +1,149 @@
 ---
 name: core
-kind: leaf
-inherits:
-  - /spec/memory-discipline.spec.md
-  - /schema/value.schema.json
-emits:
-  c:
-    path: src-c-v2/core.h
-    headers: []
-  rust:
-    path: src-rust-v2/core.rs
 ---
 
 # Part: core
 
-Shared primitive types used by multiple parts. This part has no
-dependencies on other parts; every other part may `inherits:` it
-to pin the canonical type shapes.
+Shared primitive types every other part depends on. This part has
+no outbound dependencies beyond the neutral type system. Shape
+declarations live entirely in `shapes.json`; this file carries
+**only semantic intent** — no code in any target language.
 
-This was added at the first v2 pilot — the initial opcodes-core
-regeneration worked around the absence of a shared-types owner
-by importing from a stubbed `crate::core`. That hack is resolved
-here: `parts/core/` is the owner.
+## What this part owns
 
-## Types owned here (language-neutral declaration)
+Six types, documented by role rather than structure (see
+`shapes.json` for canonical shape):
 
-### `Value<'src>`
+### `Register` / `CursorId`
 
-Runtime value. Carries an optional source-buffer lifetime for
-borrowed text/blob payloads — though most sites hold owned data
-because values cross row-emission boundaries.
+Opaque integer handles naming a slot in the VDBE's register file or
+cursor array. They are nominally distinct: the compiler must not
+pass a `Register` where a `CursorId` is expected. Targets may
+represent both as a machine integer of identical width; the
+nominal distinction is enforced by the type name, not a tag.
 
-Variants:
-- **`Null`** — SQL NULL.
-- **`Integer(i64)`** — 64-bit signed integer.
-- **`Real(f64)`** — IEEE-754 double-precision float.
-- **`Text(Text<'src>)`** — UTF-8 string; may be borrowed (source
-  buffer) or owned (cross-boundary).
-- **`Blob(Blob<'src>)`** — byte sequence; same borrow/own choice.
+Range: any valid value is in `[0, num_registers)` or
+`[0, num_cursors)` respectively, for a given compiled Program.
+Bounds are validated by the compiler and asserted by the VDBE.
 
-`Text<'src>` and `Blob<'src>` are each a "may-own-or-borrow" wrapper
-— in Rust idiomatic form this is `Cow<'src, str>` and
-`Cow<'src, [u8]>`; in C it is a struct `{ is_owned: bool, ptr, len }`
-with a destructor that frees only when `is_owned`.
+### `Value`
 
-### `Register`
+The runtime value that flows through registers, cursor reads, and
+row emission. Five cases — SQL's native type spread plus NULL:
 
-A VDBE register index. Opaque integer type (`u32`-equivalent) —
-treat as `Copy`/value semantics. Range is implicit: any value in
-`[0, num_registers)` for a given program is valid.
+- `Null` — SQL NULL. Propagates through most binary operators.
+- `Integer` — 64-bit signed integer.
+- `Real` — IEEE-754 double-precision float.
+- `Text` — owned UTF-8 string.
+- `Blob` — owned byte sequence.
 
-### `CursorId`
-
-A VDBE cursor slot index. Opaque integer. Range: `[0, num_cursors)`.
-Distinct type from `Register` — the compiler must not confuse
-cursor slots and register slots.
+Text and Blob are **owned** at this level: when a Value crosses a
+row-emission boundary or is stored in a register for later use, it
+must carry its own buffer. Sub-parts that briefly borrow a payload
+for a single call (e.g., to pass it into a scalar function) may do
+so, but the borrow must not outlive the enclosing function.
 
 ### `OpcodeOutcome`
 
-Single-opcode execution result. Returned from every `execute_*`
-opcode function:
+The result of executing a single opcode. Four cases:
 
-- **`Continue`** — advance program counter by 1.
-- **`Jump(target)`** — set program counter to `target` (`usize`-like).
-- **`Halt(status)`** — terminate execution; `status` is `HaltStatus`.
-- **`EmitRow { start, count }`** — signal outer loop to emit a row
-  from registers `[start .. start+count)`. Also advance pc by 1.
+- `Continue` — advance the program counter by 1 and execute the
+  next opcode.
+- `Jump(target)` — set the program counter to `target` and continue.
+- `Halt(HaltStatus)` — stop execution with the given status. The
+  VDBE loop exits after this.
+- `EmitRow { start, count }` — tell the outer VDBE loop to
+  materialize a row from registers `[start .. start+count)`. Also
+  advances the program counter by 1 (same as `Continue` except for
+  the row emission side effect).
 
-Variant shape is **struct-like for `EmitRow`** (named fields) and
-**tuple-like for `Jump` and `Halt`** (positional). Every generator
-must match this shape.
+Every opcode handler returns an `OpcodeOutcome`. The outer loop is
+thin: it dispatches on the opcode, inspects the outcome, and either
+advances, jumps, halts, or yields a row.
 
 ### `HaltStatus`
 
-Why execution stopped.
+Why execution stopped:
 
-- **`Ok`** — normal completion.
-- **`Error(RuntimeCondition)`** — runtime fault; carries the
-  structured condition.
-
-Tuple-variant shape.
+- `Ok` — normal completion. The final "Halt" opcode reached, or
+  the program naturally fell off its end.
+- `Error(RuntimeCondition)` — a runtime fault. The condition
+  identifies which category of fault occurred.
 
 ### `RuntimeCondition`
 
-The closed set of runtime faults. Every generator emits the same
-condition names for the same faults. Rust generators map to
-`enum RuntimeCondition { ... }`; C generators to an integer enum
-with matching names.
+The closed set of runtime faults. Every target must enumerate these
+in the same order so error diagnostics are comparable. The set is
+deliberately small — fine-grained storage diagnostics do not reach
+the VDBE-facing surface in v2.
 
-```
-OpcodeIllegal             — program violated well-formedness
-CursorClosed              — opcode touched a closed cursor slot
-CursorNotWritable         — write op on a read-only cursor
-TableNotFound             — OpenRead/OpenWrite on a missing table
-TypeMismatch              — operand type invalid for opcode
-ArithOverflow             — integer overflow
-DivZero                   — only when the caller prefers error over NULL (SQLite default is NULL; this variant exists for diagnostics)
-ConstraintNotNull
-ConstraintUnique
-ConstraintCheck
-ConstraintType            — STRICT-table affinity violation
-RecursiveCteLimit
-SubqueryMoreThanOneRow    — scalar subquery returned > 1 row
-IoError                   — passthrough from io-backend
-```
+Meaning of each condition (authoritative):
 
-Enum is closed — adding a new condition is a spec change, not a
-local decision.
+- `OpcodeIllegal` — a Program violated a well-formedness invariant
+  (bad register index, unknown opcode kind, return-stack overflow,
+  etc.). Should be unreachable if the compiler validated the Program.
+- `CursorClosed` — an opcode touched a cursor slot that was not
+  open, or that was exhausted (past-end).
+- `CursorNotWritable` — a write-path opcode targeted a read-only
+  cursor.
+- `TableNotFound` — `OpenRead` / `OpenWrite` named a missing table
+  or index.
+- `TypeMismatch` — operand type invalid for the opcode (e.g., a
+  non-numeric value reached integer arithmetic without affinity
+  coercion).
+- `ArithOverflow` — integer arithmetic overflowed beyond what
+  promotion to Real can cover.
+- `DivZero` — division by zero. NOTE: SQLite's default semantics
+  coerce this to `Value::Null` at the expression level; this
+  condition exists for diagnostic paths that prefer error.
+- `ConstraintNotNull` / `ConstraintUnique` / `ConstraintCheck` —
+  table constraint violations surfaced during row mutation.
+- `ConstraintType` — STRICT-table affinity violation.
+- `RecursiveCteLimit` — a recursive CTE exceeded its iteration
+  bound.
+- `SubqueryMoreThanOneRow` — a scalar subquery returned more than
+  one row where at most one was expected.
+- `IoError` — any storage / pager / WAL / allocator failure. In v2
+  this is the catch-all for resource-level faults; OOM is reported
+  here rather than as a distinct condition.
 
-## Types NOT owned here
+## Cross-target semantic rules
 
-For clarity, these types are declared by OTHER parts and imported
-where needed via `inherits:` of the owning part:
+### Ownership
 
-- `Opcode<'src>` — union enum of all opcode families. Owner:
-  `parts/vdbe/master.md`. Each opcode-family leaf declares its own
-  sub-enum (`OpcodeCore`, `OpcodeRows`, etc.), and `parts/vdbe/`
-  composes them.
-- `VdbeState<'src>` — the execution state (registers + cursors +
-  pc). Owner: `parts/vdbe/master.md`.
-- `Program<'src>` — compiled VDBE program. Owner:
-  `parts/compiler/master.md`.
-- `Ast<'src>`, `Expression<'src>`, etc. — AST node types. Owner:
-  `parts/parser/master.md`.
-- `Token<'src>`, `TokenStream<'src>` — lexer types. Owner:
-  `parts/tokenizer/master.md`.
-- `Database`, `TableSchema`, `CursorHandle` — storage types. Owner:
-  `parts/storage/master.md`.
-- `CompileError`, `ParseError`, `TokenizerError`, `StorageError`
-  — structured error types per sub-system. Each system's
-  top-level part owns its error enum.
+`Value::Text` and `Value::Blob` carry owned payloads. When the
+caller **moves** a Value into another place, the receiver takes
+ownership. When the caller **borrows** a Value (read-only access
+for the duration of a call), the owner retains responsibility.
 
-## Cross-target conventions
+The target mappings render this mechanically:
 
-### Rust emission
+- In a language with ownership in the type system, `owned` is the
+  default and move/borrow are tracked automatically.
+- In a language without ownership in the type system, the mapping
+  introduces explicit clone and release functions and requires
+  their discipline.
 
-```rust
-// src-rust-v2/core.rs
-#[derive(Clone, Debug)]
-pub enum Value<'src> {
-    Null,
-    Integer(i64),
-    Real(f64),
-    Text(Text<'src>),
-    Blob(Blob<'src>),
-}
+No sub-part author writes clone/release calls in `shapes.json`
+directly; they live in per-target emission rules.
 
-pub type Text<'src> = std::borrow::Cow<'src, str>;
-pub type Blob<'src> = std::borrow::Cow<'src, [u8]>;
+### Replace-on-write
 
-pub type Register = u32;
-pub type CursorId = u32;
+Any operation that overwrites a `Value` slot must first release
+whatever payload was there. Target mappings handle this — Rust via
+the move-assign drop, C via an explicit release call before
+assignment. Sub-part authors never handle it explicitly.
 
-#[derive(Debug)]
-pub enum OpcodeOutcome {
-    Continue,
-    Jump(usize),
-    Halt(HaltStatus),
-    EmitRow { start: Register, count: u32 },
-}
+### OOM
 
-#[derive(Debug, Clone)]
-pub enum HaltStatus {
-    Ok,
-    Error(RuntimeCondition),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum RuntimeCondition {
-    OpcodeIllegal,
-    CursorClosed,
-    CursorNotWritable,
-    TableNotFound,
-    TypeMismatch,
-    ArithOverflow,
-    DivZero,
-    ConstraintNotNull,
-    ConstraintUnique,
-    ConstraintCheck,
-    ConstraintType,
-    RecursiveCteLimit,
-    SubqueryMoreThanOneRow,
-    IoError,
-}
-```
-
-### C emission
-
-```c
-// src-c-v2/core.h
-typedef enum LeapValueKind {
-    LEAP_VALUE_NULL = 0,
-    LEAP_VALUE_INTEGER,
-    LEAP_VALUE_REAL,
-    LEAP_VALUE_TEXT,
-    LEAP_VALUE_BLOB,
-} LeapValueKind;
-
-typedef struct LeapText { bool is_owned; const char* ptr; size_t len; } LeapText;
-typedef struct LeapBlob { bool is_owned; const uint8_t* ptr; size_t len; } LeapBlob;
-
-typedef struct LeapValue {
-    LeapValueKind kind;
-    union {
-        int64_t i;
-        double  r;
-        LeapText t;
-        LeapBlob b;
-    } as;
-} LeapValue;
-
-typedef uint32_t LeapRegister;
-typedef uint32_t LeapCursorId;
-
-typedef enum LeapOpcodeOutcomeKind {
-    LEAP_OC_CONTINUE = 0,
-    LEAP_OC_JUMP,
-    LEAP_OC_HALT,
-    LEAP_OC_EMIT_ROW,
-} LeapOpcodeOutcomeKind;
-
-typedef struct LeapOpcodeOutcome {
-    LeapOpcodeOutcomeKind kind;
-    union {
-        size_t jump_target;
-        struct { bool is_error; LeapRuntimeCondition err; } halt;
-        struct { LeapRegister start; uint32_t count; } emit_row;
-    } as;
-} LeapOpcodeOutcome;
-
-typedef enum LeapRuntimeCondition {
-    LEAP_RC_OPCODE_ILLEGAL = 0,
-    LEAP_RC_CURSOR_CLOSED,
-    LEAP_RC_CURSOR_NOT_WRITABLE,
-    LEAP_RC_TABLE_NOT_FOUND,
-    LEAP_RC_TYPE_MISMATCH,
-    LEAP_RC_ARITH_OVERFLOW,
-    LEAP_RC_DIV_ZERO,
-    LEAP_RC_CONSTRAINT_NOT_NULL,
-    LEAP_RC_CONSTRAINT_UNIQUE,
-    LEAP_RC_CONSTRAINT_CHECK,
-    LEAP_RC_CONSTRAINT_TYPE,
-    LEAP_RC_RECURSIVE_CTE_LIMIT,
-    LEAP_RC_SUBQUERY_MORE_THAN_ONE_ROW,
-    LEAP_RC_IO_ERROR,
-} LeapRuntimeCondition;
-```
-
-These are the canonical emissions. Other parts MUST match the
-names and shapes — if a generator invents a different shape,
-the resulting src-* will not compose with siblings.
+Allocator failures surface as `RuntimeCondition::IoError` where a
+`Result`-returning function is available. Where no such channel
+exists (e.g., a small constant allocation during opcode dispatch),
+the target mapping may abort; OOM on trivial paths is not a
+recovery scenario.
 
 ## Regeneration envelope
 
-- Target leaf size per target: ~100–200 lines. This is a pure
-  types file — no logic.
-- Spec size budget: this file < 400 lines.
-- Test ownership: none. Types are validated by compilation of
-  dependent parts.
+- Spec (this file): < 300 lines.
+- `shapes.json`: < 100 lines.
+- Each target emission (core.rs, core.h + core.c): ~100–200 lines.

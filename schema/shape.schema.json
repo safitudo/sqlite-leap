@@ -1,0 +1,175 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://leap.safitudo.io/shape.schema.json",
+  "title": "LEAP shape definition",
+  "description": "Meta-schema for per-part shapes.json files. A shapes.json declares the TYPES and FUNCTIONS a LEAP part owns, in a language-neutral vocabulary. Per-target mapping files (parts/targets/<target>/mapping.md) describe how each construct is emitted in that target language.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "owner": { "type": "string", "description": "Part that owns these shapes (for cross-part reference resolution)." },
+    "imports": {
+      "type": "object",
+      "description": "Map of imported type names -> owning part path. Resolves cross-leaf type refs.",
+      "additionalProperties": { "type": "string" }
+    },
+    "types": {
+      "type": "object",
+      "description": "Types owned by this part. Key = type name.",
+      "additionalProperties": { "$ref": "#/$defs/TypeDef" }
+    },
+    "methods": {
+      "type": "object",
+      "description": "Method groups attached to types (usually types owned here). Key = type name; value = array of fn defs.",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "$ref": "#/$defs/FnDef" }
+      }
+    },
+    "functions": {
+      "type": "object",
+      "description": "Free functions owned by this part. Key = function name.",
+      "additionalProperties": { "$ref": "#/$defs/FnDef" }
+    },
+    "constants": {
+      "type": "object",
+      "description": "Named compile-time constants.",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "type": { "$ref": "#/$defs/TypeRef" },
+          "value": {}
+        },
+        "required": ["type", "value"]
+      }
+    }
+  },
+  "$defs": {
+    "TypeDef": {
+      "oneOf": [
+        { "$ref": "#/$defs/AliasDef" },
+        { "$ref": "#/$defs/OpaqueDef" },
+        { "$ref": "#/$defs/RecordDef" },
+        { "$ref": "#/$defs/VariantDef" }
+      ]
+    },
+    "AliasDef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "const": "alias" },
+        "of": { "$ref": "#/$defs/TypeRef" },
+        "doc": { "type": "string" }
+      },
+      "required": ["kind", "of"]
+    },
+    "OpaqueDef": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Distinct nominal type with a hidden representation. Callers must not introspect.",
+      "properties": {
+        "kind": { "const": "opaque" },
+        "representation": { "$ref": "#/$defs/TypeRef", "description": "Hint for the target mapping; callers still treat the type as opaque." },
+        "doc": { "type": "string" }
+      },
+      "required": ["kind"]
+    },
+    "RecordDef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "const": "record" },
+        "fields": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/TypeRef" }
+        },
+        "doc": { "type": "string" }
+      },
+      "required": ["kind", "fields"]
+    },
+    "VariantDef": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Tagged union. Each case may have zero or more named fields. No-field cases emit as unit variants in the target.",
+      "properties": {
+        "kind": { "const": "variant" },
+        "cases": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "fields": {
+                "type": "object",
+                "additionalProperties": { "$ref": "#/$defs/TypeRef" }
+              },
+              "doc": { "type": "string" }
+            }
+          }
+        },
+        "doc": { "type": "string" }
+      },
+      "required": ["kind", "cases"]
+    },
+    "FnDef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "params": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": { "type": "string" },
+              "type": { "$ref": "#/$defs/TypeRef" }
+            },
+            "required": ["name", "type"]
+          }
+        },
+        "returns": { "$ref": "#/$defs/TypeRef" },
+        "doc": { "type": "string" },
+        "receiver": {
+          "enum": ["borrow", "mut"],
+          "description": "For methods: how the receiver (first implicit arg) is taken. 'borrow' = immutable self, 'mut' = mutable self. Omit for free functions."
+        }
+      },
+      "required": ["params", "returns"]
+    },
+    "TypeRef": {
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "Named type reference. Primitive: bool i8 i16 i32 i64 u8 u16 u32 u64 f32 f64 str bytes string blob unit PC. Otherwise resolves to a user-defined type by name (this file or via imports)."
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "maxProperties": 1,
+          "properties": {
+            "option":  { "$ref": "#/$defs/TypeRef" },
+            "list":    { "$ref": "#/$defs/TypeRef" },
+            "borrow":  { "$ref": "#/$defs/TypeRef" },
+            "mut":     { "$ref": "#/$defs/TypeRef" },
+            "owned":   { "$ref": "#/$defs/TypeRef" },
+            "result":  {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "ok":  { "$ref": "#/$defs/TypeRef" },
+                "err": { "$ref": "#/$defs/TypeRef" }
+              },
+              "required": ["ok", "err"]
+            },
+            "tuple":   {
+              "type": "array",
+              "items": { "$ref": "#/$defs/TypeRef" },
+              "minItems": 2
+            }
+          }
+        }
+      ]
+    }
+  }
+}
