@@ -162,13 +162,13 @@
         "name": "aggregate_step",
         "receiver": "mut",
         "params": [
-          { "name": "slot", "type": "u32" },
-          { "name": "kind", "type": "AggFuncKind" },
-          { "name": "arg",  "type": { "borrow": "Value" } },
-          { "name": "sep",  "type": { "option": { "borrow": "Value" } } }
+          { "name": "slot",    "type": "u32" },
+          { "name": "kind",    "type": "AggFuncKind" },
+          { "name": "arg_reg", "type": "Register" },
+          { "name": "sep_reg", "type": { "option": "Register" } }
         ],
         "returns": "unit",
-        "doc": "Apply arg to the accumulator at slot under kind. NULL-skip rule: if kind != CountStar and arg is Value::Null, do nothing (standard SQL aggregate NULL semantics). For GroupConcat, sep overrides the default ',' separator when Some; None keeps the default. For non-GroupConcat kinds, sep is ignored. Panics if the accumulator was never reset — compiler emits Reset before any Step."
+        "doc": "Apply regs[arg_reg] to the accumulator at slot under kind. State reads the register internally (avoids &Value + &mut self conflict in strict-borrow targets). NULL-skip rule: if kind != CountStar and regs[arg_reg] is Value::Null, do nothing (standard SQL aggregate NULL semantics). For GroupConcat, sep_reg names the register holding a user-supplied separator Value (expected Text); Some overrides the default ',' separator; None keeps the default. For non-GroupConcat kinds, sep_reg is ignored. Panics if the accumulator was never reset — compiler emits Reset before any Step."
       },
       {
         "name": "aggregate_final",
@@ -206,11 +206,11 @@
         "name": "window_step",
         "receiver": "mut",
         "params": [
-          { "name": "slot", "type": "u32" },
-          { "name": "arg",  "type": { "option": { "borrow": "Value" } } }
+          { "name": "slot",    "type": "u32" },
+          { "name": "arg_reg", "type": { "option": "Register" } }
         ],
         "returns": "unit",
-        "doc": "Feed the current row into the window session at slot. For RowNumber: increment counter. For Rank/DenseRank: compare current ORDER BY tuple against previous; increment counter with per-kind tie rules. For Aggregate(k): forward arg to the inner aggregate step under kind k (None is treated as NULL — standard skip rule applies). Partition boundary detection is driven externally: the compiler emits a window_close + window_open pair across partitions."
+        "doc": "Feed the current row into the window session at slot. State reads regs[arg_reg] internally when Some (avoids &Value + &mut self conflict in strict-borrow targets). For RowNumber: increment counter (arg_reg ignored, expected None). For Rank/DenseRank: compare current ORDER BY tuple against previous; increment counter with per-kind tie rules (arg_reg ignored). For Aggregate(k): forward regs[arg_reg] to the inner aggregate step under kind k; arg_reg = None is treated as NULL (standard skip rule applies for all kinds except CountStar). Partition boundary detection is driven externally: the compiler emits a window_close + window_open pair across partitions."
       },
       {
         "name": "window_value",

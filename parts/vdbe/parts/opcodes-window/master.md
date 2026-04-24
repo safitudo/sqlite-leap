@@ -34,15 +34,16 @@ boundaries based on `WindowPartitionKey` comparisons.
 
 ### `WindowStep { slot, arg_reg }`
 
-Feed the current row into the session.
+Call `state.window_step(slot, arg_reg)`. `Continue`.
 
-- `arg_reg == None` (rank-style kinds): call
-  `state.window_step(slot, None)`. State advances the counter
-  per-kind (RowNumber always +1; Rank/DenseRank compares current
-  ORDER BY tuple to previous).
-- `arg_reg == Some(r)`: read `value = state.get_register(r)`,
-  then call `state.window_step(slot, Some(value))`. State forwards
-  the value to the inner aggregate under the Aggregate kind.
+State reads regs[arg_reg] internally when `Some` — the opcode
+forwards the index, not a borrow. Per-kind behavior inside state:
+
+- rank-style (`arg_reg == None`): counter advance per-kind —
+  RowNumber always +1; Rank/DenseRank compares current ORDER BY
+  tuple to previous.
+- Aggregate kinds (`arg_reg == Some(r)`): the value at `regs[r]`
+  feeds the inner aggregate step.
 
 The compiler-enforced shape rule: for rank kinds, `arg_reg` is
 always `None`; for Aggregate kinds, `arg_reg` is `Some` (except

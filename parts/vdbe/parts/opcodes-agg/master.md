@@ -29,15 +29,14 @@ idempotent — resetting an active slot discards in-flight state
 
 ### `AggStep { acc_slot, kind, arg_reg, separator_reg }`
 
-1. `arg = state.get_register(arg_reg)` (borrow).
-2. `sep = separator_reg.map(|r| state.get_register(r))` (borrow or
-   None).
-3. `state.aggregate_step(acc_slot, kind, arg, sep)`.
-4. `Continue`.
+1. `state.aggregate_step(acc_slot, kind, arg_reg, separator_reg)`.
+2. `Continue`.
 
-The NULL-skip rule lives in `state.aggregate_step`: for any kind
-except `CountStar`, a `Value::Null` argument is ignored. The
-opcode does not branch on value kind.
+State reads the register values internally — the opcode forwards
+indices, not borrows. The NULL-skip rule lives in
+`state.aggregate_step`: for any kind except `CountStar`, a
+`Value::Null` argument is ignored. The opcode does not branch on
+value kind.
 
 For non-`GroupConcat` kinds, `separator_reg` is structurally
 always `None` (compiler never emits it); the handler still passes
@@ -84,17 +83,15 @@ Load-bearing rules the emission MUST satisfy.
    skip, running-total updates, distinct-set maintenance, and
    finalization shape live inside `state.aggregate_step` and
    `state.aggregate_final`.
-2. `AggStep`: capture the register borrow(s) for `arg_reg` (and
-   `separator_reg` if `Some`) BEFORE calling a mut-receiver on
-   state. The live-borrow + mut-receiver conflict is a strict-
-   borrow-target (Rust) constraint; non-borrow-checked targets
-   follow the same ordering for source parallelism. In Rust
-   specifically, `state.get_register(r)` returns `&Value`; that
-   borrow is incompatible with `&mut state.aggregate_step(...)`,
-   so bind `let arg = state.get_register(arg_reg);` and then
-   call `state.aggregate_step(slot, kind, arg, sep)` — the
-   borrow ends at the call's argument evaluation boundary,
-   which the borrow checker accepts.
+2. `AggStep` forwards `arg_reg` and `separator_reg` as register
+   indices directly to `state.aggregate_step(slot, kind, arg_reg,
+   sep_reg)`. State reads the register values internally — the
+   opcode does NOT borrow registers and pass `&Value` across a
+   `&mut self` call. This index-passing pattern sidesteps the
+   strict-borrow-target (Rust) conflict that arises when an
+   immutable register borrow is still in use at the `&mut self`
+   call site. Non-borrow-checked targets follow the same pattern
+   for source parallelism.
 3. `AggFinal` and `AggValue`: the returned `Value` is OWNED. Pass
    directly to `state.set_register(dest_reg, v)` — no clone, no
    temporary.
@@ -106,9 +103,9 @@ Load-bearing rules the emission MUST satisfy.
 5. No direct access to the accumulator store. `Accumulator` is
    VdbeState's internal shape and is not exported; targets must
    NOT attempt to introspect it.
-6. `separator_reg` handling:
-   - `None` → pass `None` to `state.aggregate_step`.
-   - `Some(r)` → pass `Some(state.get_register(r))`.
+6. `separator_reg` forwarding:
+   - `None` → pass `None` as `sep_reg`.
+   - `Some(r)` → pass `Some(r)` as `sep_reg`.
    Never synthesize a default ',' in the opcode — the default is
    GroupConcat's responsibility inside state.
 7. All four opcodes return `Continue` unconditionally. If a target

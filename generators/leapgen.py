@@ -50,17 +50,51 @@ def resolve_part_dir(part_name: str) -> Path:
     return d
 
 
-def frontmatter_inherits(md_path: Path) -> list[str]:
-    """Parse front-matter `inherits:` list (non-universal only)."""
+def _frontmatter_body(md_path: Path) -> str:
     text = md_path.read_text()
     m = re.match(r"^---\n(.*?)\n---\n", text, re.DOTALL)
-    if not m:
-        return []
-    body = m.group(1)
+    return m.group(1) if m else ""
+
+
+def frontmatter_inherits(md_path: Path) -> list[str]:
+    """Parse front-matter `inherits:` list (non-universal only)."""
+    body = _frontmatter_body(md_path)
     match = re.search(r"^inherits:\s*\n((?:\s+-\s+\S.*\n)+)", body, re.MULTILINE)
     if not match:
         return []
     return [line.strip().lstrip("-").strip() for line in match.group(1).splitlines() if line.strip()]
+
+
+def frontmatter_kind(md_path: Path) -> str:
+    """Returns 'leaf' (default) or 'inner'."""
+    body = _frontmatter_body(md_path)
+    m = re.search(r"^kind:\s*(\S+)", body, re.MULTILINE)
+    return m.group(1) if m else "leaf"
+
+
+def frontmatter_emits(md_path: Path, target: str) -> list[Path]:
+    """For inner parts: parse the front-matter `emits:` block.
+    Format (YAML subset):
+        emits:
+          rust: { path: src-rust/vdbe/mod.rs }
+          c:    { path: src-c/vdbe/mod.c, headers: [src-c/vdbe/mod.h] }
+    Returns absolute paths (path + any headers) for the named target, or []."""
+    body = _frontmatter_body(md_path)
+    m = re.search(rf"^\s+{re.escape(target)}:\s*\{{(.+?)\}}", body, re.MULTILINE)
+    if not m:
+        return []
+    block = m.group(1)
+    out: list[Path] = []
+    pm = re.search(r"path:\s*([^\s,}]+)", block)
+    if pm:
+        out.append(REPO_ROOT / pm.group(1))
+    hm = re.search(r"headers:\s*\[([^\]]+)\]", block)
+    if hm:
+        for h in hm.group(1).split(","):
+            h = h.strip()
+            if h:
+                out.append(REPO_ROOT / h)
+    return out
 
 
 def walk_imports(shapes_path: Path, seen: set[Path]) -> list[Path]:
@@ -122,10 +156,18 @@ def assemble_brief(part: str, target: str) -> str:
     if target not in TARGETS:
         sys.exit(f"ERROR: unknown target `{target}`; known: {list(TARGETS)}")
 
-    outputs = derive_output_paths(part, target)
+    kind = frontmatter_kind(master)
+    if kind == "inner":
+        outputs = frontmatter_emits(master, target)
+        if not outputs:
+            sys.exit(f"ERROR: inner part `{part}` has no `emits.{target}` "
+                     f"entry in master.md front-matter")
+        siblings: list[Path] = []
+    else:
+        outputs = derive_output_paths(part, target)
+        siblings = find_siblings(part_dir, target)
     imports = walk_imports(shapes, set())
     extra_inherits = frontmatter_inherits(master)
-    siblings = find_siblings(part_dir, target)
     tgt = TARGETS[target]
 
     lines: list[str] = []
