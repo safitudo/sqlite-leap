@@ -5,12 +5,13 @@ inherits:
   - /spec/memory-discipline.spec.md
   - /spec/durability.spec.md
   - /schema/value.schema.json
+  - /parts/core/master.md
   - /parts/io-backend/master.md
 emits:
   c:
-    path: src-c/storage/mod.h
+    path: src-c-v2/storage/mod.h
   rust:
-    path: src-rust/src/storage/mod.rs
+    path: src-rust-v2/storage/mod.rs
 ---
 
 # Part: storage
@@ -42,6 +43,85 @@ Each operation returns success or a named storage condition:
   `STORAGE_CONSTRAINT_UNIQUE`, `STORAGE_CONSTRAINT_NOT_NULL`,
   `STORAGE_CONSTRAINT_CHECK`, `STORAGE_IO_ERROR`,
   `STORAGE_CORRUPTION`.
+
+## VDBE cursor-open surface (called by vdbe/opcodes-core)
+
+The VDBE opens cursors via the following storage functions:
+
+### Rust
+
+```rust
+pub fn open_cursor(
+    db: &Database,
+    table: &str,
+    writable: bool,
+) -> Result<CursorHandle, RuntimeCondition>;
+```
+
+Returns `CursorHandle` on success. On failure, maps storage's
+internal conditions to the VDBE-facing `RuntimeCondition`:
+
+- Storage `TABLE_NOT_FOUND` → `RuntimeCondition::TableNotFound`
+- Storage `IO_ERROR` → `RuntimeCondition::IoError`
+- Any other storage condition → `RuntimeCondition::IoError` with a
+  logged detail (v2 doesn't propagate finer-grained storage
+  diagnostics to the VDBE).
+
+### C
+
+```c
+LeapRuntimeCondition leap_storage_open_cursor(
+    LeapDatabase* db,
+    const char* table, size_t table_len,
+    bool writable,
+    LeapCursor** out_cursor
+);
+```
+
+Returns `LEAP_RC_*` condition code; on success (implied by returning
+an OK sentinel distinct from any `LEAP_RC_*`) populates
+`*out_cursor`.
+
+The VDBE passes its storage-backing `Database` handle through
+`VdbeState` or via a separate handle provided by the executor
+driver; the exact plumbing is a v2 open question — sub-parts should
+assume a `Database` reference is available in `state.db()` or as a
+function argument, pending a future cross-sub-part interface
+declaration.
+
+## `CursorHandle` — canonical shape (owned by this part)
+
+Opaque cursor handle exposed to the VDBE. The VDBE holds these by
+value in `VdbeState::cursors`; it does not introspect their
+internals.
+
+### Rust
+
+```rust
+pub struct CursorHandle {
+    // Implementation detail: cursor kind (table | index), backing
+    // b-tree handle, current position, writable flag. Internals
+    // opaque to callers.
+    inner: CursorInner,
+}
+
+impl CursorHandle {
+    pub fn is_writable(&self) -> bool;
+    pub fn is_closed(&self) -> bool;
+}
+```
+
+### C
+
+```c
+typedef struct LeapCursor LeapCursor;  // opaque; defined in storage.c
+bool leap_cursor_is_writable(const LeapCursor*);
+bool leap_cursor_is_closed(const LeapCursor*);
+```
+
+The VDBE only observes a cursor through the methods/functions
+above. All positional ops (seek, next, column read) are routed via
+VDBE opcodes → storage surface.
 
 ## Sub-part map
 

@@ -32,6 +32,7 @@ All three builds pass the same tests. Cross-build equivalence
 The root part is **inner**. Its children are the architectural
 boundaries of the engine:
 
+- `parts/core/` — shared primitive types (leaf, zero dependencies)
 - `parts/tokenizer/` — SQL text → token stream (leaf)
 - `parts/parser/` — tokens → AST (inner: per-statement + expressions + clauses)
 - `parts/compiler/` — AST → VDBE Program (inner: per-statement + expressions + aggregates + joins + subqueries + cte + window + views + upsert + returning + constraints + name-resolution)

@@ -292,6 +292,49 @@ During the v2 branch lifetime:
 - Cross-build equivalence must survive the transition — the 588/622
   PASS-both bar on `main` is the floor for v2 release.
 
+## Shared types — the `parts/core/` owner
+
+**Added during v2 pilot #1 (vdbe/opcodes-core), 2026-04-23.**
+
+The first pilot surfaced an obvious gap: primitive types used by
+every part (`Value`, `Register`, `CursorId`, `OpcodeOutcome`,
+`HaltStatus`, `RuntimeCondition`) had no owner in the recursive
+tree. The pilot agent worked around it with a placeholder
+`crate::core` import. That is resolved by a new top-level leaf
+part: `parts/core/`.
+
+### The ownership rule
+
+1. **`parts/core/`** owns cross-system primitive types: `Value`,
+   `Register`, `CursorId`, `OpcodeOutcome`, `HaltStatus`,
+   `RuntimeCondition`. Sub-parts across every subsystem inherit it.
+2. **Each top-level part** owns its subsystem's types and error
+   enum. `parts/parser/` owns `Ast<'src>`, `Expression<'src>`,
+   `Token<'src>`, `ParseError`. `parts/compiler/` owns `Program`,
+   `Opcode` (union of families), `CompileError`. `parts/vdbe/`
+   owns `VdbeState`. `parts/storage/` owns `Database`, `TableSchema`,
+   `CursorHandle`, `StorageError`.
+3. **Each leaf sub-part** may own its own variant enum that
+   contributes to a parent's union (e.g., `OpcodeCore` → part of
+   `Opcode`). The parent's `master.md` declares the composition
+   rule.
+4. **`inherits:` is the delivery mechanism.** A sub-part that uses
+   `Value` declares `inherits: /parts/core/master.md`. A sub-part
+   that uses `Expression` declares `inherits: /parts/parser/master.md`.
+
+### Why not put all types in `/schema/`?
+
+Schemas are JSON Schema — machine-readable, target-independent, but
+they describe DATA shapes, not language types. The gap between "a
+Value has these JSON representations" and "the Rust type is
+`enum Value { ... }`" is the per-target emission mapping, which
+belongs in a spec, not a schema. `parts/core/master.md` carries
+that mapping explicitly.
+
+Schemas are still useful — `parts/core/` inherits the schemas for
+its data-shape contracts. But the canonical target-language types
+are declared in the part's master.md.
+
 ## Open questions (deliberately unresolved)
 
 These are decisions the v2 branch surfaces but does not pre-answer.

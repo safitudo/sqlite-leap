@@ -5,13 +5,14 @@ inherits:
   - /spec/memory-discipline.spec.md
   - /schema/opcode.schema.json
   - /schema/value.schema.json
+  - /parts/core/master.md
   - /parts/storage/master.md
 emits:
   c:
-    path: src-c/vdbe/opcodes_core.c
-    headers: [src-c/vdbe/opcodes_core.h]
+    path: src-c-v2/vdbe/opcodes_core.c
+    headers: [src-c-v2/vdbe/opcodes_core.h]
   rust:
-    path: src-rust/src/vdbe/opcodes_core.rs
+    path: src-rust-v2/vdbe/opcodes_core.rs
 ---
 
 # Part: vdbe/opcodes-core
@@ -20,18 +21,68 @@ The foundational VDBE opcode family: program control, constant
 loading, register moves, cursor lifecycle, row emission. Every
 other opcode family assumes these work.
 
-## Opcodes owned here
+## Opcodes owned here — canonical enum shape
 
-| Name | Operands | Semantics |
-|---|---|---|
-| `Halt` | — | Terminates execution. `pc = len(opcodes)` on completion. No further opcodes execute. |
-| `LoadConst` | `dest_reg`, `value` | Write `value` into `regs[dest_reg]`. `value` is a Value (null/integer/real/text/blob). Text/blob values are owned (outlive the program source buffer). |
-| `Move` | `src_reg`, `dest_reg` | Move `regs[src_reg]` into `regs[dest_reg]`. After Move, `regs[src_reg]` is NULL (move semantics). |
-| `Copy` | `src_reg`, `dest_reg` | Copy `regs[src_reg]` to `regs[dest_reg]`. `regs[src_reg]` unchanged. |
-| `OpenRead` | `cursor`, `table_name` | Open a read cursor on `table_name`. If the table doesn't exist: raise `RUNTIME_TABLE_NOT_FOUND` (this should be unreachable — compiler validates). |
-| `OpenWrite` | `cursor`, `table_name` | Open a write cursor. Mutually exclusive with `OpenRead` on the same cursor slot. |
-| `Close` | `cursor` | Release the cursor. After Close, any read/write through `cursor` raises `RUNTIME_CURSOR_CLOSED`. |
-| `ResultRow` | `start_reg`, `count` | Emit a row containing `[regs[start_reg], regs[start_reg + 1], ..., regs[start_reg + count - 1]]` to the caller's row sink. |
+Emit EXACTLY this enum (variant names and field names verbatim;
+target syntax per language):
+
+### Rust
+
+```rust
+use crate::core::{Value, Register, CursorId};
+
+pub enum OpcodeCore<'src> {
+    Halt,
+    LoadConst  { dest_reg: Register, value: Value<'src> },
+    Move       { src_reg: Register,  dest_reg: Register },
+    Copy       { src_reg: Register,  dest_reg: Register },
+    OpenRead   { cursor: CursorId,   table: &'src str },
+    OpenWrite  { cursor: CursorId,   table: &'src str },
+    Close      { cursor: CursorId },
+    ResultRow  { start_reg: Register, count: u32 },
+}
+```
+
+### C
+
+```c
+typedef enum LeapOpcodeCoreKind {
+    LEAP_OPC_HALT = 0,
+    LEAP_OPC_LOAD_CONST,
+    LEAP_OPC_MOVE,
+    LEAP_OPC_COPY,
+    LEAP_OPC_OPEN_READ,
+    LEAP_OPC_OPEN_WRITE,
+    LEAP_OPC_CLOSE,
+    LEAP_OPC_RESULT_ROW,
+} LeapOpcodeCoreKind;
+
+typedef struct LeapOpcodeCore {
+    LeapOpcodeCoreKind kind;
+    union {
+        struct { LeapRegister dest_reg; LeapValue value; } load_const;
+        struct { LeapRegister src_reg; LeapRegister dest_reg; } move_;
+        struct { LeapRegister src_reg; LeapRegister dest_reg; } copy;
+        struct { LeapCursorId cursor; const char* table; size_t table_len; } open_read;
+        struct { LeapCursorId cursor; const char* table; size_t table_len; } open_write;
+        struct { LeapCursorId cursor; } close;
+        struct { LeapRegister start_reg; uint32_t count; } result_row;
+    } as;
+} LeapOpcodeCore;
+```
+
+## Per-opcode semantics
+
+| Name | Semantics |
+|---|---|
+| `Halt` | Terminates execution. Returns `OpcodeOutcome::Halt(HaltStatus::Ok)`. The outer loop sets pc beyond end. |
+| `LoadConst { dest_reg, value }` | `state.set_register(dest_reg, value.clone())`. Returns `Continue`. |
+| `Move { src_reg, dest_reg }` | `let v = state.take_register(src_reg); state.set_register(dest_reg, v);`. After Move, `regs[src_reg]` is `Value::Null`. If `src == dest`: register becomes Null (net effect of take-then-set to same slot). Returns `Continue`. |
+| `Copy { src_reg, dest_reg }` | `let v = state.get_register(src_reg).clone(); state.set_register(dest_reg, v);`. `regs[src_reg]` unchanged. If `src == dest`: no-op, skip clone. Returns `Continue`. |
+| `OpenRead { cursor, table }` | Ask `storage` to open a read cursor on `table`; on success, `state.set_cursor(cursor, handle)`. If the table doesn't exist: `Halt(HaltStatus::Error(RuntimeCondition::TableNotFound))`. If the cursor slot is already open: **replace silently** (compiler is responsible for Close first). Returns `Continue` on success. |
+| `OpenWrite { cursor, table }` | Same as `OpenRead` but opens a writable cursor. |
+| `Close { cursor }` | `state.take_cursor(cursor)` — releases the handle. If the slot was already empty: no-op (idempotent). Returns `Continue`. |
+| `ResultRow { start_reg, count }` | Returns `OpcodeOutcome::EmitRow { start: start_reg, count }`. Outer loop reads `[start .. start+count)` and pushes to caller's row sink, then advances pc. `count == 0` is ill-formed: `Halt(HaltStatus::Error(RuntimeCondition::OpcodeIllegal))`. |
 
 ## Execution protocol
 

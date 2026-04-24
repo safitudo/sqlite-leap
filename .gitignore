@@ -2,6 +2,9 @@
 src-c/
 src-rust/
 src-wasm/
+src-c-v2/
+src-rust-v2/
+src-wasm-v2/
 
 # Rust build artifacts (in case cargo is run from repo root)
 target/
