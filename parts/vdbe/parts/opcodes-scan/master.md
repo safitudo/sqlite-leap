@@ -101,6 +101,31 @@ Call `storage.cursor_idx_rowid(cursor)` and install the returned
 - `jump_if_miss` / `jump_if_more` must be a valid PC within the
   Program. Compiler guarantees.
 
+## Empty-slot handling
+
+`Seek*`, `IdxNext`, and `IdxRowid` require the cursor slot to be
+populated before they run. If the slot is empty (nothing opened, or
+a prior `Close` on this cursor id), the outcome is
+`Halt(HaltStatus::Error(RuntimeCondition::CursorClosed))`. In
+targets that use `cursor_borrow` / `cursor_mut`, this maps naturally
+from their panic-on-empty-slot contract: the handler checks
+`state.cursor_is_open(c)` first and returns the Halt outcome if
+false. Unreachable in a well-formed Program.
+
+## Cursor access pattern
+
+For read-only calls into storage (`cursor_idx_rowid`), use
+`state.cursor_borrow(c)`. For mutating calls (`cursor_seek_*`,
+`cursor_idx_next`), use `state.cursor_mut(c)`. Do NOT use
+`take_cursor` + `set_cursor` around storage calls in this family —
+the accessors exist precisely so handlers don't reinstall. The
+probe-key read uses `state.get_register(key_reg)` (borrow), which
+may need to be captured into a local before `cursor_mut` is
+invoked, since `cursor_mut` is a mutable receiver borrow that
+conflicts with a live register borrow in strict-borrow targets
+(Rust). A local clone of the probe key is acceptable (keys are
+typically `Integer`/`Real`).
+
 ## Storage interaction surface
 
 This family calls (all declared in `/parts/storage/shapes.json`):

@@ -86,6 +86,20 @@
         "doc": "True iff the cursor slot currently holds an open handle."
       },
       {
+        "name": "cursor_borrow",
+        "receiver": "borrow",
+        "params": [{ "name": "c", "type": "CursorId" }],
+        "returns": { "borrow": "CursorHandle" },
+        "doc": "Borrow the open cursor handle at slot c for a read-only call into storage (e.g., cursor_idx_rowid). Panics on empty slot — caller (well-formed program) must have opened the cursor first. Ends when the returned borrow goes out of scope; state remains borrow-accessible."
+      },
+      {
+        "name": "cursor_mut",
+        "receiver": "mut",
+        "params": [{ "name": "c", "type": "CursorId" }],
+        "returns": { "mut": "CursorHandle" },
+        "doc": "Mutably borrow the open cursor handle at slot c for a mutating call into storage (e.g., cursor_seek_ge, cursor_idx_next). Panics on empty slot. Scoped — the slot returns to normal access once the returned borrow ends. Replaces the first-pass take-operate-reinstall idiom used when only take_cursor was exposed."
+      },
+      {
         "name": "set_cursor",
         "receiver": "mut",
         "params": [
@@ -100,7 +114,7 @@
         "receiver": "mut",
         "params": [{ "name": "c", "type": "CursorId" }],
         "returns": { "option": "CursorHandle" },
-        "doc": "Move out the cursor handle at slot c. Leaves the slot empty. None if already empty (idempotent)."
+        "doc": "Move out the cursor handle at slot c. Leaves the slot empty. None if already empty (idempotent). Used by Close to extract the handle before routing through storage.close_cursor. For read/mutate ops within a cursor's lifetime, prefer cursor_borrow / cursor_mut."
       },
       {
         "name": "db",
