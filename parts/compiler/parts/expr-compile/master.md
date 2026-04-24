@@ -34,6 +34,22 @@ Admitted AST nodes:
   `UnaryOpKind::NotNull`. Both opcodes already exist in
   `/parts/vdbe/parts/opcodes-expr/shapes.json::UnaryOpKind` and
   return Integer(1)/Integer(0), never Null.
+- `Expr::Case { branches, else_ }` — emit branch-evaluation chain
+  using `IfNot` + `Goto` control opcodes from
+  `/parts/vdbe/parts/opcodes-control`. Result register is allocated
+  at `reg_base` and left untouched until a branch hits. See
+  §CASE compilation algorithm below. **Self-relative PC targets:**
+  every `Goto`/`IfNot.target` emitted by `compile_expr` is an
+  absolute PC **within the returned `code` list** (0-based,
+  `0..code.len()`). When a caller splices the emitted code into
+  a larger program at offset `k`, the caller MUST rewrite every
+  such target to `k + target` before final resolution. This
+  self-relative discipline is new for Case; prior arms emitted
+  no jumps, so the caller (e.g. select-compile) was never asked
+  to rebase. SPEC NOTE: the rebase responsibility belongs to
+  the splicing caller; the composed-splice helper lives in
+  select-compile (to be added on first use beyond the standalone
+  smoke).
 
 Not-yet-admitted (produce CompileError with message
 `"deferred: <NodeKind>"`):
@@ -90,9 +106,107 @@ compile_expr(expr, reg_base):
             code         = ac ++ [UnaryOp { kind, src: ar, dest_reg: dest }]
             return Ok(code, result_reg: dest, next_reg: dest + 1)
 
+        Case(branches, else_):
+            return compile_case(branches, else_, reg_base)
+
         Col | Call:
             return Err(CompileError { message: "deferred: " + node_kind })
 ```
+
+## CASE compilation algorithm
+
+Layout of emitted code for `CASE WHEN p1 THEN r1 WHEN p2 THEN r2 ELSE e END`:
+
+```
+  result_reg = reg_base
+  scratch    = reg_base + 1  (grows during each branch's evaluation)
+
+  ; branch 1
+  <code for p1, result in reg P1, uses regs scratch..>
+  IfNot { cond_reg: P1, target: L_NEXT_1 }
+  <code for r1, result in reg R1>
+  Copy { src_reg: R1, dest_reg: result_reg }
+  Goto { target: L_END }
+L_NEXT_1:
+  ; branch 2
+  <code for p2, result in reg P2>
+  IfNot { cond_reg: P2, target: L_NEXT_2 }
+  <code for r2, result in reg R2>
+  Copy { src_reg: R2, dest_reg: result_reg }
+  Goto { target: L_END }
+L_NEXT_2:
+  ; else
+  <code for e, result in reg E>    ; if else_ == None, emit LoadConst(result_reg, Null) instead
+  Copy { src: E, dst: result_reg }  ; skipped if no else_
+L_END:
+```
+
+`Copy` is the opcode from `/parts/vdbe/parts/opcodes-core` (or the
+equivalent register-copy opcode; agent confirms the exact name by
+reading the composed Opcode surface). Its effect is
+`regs[dst] := regs[src]`.
+
+`scratch = reg_base + 1` is passed as the `reg_base` parameter to each
+sub-`compile_expr` call. This preserves pin 2 (monotonic register
+allocation within a sub-expression) while reserving reg_base exclusively
+for the final result.
+
+Emission procedure (single pass; PC placeholders are resolved at the
+end of compile_case):
+
+```
+compile_case(branches, else_, reg_base):
+    result_reg = reg_base
+    scratch    = reg_base + 1
+    code       = []
+    goto_end_patches = []           # indices of Goto instructions whose target = L_END
+    for (when_e, then_e) in branches:
+        (wc, wr, wn) = compile_expr(when_e, scratch)?
+        # The wc opcodes have self-relative jumps in the range 0..len(wc).
+        # When we append them to `code` at current offset, we must rebase
+        # their internal Goto/IfNot targets by +len(code).
+        append_with_rebase(code, wc, offset = len(code))
+        ifnot_idx = len(code)
+        code.push(IfNot { cond_reg: wr, target: PC_PLACEHOLDER })
+        (tc, tr, tn) = compile_expr(then_e, scratch)?
+        append_with_rebase(code, tc, offset = len(code))
+        code.push(Copy { src: tr, dst: result_reg })
+        goto_end_patches.push(len(code))
+        code.push(Goto { target: PC_PLACEHOLDER })
+        # Patch ifnot to point at the next instruction (start of next branch or else).
+        code[ifnot_idx].target = len(code)
+    if else_ is Some(ee):
+        (ec, er, en) = compile_expr(ee, scratch)?
+        append_with_rebase(code, ec, offset = len(code))
+        code.push(Copy { src: er, dst: result_reg })
+    else:
+        code.push(LoadConst { dest_reg: result_reg, value: Null })
+    l_end = len(code)
+    for idx in goto_end_patches:
+        code[idx].target = l_end
+    # Tight next_reg upper bound — compile_case never writes past scratch's
+    # highest reach. Compute by walking (tn, en) max and adding safety 1.
+    high = max(scratch + 1, observed_max_of(wn, tn, en))
+    return Ok(code, result_reg, next_reg = high)
+
+append_with_rebase(code, sub_code, offset):
+    # Every Goto { target } and IfNot { cond_reg, target } inside sub_code
+    # has `target` in range 0..len(sub_code). Rewrite target += offset.
+    # Other opcode kinds are copied unchanged.
+    for op in sub_code:
+        code.push(rebase(op, offset))
+```
+
+The `PC_PLACEHOLDER` sentinel is any unambiguous value (e.g. `u32::MAX`
+or equivalent); its presence must not survive the return (all patches
+applied before return). `append_with_rebase` inspects each opcode; in
+practice only `Goto` and `IfNot` carry PC targets today. If a future
+opcode gains a PC target, the rebase helper must learn to rewrite it.
+
+Empty `branches` is a PRECONDITION violation (caller must enforce; the
+parser rejects empty-branches CASE). If `compile_case` still sees an
+empty list, return `CompileError { message: "internal: Case with zero branches" }`.
+
 
 Three-address form: each opcode reads from two registers and writes
 into one. Registers are allocated monotonically; no re-use within a
@@ -195,6 +309,29 @@ produces `Expr::StrLit` only, so compile_expr never sees a blob here.
     dest_reg }`. The arg's `result_reg` is the `src` of the unary
     opcode. `dest_reg` is the next free register after the arg's
     `next_reg`. Result is always Integer(0) or Integer(1), never Null.
+15. **Case compilation — result register** — `result_reg = reg_base`
+    is the FIRST register owned by the Case emission. It receives
+    exactly one write: either a `Copy` from the winning branch's
+    then_expr, or (missing else_ with no branches truthy) a
+    `LoadConst(reg_base, Null)`. Sub-expressions allocate starting
+    at `reg_base + 1`.
+16. **Case compilation — self-relative jumps** — all `Goto` and
+    `IfNot` targets in the returned `code` list are absolute PCs
+    within that list (0-based, `0..code.len()`). A caller splicing
+    this code at offset `k` must rebase every such target by `+k`.
+    Within a single `compile_case` invocation, `append_with_rebase`
+    handles this rebasing for the sub-expression emissions; the
+    outermost Gotos/IfNots are written to compile_case's local
+    code list and patched there.
+17. **Case compilation — no placeholders survive** — on successful
+    return, no opcode in the emitted list carries `PC_PLACEHOLDER`.
+    All patches (branch-skip IfNots, end-of-Case Gotos) are applied
+    inside `compile_case` before return. The spec MUST fail if a
+    placeholder survives (internal invariant check).
+18. **Case compilation — else absence** — if `else_` is `None`, the
+    emitted tail writes `LoadConst(result_reg, Null)`, not a
+    Copy. This way result_reg always gets a definite value even
+    when no branch matches.
 
 13. **Opcode composition** — the emitted `code` list is over the
     composed `Opcode` type declared in `/parts/vdbe/shapes.json`
@@ -222,6 +359,11 @@ the composed VDBE, asserting the final register holds the expected
 4. 10 - 3 * 2              → Integer(4)    (prec: 10-(3*2))
 5. -5 + 1                  → Integer(-4)   (unary)
 6. 'ab' || 'cd'            → Text("abcd")
+7. CASE WHEN 1 THEN 10 ELSE 20 END           → Integer(10)
+8. CASE WHEN 0 THEN 10 ELSE 20 END           → Integer(20)
+9. CASE WHEN 0 THEN 10 WHEN 1 THEN 20 ELSE 30 END   → Integer(20)
+10. CASE WHEN 0 THEN 10 END                   → Null (no else_, no match)
+11. CASE 2 WHEN 1 THEN 'a' WHEN 2 THEN 'b' ELSE 'c' END → Text("b") (simple-form desugar)
 ```
 
 The runner sets up a `VdbeState` via `VdbeState::new`, appends the

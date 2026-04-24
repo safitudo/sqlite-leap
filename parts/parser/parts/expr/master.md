@@ -43,11 +43,22 @@ Admitted:
   e_i)`, wrapped in `Unary(Not, ...)` for NOT IN. `expr` is cloned
   per item. Precedence: postfix at comparison tier. Subquery form
   `IN (SELECT ...)` is deferred.
+- `CASE ... END` — searched and simple forms. Searched:
+  `CASE WHEN p1 THEN r1 [WHEN p2 THEN r2 ...] [ELSE e] END` produces
+  `Case { branches: [(p1, r1), (p2, r2), ...], else_: Some(e) | None }`.
+  Simple: `CASE x WHEN v1 THEN r1 [WHEN v2 THEN r2 ...] [ELSE e] END`
+  is **desugared at parse time** into searched form: each branch
+  becomes `(Binary(Eq, clone(x), v_i), r_i)`. `x` is cloned per
+  branch using the target's AST-clone operation. Downstream
+  compilers only see searched-form `Case`. Must have at least one
+  WHEN/THEN pair. Parsed as a prefix construct (atom-level), not
+  postfix — `CASE ... END` is a self-contained expression that
+  participates in binary operators like any atom.
 
 Deferred (not parsed by this probe; parser returns ParseError if
 encountered):
 - Table-qualified column references (`t.col`).
-- CASE / CAST / COLLATE / BETWEEN / IN / LIKE / GLOB / REGEXP / MATCH.
+- CAST / COLLATE / LIKE / GLOB / REGEXP / MATCH.
 - Subqueries (`(SELECT ...)`).
 - `count(*)` wildcard argument.
 - Blob literals, parameter placeholders.
@@ -56,7 +67,7 @@ encountered):
   is admitted (see above).
 - `IN (SELECT ...)` subquery form. Only `IN (expr, expr, ...)` with
   a literal/expression list is admitted.
-- CASE / WHEN / COLLATE / GLOB / REGEXP / MATCH.
+- COLLATE / GLOB / REGEXP / MATCH.
 - Bitwise NOT `~`, unary `+`.
 - Window functions, `OVER` clauses.
 
@@ -154,7 +165,41 @@ parse_prefix(tokens, i):
                                        (comma-separated exprs until RParen)
                             else     -> Col(name)
         LParen           -> '(' expr ')' — parse inner expr, expect RParen
+        KwCase           -> parse_case(tokens, i)
         _                -> ParseError("expected prefix expression")
+
+parse_case(tokens, i):
+    # i points at KwCase. Consume it.
+    i += 1
+    # Determine form by peeking: if tokens[i].kind != KwWhen, it's simple form.
+    operand = None
+    if tokens[i].kind != KwWhen:
+        (operand_expr, i) = parse_bp(tokens, i, min_bp=0)
+        operand = Some(operand_expr)
+    branches = []
+    # Require at least one WHEN/THEN pair.
+    while tokens[i].kind == KwWhen:
+        i += 1
+        (when_expr, i) = parse_bp(tokens, i, min_bp=0)
+        if tokens[i].kind != KwThen:
+            return ParseError("expected THEN after WHEN predicate")
+        i += 1
+        (then_expr, i) = parse_bp(tokens, i, min_bp=0)
+        # Simple-form desugar: rewrite when_expr to `Eq(clone(operand), when_expr)`.
+        if operand is Some(x):
+            when_expr = Binary { op: Eq, lhs: clone(x), rhs: when_expr }
+        branches.push(CaseBranch { when_expr, then_expr })
+    if branches is empty:
+        return ParseError("CASE requires at least one WHEN branch")
+    else_ = None
+    if tokens[i].kind == KwElse:
+        i += 1
+        (else_expr, i) = parse_bp(tokens, i, min_bp=0)
+        else_ = Some(else_expr)
+    if tokens[i].kind != KwEnd:
+        return ParseError("expected END to close CASE")
+    i += 1
+    return (Case { branches, else_ }, i)
 ```
 
 Left-associativity is encoded by using the same `lbp` and `rbp` for
@@ -269,6 +314,24 @@ bind tighter than every binary.
     Binary/Unary/IntLit trees and need zero modification. This
     deliberately avoids the Expr-enum coupling surfaced in
     feedback memory 2026-04-24.
+19. **Simple-form CASE desugar at parse time** — `CASE x WHEN v1
+    THEN r1 WHEN v2 THEN r2 ELSE e END` parses to
+    `Case { branches: [(Binary(Eq, clone(x), v1), r1), (Binary(Eq, clone(x), v2), r2)], else_: Some(e) }`.
+    Downstream compilers only ever see searched-form Case. The
+    Case variant itself IS a new AST node — there is no existing
+    primitive in Expr that returns one-of-N values based on
+    predicates, so the variant cannot be eliminated by further
+    desugar. This is the deliberate boundary: BETWEEN/IN desugar
+    fully; CASE desugars simple→searched but retains one variant.
+20. **Searched CASE structure** — `Case { branches, else_ }` where
+    `branches` is a non-empty list of `CaseBranch { when_expr,
+    then_expr }`. An empty WHEN list is a ParseError. A missing
+    ELSE means `else_ = None` (runtime returns NULL). `END` is
+    mandatory.
+21. **CASE participates in binary operators** — `CASE WHEN a THEN
+    1 ELSE 0 END + 1` parses as `Binary(Plus, Case{...}, IntLit("1"))`
+    because CASE is a prefix/atom construct. `NOT CASE ... END`
+    parses as `Unary(Not, Case{...})`.
 
 ## Regeneration envelope
 
@@ -293,6 +356,11 @@ tokenizes + parses six expressions and asserts the AST shape:
 4. NOT a = b                     → Binary(Eq, Unary(Not, a), b)  [probe convention]
 5. f(1, g(2, 3))                 → Call(f, [1, Call(g, [2, 3])])
 6. -a || 'x'                     → Binary(Concat, Unary(Neg, a), StrLit('x'))
+7. CASE WHEN a=1 THEN 'yes' ELSE 'no' END
+                                 → Case(branches=[(Eq(a,1), 'yes')], else_='no')
+8. CASE x WHEN 1 THEN 'a' WHEN 2 THEN 'b' END
+                                 → Case(branches=[(Eq(clone(x),1),'a'),(Eq(clone(x),2),'b')], else_=None)
+                                   [simple-form desugar]
 ```
 
 Runner prints `OK: all N expressions parse to expected shape` on

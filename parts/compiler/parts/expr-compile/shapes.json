@@ -3,12 +3,13 @@
   "owner": "/parts/compiler/parts/expr-compile",
 
   "imports": {
-    "Expr":       "/parts/parser/parts/expr",
-    "BinaryOp":   "/parts/parser/parts/expr",
-    "UnaryOp":    "/parts/parser/parts/expr",
-    "Register":   "/parts/core",
-    "Value":      "/parts/core",
-    "Opcode":     "/parts/vdbe"
+    "Expr":        "/parts/parser/parts/expr",
+    "CaseBranch":  "/parts/parser/parts/expr",
+    "BinaryOp":    "/parts/parser/parts/expr",
+    "UnaryOp":     "/parts/parser/parts/expr",
+    "Register":    "/parts/core",
+    "Value":       "/parts/core",
+    "Opcode":      "/parts/vdbe"
   },
 
   "types": {

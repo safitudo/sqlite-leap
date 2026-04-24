@@ -62,7 +62,18 @@
         "Binary":  { "doc": "Binary (infix) operator applied to two sub-expressions. `lhs op rhs` — left-associative by the precedence table in master.md.",
                      "fields": { "op": "BinaryOp", "lhs": "Expr", "rhs": "Expr" } },
         "IsNull":  { "doc": "Postfix null-test: `arg IS NULL` (negated=false) or `arg IS NOT NULL` (negated=true). Lower precedence than comparison; higher than AND/OR. The general `IS` operator and `IS DISTINCT FROM` are deferred.",
-                     "fields": { "arg": "Expr", "negated": "bool" } }
+                     "fields": { "arg": "Expr", "negated": "bool" } },
+        "Case":    { "doc": "CASE expression (searched form). branches is a non-empty list of (when_expr, then_expr) pairs evaluated in order: the first when_expr that evaluates truthy yields its then_expr. If none match, else_ is evaluated (if present) or Null is returned. Simple-form CASE (`CASE x WHEN v1 THEN r1 ...`) is desugared at parse time: each branch's when_expr becomes `Binary(Eq, clone(x), v_i)`, so downstream compilers only ever see searched form. Precedence: prefix (consumed by parse_prefix), terminated by KwEnd.",
+                     "fields": { "branches": { "list": "CaseBranch" }, "else_": { "optional": "Expr" } } }
+      }
+    },
+
+    "CaseBranch": {
+      "kind": "record",
+      "doc": "One WHEN/THEN pair inside a Case expression. when_expr is a predicate (already desugared from a simple-form equality if the source used `CASE x WHEN v THEN r`). then_expr is the value to return if when_expr is truthy.",
+      "fields": {
+        "when_expr": "Expr",
+        "then_expr": "Expr"
       }
     },
 
