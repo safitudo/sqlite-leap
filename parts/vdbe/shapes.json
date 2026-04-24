@@ -15,6 +15,31 @@
     "VdbeState": {
       "kind": "opaque",
       "doc": "Mutable execution state: register file, cursor slots, program counter, return stack, aggregate and window sessions. Sub-parts use the methods declared below; direct field access is forbidden."
+    },
+    "AggFuncKind": {
+      "kind": "variant",
+      "doc": "Runtime tag for aggregate function kind. Shared by opcodes-agg (directly) and opcodes-window (as payload of WindowKind::Aggregate). State uses this to select per-kind accumulator shape, step logic, and finalization rule.",
+      "cases": {
+        "CountStar":     { "fields": {} },
+        "Count":         { "fields": {} },
+        "CountDistinct": { "fields": {} },
+        "Sum":           { "fields": {} },
+        "Total":         { "fields": {} },
+        "Avg":           { "fields": {} },
+        "Min":           { "fields": {} },
+        "Max":           { "fields": {} },
+        "GroupConcat":   { "fields": {} }
+      }
+    },
+    "WindowKind": {
+      "kind": "variant",
+      "doc": "Runtime tag for window function kind. RowNumber/Rank/DenseRank are rank-style (no argument); Aggregate(kind) reuses an aggregate accumulator as a per-row window output.",
+      "cases": {
+        "RowNumber": { "fields": {} },
+        "Rank":      { "fields": {} },
+        "DenseRank": { "fields": {} },
+        "Aggregate": { "fields": { "kind": "AggFuncKind" } }
+      }
     }
   },
   "methods": {
@@ -122,6 +147,94 @@
         "params": [],
         "returns": { "borrow": "Database" },
         "doc": "Borrow the storage database handle. Used by OpenRead/OpenWrite and by any opcode that calls into storage."
+      },
+      {
+        "name": "aggregate_reset",
+        "receiver": "mut",
+        "params": [
+          { "name": "slot", "type": "u32" },
+          { "name": "kind", "type": "AggFuncKind" }
+        ],
+        "returns": "unit",
+        "doc": "Reset the accumulator at slot to its per-kind initial state. The kind parameter pins the accumulator shape for this slot until the next reset. Implementation selects: CountStar/Count/CountDistinct → integer counter (+ distinct set where applicable); Sum/Total/Avg → numeric tracker; Min/Max → best-value holder; GroupConcat → buffer + separator + first-flag."
+      },
+      {
+        "name": "aggregate_step",
+        "receiver": "mut",
+        "params": [
+          { "name": "slot", "type": "u32" },
+          { "name": "kind", "type": "AggFuncKind" },
+          { "name": "arg",  "type": { "borrow": "Value" } },
+          { "name": "sep",  "type": { "option": { "borrow": "Value" } } }
+        ],
+        "returns": "unit",
+        "doc": "Apply arg to the accumulator at slot under kind. NULL-skip rule: if kind != CountStar and arg is Value::Null, do nothing (standard SQL aggregate NULL semantics). For GroupConcat, sep overrides the default ',' separator when Some; None keeps the default. For non-GroupConcat kinds, sep is ignored. Panics if the accumulator was never reset — compiler emits Reset before any Step."
+      },
+      {
+        "name": "aggregate_final",
+        "receiver": "mut",
+        "params": [
+          { "name": "slot", "type": "u32" },
+          { "name": "kind", "type": "AggFuncKind" }
+        ],
+        "returns": "Value",
+        "doc": "Finalize the accumulator at slot and return its value. Empty-group rules: Count* → Integer(0); Sum → Null; Total → Real(0.0); Avg → Null; Min/Max → Null; GroupConcat → Null. Non-empty: Count* → Integer(n); Sum → Integer if int-only, else Real; Total → Real; Avg → Real(sum/count); Min/Max → best Value seen; GroupConcat → Text(buffer). After Final, the slot is semantically consumed; the next Reset re-initializes."
+      },
+      {
+        "name": "aggregate_value",
+        "receiver": "borrow",
+        "params": [
+          { "name": "slot", "type": "u32" },
+          { "name": "kind", "type": "AggFuncKind" }
+        ],
+        "returns": "Value",
+        "doc": "Read the current value of the accumulator at slot WITHOUT finalizing or consuming it. Same value-shape rules as aggregate_final, but the accumulator remains live for further Step calls. Used by WINDOW (per-row read) and HAVING post-group-close. Returns owned Value (cloned from accumulator state where needed)."
+      },
+      {
+        "name": "window_open",
+        "receiver": "mut",
+        "params": [
+          { "name": "slot",             "type": "u32" },
+          { "name": "kind",             "type": "WindowKind" },
+          { "name": "n_partition_keys", "type": "u32" },
+          { "name": "n_order_keys",     "type": "u32" }
+        ],
+        "returns": "unit",
+        "doc": "Allocate a window session at slot. Initializes per-kind state (rank counter, tie-tracker, or inner aggregate accumulator). n_partition_keys and n_order_keys size the per-session key storage; set_partition_key / step logic populates them."
+      },
+      {
+        "name": "window_step",
+        "receiver": "mut",
+        "params": [
+          { "name": "slot", "type": "u32" },
+          { "name": "arg",  "type": { "option": { "borrow": "Value" } } }
+        ],
+        "returns": "unit",
+        "doc": "Feed the current row into the window session at slot. For RowNumber: increment counter. For Rank/DenseRank: compare current ORDER BY tuple against previous; increment counter with per-kind tie rules. For Aggregate(k): forward arg to the inner aggregate step under kind k (None is treated as NULL — standard skip rule applies). Partition boundary detection is driven externally: the compiler emits a window_close + window_open pair across partitions."
+      },
+      {
+        "name": "window_value",
+        "receiver": "borrow",
+        "params": [{ "name": "slot", "type": "u32" }],
+        "returns": "Value",
+        "doc": "Read the current window-function value. RowNumber/Rank/DenseRank → Integer. Aggregate(k) → aggregate_value under k."
+      },
+      {
+        "name": "window_partition_key",
+        "receiver": "borrow",
+        "params": [
+          { "name": "slot",    "type": "u32" },
+          { "name": "key_idx", "type": "u32" }
+        ],
+        "returns": "Value",
+        "doc": "Read the stored key_idx-th component of the current partition-key tuple. Used by the outer scan to detect partition boundaries. Returns Null if never set."
+      },
+      {
+        "name": "window_close",
+        "receiver": "mut",
+        "params": [{ "name": "slot", "type": "u32" }],
+        "returns": "unit",
+        "doc": "Free the window session at slot. Releases any inner aggregate accumulator and key storage. Idempotent — closing an already-closed slot is a no-op."
       }
     ]
   },

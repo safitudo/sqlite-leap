@@ -1,0 +1,171 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/vdbe/parts/opcodes-expr",
+  "imports": {
+    "Register":         "/parts/core",
+    "Value":            "/parts/core",
+    "OpcodeOutcome":    "/parts/core",
+    "HaltStatus":       "/parts/core",
+    "RuntimeCondition": "/parts/core",
+    "VdbeState":        "/parts/vdbe"
+  },
+  "types": {
+    "BinOpKind": {
+      "kind": "variant",
+      "doc": "Binary operator discriminator. All operands are read from registers; destination is a register. NULL propagation is NULL-in-NULL-out for every case except Eq/Ne under IS/IS NOT form (not in this enum — see UnaryOpKind::IsNull).",
+      "cases": {
+        "Add":      { "fields": {} },
+        "Subtract": { "fields": {} },
+        "Multiply": { "fields": {} },
+        "Divide":   { "fields": {} },
+        "Modulo":   { "fields": {} },
+        "BitAnd":   { "fields": {} },
+        "BitOr":    { "fields": {} },
+        "Shl":      { "fields": {} },
+        "Shr":      { "fields": {} },
+        "Eq":       { "fields": {} },
+        "Ne":       { "fields": {} },
+        "Lt":       { "fields": {} },
+        "Le":       { "fields": {} },
+        "Gt":       { "fields": {} },
+        "Ge":       { "fields": {} },
+        "And":      { "fields": {} },
+        "Or":       { "fields": {} },
+        "Concat":   { "fields": {} }
+      }
+    },
+    "UnaryOpKind": {
+      "kind": "variant",
+      "doc": "Unary operator discriminator. IsNull/NotNull return Integer(0/1), never Null — they are explicit NULL tests.",
+      "cases": {
+        "Neg":     { "fields": {} },
+        "Not":     { "fields": {} },
+        "BitNot":  { "fields": {} },
+        "IsNull":  { "fields": {} },
+        "NotNull": { "fields": {} }
+      }
+    },
+    "CastKind": {
+      "kind": "variant",
+      "doc": "CAST target type. Integer/Real/Text correspond to SQLite's NUMERIC/REAL/TEXT affinity coercions. Blob cast is handled as Text here (SQLite treats it that way for numeric-to-blob; blob-to-blob is no-op).",
+      "cases": {
+        "Integer": { "fields": {} },
+        "Real":    { "fields": {} },
+        "Text":    { "fields": {} }
+      }
+    },
+    "ScalarKind": {
+      "kind": "variant",
+      "doc": "Scalar function discriminator. Each kind's argument arity and NULL semantics are pinned in master.md §Scalar functions. Dispatch is on this enum inside OpcodeExpr::Scalar's handler.",
+      "cases": {
+        "Length":    { "fields": {} },
+        "Abs":       { "fields": {} },
+        "Upper":     { "fields": {} },
+        "Lower":     { "fields": {} },
+        "Trim":      { "fields": {} },
+        "Ltrim":     { "fields": {} },
+        "Rtrim":     { "fields": {} },
+        "Substr":    { "fields": {} },
+        "Replace":   { "fields": {} },
+        "Instr":     { "fields": {} },
+        "Round":     { "fields": {} },
+        "Coalesce":  { "fields": {} },
+        "Nullif":    { "fields": {} },
+        "Ifnull":    { "fields": {} },
+        "Typeof":    { "fields": {} },
+        "Hex":       { "fields": {} },
+        "Quote":     { "fields": {} },
+        "Random":    { "fields": {} },
+        "Date":      { "fields": {} },
+        "Time":      { "fields": {} },
+        "Datetime":  { "fields": {} },
+        "Julianday": { "fields": {} },
+        "Strftime":  { "fields": {} },
+        "Unicode":   { "fields": {} },
+        "Char":      { "fields": {} },
+        "Printf":    { "fields": {} }
+      }
+    },
+    "OpcodeExpr": {
+      "kind": "variant",
+      "doc": "Expression evaluation opcodes. BinOp collapses 18 binary ops into one variant keyed on BinOpKind; UnaryOp collapses 5 unary ops on UnaryOpKind. Like/Glob/Cast/Collate/Scalar/CastRealToText are per-op variants where the operand shape differs enough to warrant it.",
+      "cases": {
+        "BinOp": {
+          "fields": {
+            "kind":     "BinOpKind",
+            "lhs":      "Register",
+            "rhs":      "Register",
+            "dest_reg": "Register"
+          },
+          "doc": "Apply kind to regs[lhs] and regs[rhs]; store in regs[dest_reg]. Per-kind semantics pinned in master.md."
+        },
+        "UnaryOp": {
+          "fields": {
+            "kind":     "UnaryOpKind",
+            "src":      "Register",
+            "dest_reg": "Register"
+          },
+          "doc": "Apply kind to regs[src]; store in regs[dest_reg]."
+        },
+        "Cast": {
+          "fields": {
+            "kind":     "CastKind",
+            "src":      "Register",
+            "dest_reg": "Register"
+          },
+          "doc": "Coerce regs[src] to kind; store in regs[dest_reg]. NULL input → NULL output (no coercion attempted on NULL)."
+        },
+        "Like": {
+          "fields": {
+            "hay":      "Register",
+            "pat":      "Register",
+            "esc":      { "option": "Register" },
+            "dest_reg": "Register"
+          },
+          "doc": "SQL LIKE: case-insensitive (ASCII fold), % matches zero-or-more, _ matches exactly-one. esc (if Some) names the register holding a single-char Text acting as escape. NULL in any input → NULL output."
+        },
+        "Glob": {
+          "fields": {
+            "hay":      "Register",
+            "pat":      "Register",
+            "dest_reg": "Register"
+          },
+          "doc": "Unix-glob: case-sensitive, * matches zero-or-more, ? matches exactly-one, [abc] character class. NULL in any input → NULL output."
+        },
+        "Collate": {
+          "fields": {
+            "src":       "Register",
+            "collation": "str",
+            "dest_reg":  "Register"
+          },
+          "doc": "Tag regs[src] with a collation name for subsequent comparison ops. Runtime representation: returns the value unchanged with a collation annotation in the out-of-band comparison path (target-specific). v2 recognizes 'BINARY' (default), 'NOCASE', 'RTRIM'; unknown collation Halts(Error(OpcodeIllegal)). The collation string is a borrowed slice over the Program source and does not outlive it."
+        },
+        "Scalar": {
+          "fields": {
+            "kind":     "ScalarKind",
+            "args":     { "list": "Register" },
+            "dest_reg": "Register"
+          },
+          "doc": "Dispatch a scalar function. Args are read from regs[args[0..]]; result written to regs[dest_reg]. Arity checking is a compiler responsibility; runtime assumes well-formed. Per-kind semantics in master.md."
+        },
+        "CastRealToText": {
+          "fields": {
+            "src":      "Register",
+            "dest_reg": "Register"
+          },
+          "doc": "Specialized Real-to-Text cast using SQLite's %!.15g Ryu-clone format. Distinct from Cast{Text} because SQLite's general text coercion uses different formatting for Real; this opcode pins the exact byte-identical output demanded by cross-build equivalence."
+        }
+      }
+    }
+  },
+  "functions": {
+    "execute": {
+      "params": [
+        { "name": "op",    "type": { "borrow": "OpcodeExpr" } },
+        { "name": "state", "type": { "mut":    "VdbeState" } }
+      ],
+      "returns": "OpcodeOutcome",
+      "doc": "Execute one expression-family opcode against state. Returns Continue on success. Halts only on: unknown collation (OpcodeIllegal); unreachable structural bounds violations (OpcodeIllegal). Arithmetic overflow on Add/Subtract/Multiply promotes to Real rather than halting (SQLite semantics)."
+    }
+  }
+}

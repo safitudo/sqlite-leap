@@ -1,0 +1,52 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/vdbe/parts/opcodes-agg",
+  "imports": {
+    "Register":         "/parts/core",
+    "Value":            "/parts/core",
+    "OpcodeOutcome":    "/parts/core",
+    "HaltStatus":       "/parts/core",
+    "RuntimeCondition": "/parts/core",
+    "VdbeState":        "/parts/vdbe",
+    "AggFuncKind":      "/parts/vdbe"
+  },
+  "types": {
+    "OpcodeAgg": {
+      "kind": "variant",
+      "doc": "Aggregate lifecycle opcodes. Each opcode addresses one accumulator slot + the function kind pinned at Reset. Step feeds rows; Final reads+consumes; Value reads non-destructively. Slot indices are u32 into VdbeState's internal aggregate store; the compiler assigns them.",
+      "cases": {
+        "AggReset": {
+          "fields": { "acc_slot": "u32", "kind": "AggFuncKind" },
+          "doc": "Reset the accumulator at acc_slot to its kind-specific initial state. Subsequent Step/Final/Value on this slot operate under this kind until the next Reset."
+        },
+        "AggStep": {
+          "fields": {
+            "acc_slot":      "u32",
+            "kind":          "AggFuncKind",
+            "arg_reg":       "Register",
+            "separator_reg": { "option": "Register" }
+          },
+          "doc": "Apply regs[arg_reg] to the accumulator at acc_slot. For GroupConcat, separator_reg names the Register holding the user-supplied separator (None → default ','). For other kinds, separator_reg is ignored. NULL-skip rule (all kinds except CountStar skip NULL arguments) is enforced by state.aggregate_step — the opcode does not branch on value kind."
+        },
+        "AggFinal": {
+          "fields": { "acc_slot": "u32", "kind": "AggFuncKind", "dest_reg": "Register" },
+          "doc": "Finalize the accumulator at acc_slot and install the result into regs[dest_reg]. After Final, the slot must be Reset before next use."
+        },
+        "AggValue": {
+          "fields": { "acc_slot": "u32", "kind": "AggFuncKind", "dest_reg": "Register" },
+          "doc": "Read the current accumulator value without finalizing. The slot remains live — further Step calls continue to accumulate. Used by WINDOW's per-row read and by HAVING after group close."
+        }
+      }
+    }
+  },
+  "functions": {
+    "execute": {
+      "params": [
+        { "name": "op",    "type": { "borrow": "OpcodeAgg" } },
+        { "name": "state", "type": { "mut":    "VdbeState" } }
+      ],
+      "returns": "OpcodeOutcome",
+      "doc": "Execute one aggregate-family opcode against state. All opcodes return Continue on success; no jump or halt paths except OpcodeIllegal from out-of-range slot/register (unreachable in well-formed code)."
+    }
+  }
+}

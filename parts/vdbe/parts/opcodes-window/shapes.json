@@ -1,0 +1,57 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/vdbe/parts/opcodes-window",
+  "imports": {
+    "Register":      "/parts/core",
+    "Value":         "/parts/core",
+    "OpcodeOutcome": "/parts/core",
+    "VdbeState":     "/parts/vdbe",
+    "WindowKind":    "/parts/vdbe"
+  },
+  "types": {
+    "OpcodeWindow": {
+      "kind": "variant",
+      "doc": "Window-function execution opcodes. Thin shell over VdbeState's window_* methods. None emit rows — window output is written into a register via WindowValue and flows through the compiler's projection pipeline.",
+      "cases": {
+        "WindowOpen": {
+          "fields": {
+            "slot":             "u32",
+            "kind":             "WindowKind",
+            "n_partition_keys": "u32",
+            "n_order_keys":     "u32"
+          },
+          "doc": "Allocate a window session at slot. The compiler emits a matching WindowClose at partition boundary and re-opens for the next partition."
+        },
+        "WindowStep": {
+          "fields": {
+            "slot":    "u32",
+            "arg_reg": { "option": "Register" }
+          },
+          "doc": "Feed the current row into the window session. For rank-style kinds (RowNumber/Rank/DenseRank), arg_reg is None. For Aggregate(_), arg_reg names the register whose value feeds the inner aggregate step. None arg for an Aggregate window is allowed (compiler emits on no-argument aggregates like COUNT(*) OVER (...)); state treats it as standard NULL-skip input."
+        },
+        "WindowValue": {
+          "fields": { "slot": "u32", "dest_reg": "Register" },
+          "doc": "Read the current window-function value into regs[dest_reg]. RowNumber/Rank/DenseRank → Integer. Aggregate(kind) → the aggregate's current value under kind (same shape rules as AggValue)."
+        },
+        "WindowPartitionKey": {
+          "fields": { "slot": "u32", "key_idx": "u32", "dest_reg": "Register" },
+          "doc": "Read the stored key_idx-th component of the current partition-key tuple into regs[dest_reg]. Used by the outer scan to compare against the next row's partition keys."
+        },
+        "WindowClose": {
+          "fields": { "slot": "u32" },
+          "doc": "Release the window session at slot. Idempotent — closing an already-closed slot is a no-op."
+        }
+      }
+    }
+  },
+  "functions": {
+    "execute": {
+      "params": [
+        { "name": "op",    "type": { "borrow": "OpcodeWindow" } },
+        { "name": "state", "type": { "mut":    "VdbeState" } }
+      ],
+      "returns": "OpcodeOutcome",
+      "doc": "Execute one window-family opcode. Always returns Continue on the happy path; no jumps or halts emitted by this family (bounds-check surfaces OpcodeIllegal only via structural target layer, unreachable in well-formed code)."
+    }
+  }
+}
