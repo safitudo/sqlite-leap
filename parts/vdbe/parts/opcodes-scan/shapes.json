@@ -1,0 +1,60 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/vdbe/parts/opcodes-scan",
+  "imports": {
+    "Register":         "/parts/core",
+    "CursorId":         "/parts/core",
+    "PC":               "/parts/core",
+    "Value":            "/parts/core",
+    "OpcodeOutcome":    "/parts/core",
+    "HaltStatus":       "/parts/core",
+    "RuntimeCondition": "/parts/core",
+    "VdbeState":        "/parts/vdbe"
+  },
+  "types": {
+    "OpcodeScan": {
+      "kind": "variant",
+      "doc": "Index-driven scan opcodes. The non-index scan (Rewind/Next on a table cursor) lives in opcodes-rows; this family owns index-cursor open, seek, next, and rowid read.",
+      "cases": {
+        "OpenIdxRead": {
+          "fields": { "cursor": "CursorId", "index_name": "str" },
+          "doc": "Open a read-only cursor on the named index via storage.open_index_cursor; install at cursor slot (replace silently). TableNotFound -> Halt(Error)."
+        },
+        "SeekGE": {
+          "fields": { "cursor": "CursorId", "key_reg": "Register", "jump_if_miss": "PC" },
+          "doc": "Position the index cursor at the smallest key >= regs[key_reg]. Jump(jump_if_miss) if no such entry; else Continue. Storage error other than miss collapses to Halt(IoError)."
+        },
+        "SeekGT": {
+          "fields": { "cursor": "CursorId", "key_reg": "Register", "jump_if_miss": "PC" },
+          "doc": "Same as SeekGE with strict > comparator."
+        },
+        "SeekLE": {
+          "fields": { "cursor": "CursorId", "key_reg": "Register", "jump_if_miss": "PC" },
+          "doc": "Position at largest key <= regs[key_reg]. Jump(jump_if_miss) if no such entry; else Continue."
+        },
+        "SeekLT": {
+          "fields": { "cursor": "CursorId", "key_reg": "Register", "jump_if_miss": "PC" },
+          "doc": "Same as SeekLE with strict < comparator."
+        },
+        "IdxNext": {
+          "fields": { "cursor": "CursorId", "jump_if_more": "PC" },
+          "doc": "Advance index cursor one entry. If another entry exists: Jump(jump_if_more) (loop-body convention — jump taken on HAS-NEXT, so loop body lives at jump_if_more). Else: Continue."
+        },
+        "IdxRowid": {
+          "fields": { "cursor": "CursorId", "dest_reg": "Register" },
+          "doc": "Read the rowid the index cursor currently points at into regs[dest_reg] as Value::Integer. Err(CursorClosed) -> Halt(Error) when the cursor is at EOF/BOF or closed."
+        }
+      }
+    }
+  },
+  "functions": {
+    "execute": {
+      "params": [
+        { "name": "op",    "type": { "borrow": "OpcodeScan" } },
+        { "name": "state", "type": { "mut":    "VdbeState" } }
+      ],
+      "returns": "OpcodeOutcome",
+      "doc": "Execute one scan opcode against state. Per-opcode semantics in master.md. Outer loop interprets the returned outcome (Continue | Jump(PC) | Halt(status))."
+    }
+  }
+}

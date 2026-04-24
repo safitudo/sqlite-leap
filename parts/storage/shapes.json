@@ -37,6 +37,60 @@
       ],
       "returns": "unit",
       "doc": "Consume a cursor handle and release its backing resources (page pins, index state, writable-lock, etc.). Never fails — closing an already-consumed handle is unreachable because the function takes the handle by ownership. Targets with implicit destructor semantics (Rust Drop, Go GC, Python __del__) may implement this as a no-op body; targets with manual resource management (C, Zig deinit) must release here."
+    },
+    "open_index_cursor": {
+      "params": [
+        { "name": "db",         "type": { "borrow": "Database" } },
+        { "name": "index_name", "type": "str" }
+      ],
+      "returns": { "result": { "ok": "CursorHandle", "err": "RuntimeCondition" } },
+      "doc": "Open a read-only cursor on the named index. Err(TableNotFound) if the index doesn't exist (spec conflates missing table and missing index under TableNotFound — the compiler guarantees the name refers to an index before emitting this opcode)."
+    },
+    "cursor_seek_ge": {
+      "params": [
+        { "name": "cursor", "type": { "mut":    "CursorHandle" } },
+        { "name": "key",    "type": { "borrow": "Value" } }
+      ],
+      "returns": { "result": { "ok": "bool", "err": "RuntimeCondition" } },
+      "doc": "Position cursor at smallest index key >= the supplied key. Ok(true) if such an entry exists; Ok(false) if all entries are strictly less than the key (past-end)."
+    },
+    "cursor_seek_gt": {
+      "params": [
+        { "name": "cursor", "type": { "mut":    "CursorHandle" } },
+        { "name": "key",    "type": { "borrow": "Value" } }
+      ],
+      "returns": { "result": { "ok": "bool", "err": "RuntimeCondition" } },
+      "doc": "Position cursor at smallest index key > the supplied key. Ok(true) if such an entry exists; Ok(false) past-end."
+    },
+    "cursor_seek_le": {
+      "params": [
+        { "name": "cursor", "type": { "mut":    "CursorHandle" } },
+        { "name": "key",    "type": { "borrow": "Value" } }
+      ],
+      "returns": { "result": { "ok": "bool", "err": "RuntimeCondition" } },
+      "doc": "Position cursor at largest index key <= the supplied key. Ok(true) if such an entry exists; Ok(false) if all entries are strictly greater (before-start)."
+    },
+    "cursor_seek_lt": {
+      "params": [
+        { "name": "cursor", "type": { "mut":    "CursorHandle" } },
+        { "name": "key",    "type": { "borrow": "Value" } }
+      ],
+      "returns": { "result": { "ok": "bool", "err": "RuntimeCondition" } },
+      "doc": "Position cursor at largest index key < the supplied key. Ok(true) if such an entry exists; Ok(false) before-start."
+    },
+    "cursor_idx_next": {
+      "params": [
+        { "name": "cursor", "type": { "mut": "CursorHandle" } }
+      ],
+      "returns": { "result": { "ok": "bool", "err": "RuntimeCondition" } },
+      "doc": "Advance the index cursor to the next entry. Ok(true) if another entry exists (cursor moved); Ok(false) if past-end (cursor stays at EOF position)."
+    },
+    "cursor_idx_rowid": {
+      "params": [
+        { "name": "cursor", "type": { "borrow": "CursorHandle" } }
+      ],
+      "returns": { "result": { "ok": "i64", "err": "RuntimeCondition" } },
+      "doc": "Read the rowid of the row the index cursor currently points at. Err(CursorClosed) if the cursor is at EOF/BOF or has been closed."
     }
   }
 }
