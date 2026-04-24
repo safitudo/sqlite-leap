@@ -98,10 +98,13 @@ Load-bearing rules the emission MUST satisfy.
 1. Every opcode is a thin shell over `state.window_*`. Do NOT
    replicate rank counter logic, tie detection, or aggregate
    forwarding in the opcode body.
-2. `WindowStep`: when `arg_reg` is `Some(r)`, capture
-   `state.get_register(r)` into a local borrow BEFORE calling
-   `state.window_step` (mut receiver). Same borrow-ordering rule
-   as `AggStep`.
+2. `WindowStep`: forward `arg_reg: option<Register>` directly to
+   `state.window_step` — the opcode MUST NOT call
+   `state.get_register(r)` to produce a `&Value`. State reads the
+   register internally. (Rationale: passing `&Value` into a
+   mut-receiver method collides with the register file's live
+   borrow in strict-borrow targets; index-forwarding is
+   target-neutral. Same rule as `AggStep`.)
 3. `WindowValue` and `WindowPartitionKey`: the returned `Value` is
    OWNED. Install directly via `state.set_register(dest_reg, v)`.
 4. No kind-branching on the opcode side. `WindowKind` is passed
@@ -109,9 +112,10 @@ Load-bearing rules the emission MUST satisfy.
    match. Adding a window-function kind = extending `WindowKind` +
    state, not patching this family.
 5. `WindowStep` with `arg_reg == None` and `arg_reg == Some(_)`
-   MUST both route through `state.window_step(slot, arg:
-   option<&Value>)` — do NOT emit two separate state methods.
-   The option parameter carries the "no-argument" signal.
+   MUST both route through `state.window_step(slot, arg_reg:
+   option<Register>)` — do NOT emit two separate state methods.
+   The option parameter carries the "no-argument" signal; state
+   dereferences the register internally when `Some`.
 6. `WindowClose` is idempotent. Do not guard it with
    `state.is_open(slot)` — state internally tracks the
    empty-slot state.
