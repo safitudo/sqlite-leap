@@ -1,83 +1,116 @@
+---
+name: vdbe
+kind: inner
+inherits:
+  - /spec/memory-discipline.spec.md
+  - /schema/program.schema.json
+  - /schema/opcode.schema.json
+  - /schema/value.schema.json
+  - /parts/storage/master.md
+emits:
+  c:
+    path: src-c/vdbe/mod.h
+  rust:
+    path: src-rust/src/vdbe/mod.rs
+---
+
 # Part: vdbe
 
-Executes a compiled VDBE Program against storage per `spec/vdbe-interpreter.spec.md`.
+The Virtual Database Engine. Consumes a well-formed `Program` and a
+mutable `Database` handle. Executes opcodes in order, driven by
+program-counter control flow. Emits rows to the caller's row sink.
 
-## Contract
+## Public interface
 
-- **Inputs:**
-  - `program` — a Program (`schema/program.schema.json`). Assumed well-formed (the compiler is the warranty).
-  - `storage_handle` — a mutable reference to a Database.
-- **Output on success:** a Result (`schema/result.schema.json`).
-- **Output on failure:** any `STORAGE_*` error propagated verbatim from a storage op invoked by an opcode (`OpenRead`, `OpenWrite`, `InsertRow`, `CreateTable`).
+- **Input:** `program: &Program<'src>`, `database: &mut Database`.
+- **Output on success:** stream of rows (each a vector of values
+  conformant to `/schema/value.schema.json`) + final status
+  (`VDBE_HALTED_OK`, `VDBE_HALTED_NO_ROWS`, etc.).
+- **Output on failure:** named runtime error condition. Categories
+  (each a separate condition):
+  - `RUNTIME_TYPE_MISMATCH` — operand type invalid for opcode.
+  - `RUNTIME_ARITH_OVERFLOW` — integer overflow on arithmetic.
+  - `RUNTIME_DIV_ZERO` — division by zero (yields NULL per SQLite,
+    not an error, BUT the condition exists for diagnostics).
+  - `RUNTIME_CONSTRAINT_*` — constraint violation (NOT NULL, UNIQUE,
+    CHECK, FK).
+  - `RUNTIME_CURSOR_CLOSED` — opcode touched a closed cursor.
+  - `RUNTIME_RECURSIVE_CTE_LIMIT` — recursive CTE exceeded iteration
+    limit.
+  - `RUNTIME_OPCODE_ILLEGAL` — an ill-formed Program slipped past
+    the compiler validator (should be unreachable in practice).
 
-## Required behaviour
+## Execution loop (canonical pseudo-code)
 
-The VDBE MUST:
+```
+pc = 0
+while pc < len(program.opcodes):
+  op = program.opcodes[pc]
+  next_pc = execute(op, state) ? pc + 1
+  pc = next_pc
+```
 
-- Initialise state per `spec/vdbe-interpreter.spec.md` § "Interpreter state"
-- Execute the main loop per that spec's § "Main loop"
-- Honour cursor lifecycle rules (closed → open-unpositioned → open-positioned-on-i → open-past-end → closed)
-- Honour register lifecycle (initialised to NULL; written by `LoadConst`/`Column`; read by `ResultRow`/`InsertRow`)
-- Terminate on `Halt` and return `{"rows": result_rows}`
-- Terminate on any `STORAGE_*` error and propagate the error unchanged (same `name`, same `fields`)
-- Emit deterministic results across repeated invocations with identical input — no randomness, no time-dependence
+`execute(op, state)` is a switch on opcode kind that dispatches to
+the appropriate opcode-family sub-part.
 
-The VDBE MUST NOT:
+## Sub-part map
 
-- Re-validate program well-formedness (the compiler is responsible; re-validation is waste and invites scope creep)
-- Mutate the Program during execution
-- Invent new opcodes or ignore unknown opcodes silently — any opcode in a well-formed program is one of the 12 defined in `spec/vdbe-opcodes.spec.md`
-- Inspect storage internals directly; all interaction goes through the storage part's public ops
+Opcodes group into seven families. Each is a leaf sub-part; the
+outer `vdbe` part composes their dispatch.
 
-## Dispatch strategy
+- `parts/opcodes-core/` — `Halt`, `LoadConst`, `Move`, `OpenRead`,
+  `OpenWrite`, `Close`, `Copy`, `ResultRow`.
+- `parts/opcodes-rows/` — `InsertRow`, `UpdateRow`, `DeleteRow`,
+  `Rewind`, `Next`, `Prev`, `SeekRowid`, `Column`.
+- `parts/opcodes-scan/` — sequential scan, index scan (`SeekGE`,
+  `SeekGT`, `SeekLE`, `SeekLT`, `IdxNext`).
+- `parts/opcodes-expr/` — arithmetic (`Add`, `Subtract`, `Multiply`,
+  `Divide`, `Modulo`), comparison (`Eq`, `Ne`, `Lt`, `Le`, `Gt`,
+  `Ge`), logical (`And`, `Or`, `Not`), type (`Cast`, `IsNull`,
+  `NotNull`), string (`Concat`, `Like`, `Glob`, `Substr`, `Replace`,
+  `Instr`), scalar function dispatch.
+- `parts/opcodes-agg/` — `AggStep`, `AggFinal`, `AggReset` for all
+  aggregate functions (`COUNT`, `SUM`, `TOTAL`, `AVG`, `MIN`, `MAX`,
+  `GROUP_CONCAT`).
+- `parts/opcodes-window/` — window frame ops (`WindowStep`,
+  `WindowValue`, frame boundary management, `ROW_NUMBER`).
+- `parts/opcodes-control/` — `Goto`, `If`, `IfNot`, `Jump`,
+  `JumpIfNull`, subroutine-like `Gosub`/`Return` if used.
 
-Target-defined. Valid choices include:
+## Well-formedness invariants (inherited from compiler)
 
-- A `switch` / `match` statement on `opcode.op`
-- A function-pointer or trait-object dispatch table
-- Tagged-enum dispatch in languages with discriminated unions
-- Computed goto / threaded dispatch (not required in Phase 2b; Phase 3 benchmarking may revisit)
+The VDBE assumes every Program it receives is well-formed. If it
+receives a Program that fails any invariant (declared in
+`parts/compiler/master.md` § "Well-formedness"), it raises
+`RUNTIME_OPCODE_ILLEGAL` without attempting recovery. The compiler
+is the well-formedness authority; the VDBE is the executor.
 
-Dispatch choice does not affect correctness — only performance. Phase 2b is correctness-only; Phase 3 benchmarks dispatch.
+## Register and cursor state
 
-## Part independence
+- Registers: flat array sized to `program.num_registers`. Each cell
+  holds a typed Value (NULL, integer, real, text, blob). Assignment
+  copies by value (for integer/real) or by move-of-borrow (for text
+  — sub-parts carry the source lifetime).
+- Cursors: array sized to `program.num_cursors`. Each holds a
+  table/index handle, current position, and a "dirty" hint for
+  write-path pass-through.
 
-Depends on:
+## Cross-opcode invariants
 
-- `spec/vdbe-opcodes.spec.md`
-- `spec/vdbe-interpreter.spec.md`
-- `spec/storage.spec.md` (for STORAGE_* error names to propagate)
-- `schema/program.schema.json`, `schema/opcode.schema.json`, `schema/value.schema.json`, `schema/result.schema.json`
-- The storage part's full public API (mutating ops included: `insert_row`, `create_table`; read ops: `select_all`, `select_columns`). Note that `OpOpenRead`/`OpOpenWrite`/`Column`/`Rewind`/`Next` are implemented by the VDBE against the storage part's exposed cursor-like primitives; storage is responsible for offering whatever cursor abstraction the VDBE needs. In Phase 2b, a minimal storage surface is sufficient: the VDBE may ask for a cloneable iterator over a table's rows, which the storage target implements against its internal row list.
+- Every opcode advances pc by 1 unless it jumps. `OpHalt` exits the
+  loop.
+- Opcodes that fault ( `RUNTIME_*` ) abort execution immediately;
+  no partial row emission.
+- Cursor ops only touch cursors in `[0, num_cursors)`; compiler
+  validates, VDBE asserts.
+- `ResultRow` emits exactly the registers named in its operand
+  list; no implicit trailing registers.
 
-## Phase 2c-1 note
+## Composition
 
-Phase 2c-1 adds 11 opcodes (arithmetic: `Add`, `Subtract`, `Multiply`, `Divide`; unary `Negate`; comparison: `Eq`, `Ne`, `Lt`, `Le`, `Gt`, `Ge`) plus two new runtime error conditions (`EVAL_TYPE_ERROR`, `EVAL_DIVISION_BY_ZERO`). See `spec/vdbe-opcodes.spec.md` § "Phase 2c-1 opcodes" for semantics.
-
-All new opcodes follow NULL-propagation (any NULL operand produces NULL). Type errors raise `EVAL_TYPE_ERROR` with fields describing the operator and operand types. These errors propagate identically to existing `STORAGE_*` errors — same halt-and-return behaviour, same verbatim `name` + `fields`.
-
-## Phase 2c-2 note
-
-Phase 2c-2 adds 4 opcodes: `And`, `Or`, `Not` (logical operators with SQL 3VL semantics), and `JumpIfFalse` (conditional PC jump, used to implement the WHERE clause).
-
-`And` / `Or` / `Not` follow SQL 3VL — the classic truth tables in which `NULL` represents an UNKNOWN truth value. The logical operators do NOT short-circuit: the VDBE always reads both operands (or the single operand for `Not`). Any TEXT operand raises `EVAL_TYPE_ERROR` with the appropriate `op` name.
-
-`JumpIfFalse` inspects a single register and either falls through (INTEGER non-zero) or jumps (INTEGER 0 or NULL). A TEXT value in the cond register raises `EVAL_TYPE_ERROR` with `op = "WHERE"` and `operand_type = "TEXT"`. Other callers (hypothetical future phases) might raise with a different `op`; Phase 2c-2 only compiles WHERE clauses into `JumpIfFalse`.
-
-The VDBE's error-propagation rule is unchanged: any `EVAL_TYPE_ERROR` halts execution and returns the error unchanged (same `name`, same `fields`).
-
-## Phase 2c-3 note
-
-Phase 2c-3 adds 2 opcodes: `UpdateRow` and `DeleteRow`. Both operate through a write cursor that is currently positioned on a live row.
-
-`UpdateRow` invokes `storage.update_row_at_cursor(cursor, column_names, values)` and may propagate `STORAGE_COLUMN_NOT_FOUND`, `STORAGE_DUPLICATE_COLUMN`, or `STORAGE_TYPE_MISMATCH` (typically only TYPE_MISMATCH at runtime — duplicate-column and column-not-found are normally caught at compile time; if they arise at runtime it indicates an ill-formed program).
-
-`DeleteRow` invokes `storage.delete_row_at_cursor(cursor)` — no errors, the storage abstraction handles tombstone bookkeeping.
-
-After `DeleteRow`, the cursor is still positioned on the slot but the row is tombstoned. `Next` advances past it automatically (skipping tombstones). `Column` after `DeleteRow` is undefined behaviour; the compiler's recipes never emit it.
-
-Both UPDATE and DELETE produce `{"rows": []}` on success — no result rows.
-
-## Output location
-
-Generated code lives in `src-{lang}/vdbe/`. Exposes exactly one public entry point that accepts `(program, storage_handle)` and returns a Result or the named error.
+Each opcode-family sub-part emits a dispatch function keyed by
+opcode kind. The `vdbe` part's generator produces a single
+`execute` function that switches on opcode kind and calls the
+matching family. A static table maps opcode kind → family — this
+table is generated from the union of each sub-part's declared
+opcode list.

@@ -1,5 +1,36 @@
 # sqlite-leap — Status Dashboard
 
+**Branch:** `v2-recursive-parts` — see banner immediately below. v1 lives at `main@9877a7e`.
+
+---
+
+## v2 branch status (read first)
+
+**v1 is frozen.** All numbers and claims below are v1 results on `main`. This branch
+(`v2-recursive-parts`) is the structural rewrite of the parts tree per
+`ARCHITECTURE-v2.md`.
+
+- **Landed on this branch:** recursive `parts/` tree, 55 sub-parts, every part has a
+  conformant `master.md` with `inherits:` front-matter. Root `master.md` and
+  `ARCHITECTURE-v2.md` are the v2 contract.
+- **Not yet landed on this branch:** generator refactor (generators still target v1
+  shape); content migration from `/spec/*.spec.md` into leaf master.md files
+  (specs stay as source-of-truth during migration — part master.md files carry
+  contract + phase pins + references, not the 5906-line grammar verbatim);
+  any regeneration of `src-*/` from v2 spec.
+- **Convergence test not yet run.** The first end-to-end attempt will be a clean
+  regeneration of ONE leaf sub-part (vdbe/opcodes-core is the pilot candidate)
+  from its v2 master.md + inherits chain + tests, as a check on whether the
+  recursive-parts model actually buys what v1's megafiles couldn't. Result
+  unknown. Stan explicitly authorized this as "a leap of faith."
+- **v1 criticism this is meant to answer:** v1 megafiles (compiler.rs at 19,618
+  lines; compiler.c at 17,578) were never cleanly regenerated from spec after
+  their first emission — phase pins landed as additive patches. Phase 9h was
+  the canary: the fix was a hand-edit in src-rust/src/compiler.rs because a
+  19k-line file is past an agent's reliable regeneration envelope.
+
+---
+
 **Date:** 2026-04-23 (macOS arm64 / Linux x86_64 via Docker)
 **Scope:** honest status of the LEAP claims. All numbers reproducible from artifacts in this repo.
 **Last update:** C corpus 576/622 → **588/622 (94.53%)** via Phase 6cc (duplicate-alias + base-col tiebreak) + Phase 6cd (HAVING / GROUP BY base-column-wins-on-alias-shadow, single alias form) + Phase 6bx-c (PROJ_STAR expansion for grouped SELECTs). Closes all 12 `random/groupby/slt_good_*` FAILs on C. Zero PASS→FAIL regressions; 86/86 phase tests green; 203/203 smoke byte-identical C↔Rust. Log: `tests/sqllogictest/results/2026-04-23-c-full-v5.log`. Rust corpus unchanged at 620/622 (99.68%).

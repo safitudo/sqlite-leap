@@ -1,70 +1,115 @@
+---
+name: storage
+kind: inner
+inherits:
+  - /spec/memory-discipline.spec.md
+  - /spec/durability.spec.md
+  - /schema/value.schema.json
+  - /parts/io-backend/master.md
+emits:
+  c:
+    path: src-c/storage/mod.h
+  rust:
+    path: src-rust/src/storage/mod.rs
+---
+
 # Part: storage
 
-Owns the in-memory Database. Exposes the operations defined in `spec/storage.spec.md` (sections "Operations") through an opaque handle.
+The on-disk storage engine. Absorbs v1's `storage.spec.md`,
+`file-format.spec.md`, `wal.spec.md`, `pager-async.spec.md`, and
+related phase pins into five sub-parts. Storage is **inner**.
 
-## Contract
+## Public interface
 
-- **Input:** operations are invoked on an opaque storage handle (a Database). Each target represents the handle as its idiomatic mutable-reference type (a `Database*` in C, a `&mut Database` or `RefCell` in Rust, etc.). A fresh handle is obtained via a `create_database()` constructor and disposed via the target's standard lifetime mechanism.
-- **Outputs:** each operation returns success with the output defined in `spec/storage.spec.md` or fails with exactly one of the storage-level `STORAGE_*` error conditions.
+`Database` is the storage facade. It exposes:
 
-## Required behaviour
+- **Schema operations:** `create_table`, `drop_table`, `create_index`,
+  `drop_index`, `alter_table`.
+- **Row operations:** `insert_row`, `update_row`, `delete_row`,
+  `scan_table` (cursor), `scan_index` (cursor), `seek_rowid`,
+  `seek_index`.
+- **Schema introspection:** `table_schema(name)`, `index_schema`,
+  `list_tables`.
+- **Transactional boundary:** `begin`, `commit`, `rollback`,
+  `checkpoint` (WAL).
+- **File lifecycle:** `open(path)`, `close`. In-memory DB is
+  `open(":memory:")`.
 
-Per `spec/storage.spec.md`:
+Each operation returns success or a named storage condition:
 
-- `create_database()` returns a fresh, empty Database handle.
-- `create_table(handle, name, columns)` — see spec.
-- `insert_row(handle, table_name, column_names, values)` — see spec. `column_names` is a nullable ordered list; `null` means positional insert over all columns.
-- `select_all(handle, table_name)` — returns all LIVE rows (see tombstone section below) in insertion order, columns in declared order.
-- `select_columns(handle, table_name, column_names)` — returns all LIVE rows in insertion order, columns in the order named.
-- **Phase 2c-3 additions:**
-  - `update_row_at_cursor(handle, cursor, column_names, values)` — mutates the row at the cursor's current position. See `spec/storage.spec.md` § "Phase 2c-3".
-  - `delete_row_at_cursor(handle, cursor)` — tombstones the row at the cursor's current position.
-- **Phase 2c-3 cursor abstraction** — the storage part MUST expose a write-capable cursor (used by `OpenWrite` / `Rewind` / `Next` / `Column` / `UpdateRow` / `DeleteRow`) that tracks a current position over a table's rows, skips tombstoned rows on `Next`, and supports in-place updates and deletions at the current position. The exact cursor type is target-defined; only its abstract contract matters.
+- `STORAGE_TABLE_NOT_FOUND`, `STORAGE_COLUMN_NOT_FOUND`,
+  `STORAGE_DUPLICATE_TABLE`, `STORAGE_DUPLICATE_COLUMN`,
+  `STORAGE_CONSTRAINT_UNIQUE`, `STORAGE_CONSTRAINT_NOT_NULL`,
+  `STORAGE_CONSTRAINT_CHECK`, `STORAGE_IO_ERROR`,
+  `STORAGE_CORRUPTION`.
 
-- **Phase 3a additions — on-disk backend:**
-  - `create_memory_database()` — explicit in-memory constructor (alias for `create_database()`, used by new tests that want to distinguish from `open_database`).
-  - `open_database(path)` — on-disk Database handle. Creates an empty SQLite-compatible 4096-byte file if `path` does not exist; otherwise opens and validates an existing one (see `spec/file-format.spec.md` § "Supported read surface"). May raise `STORAGE_FILE_IO`, `STORAGE_CORRUPT_HEADER`, `STORAGE_UNSUPPORTED_FEATURE`.
-  - `close_database(handle)` — flushes any dirty on-disk pages and releases the handle; no-op on in-memory. May raise `STORAGE_FILE_IO`.
-  - The existing 6 ops (`create_table`, `insert_row`, `select_all`, `select_columns`, `update_row_at_cursor`, `delete_row_at_cursor`) are UNCHANGED in surface — each has an in-memory implementation (already built) and an on-disk implementation (new in Phase 3a).
-  - The on-disk implementation reads/writes pages per `spec/file-format.spec.md`: 100-byte header on page 1, table-leaf pages (type `0x0d`) only, records in serial-type format, big-endian on disk, host-endian in RAM.
-  - Rowids: monotonically assigned per table, starting at 1, never reused. Stored as the table-leaf cell's rowid varint. In-memory backend also gains implicit rowids (not visible through SELECT in Phase 3a).
-  - **Simplicity strategy for Phase 3a**: on open, read the entire file into RAM; operate on in-RAM pages throughout the session; write the entire file back on close. No page cache, no journaling, no partial writes. This is slow per-op but correct, and keeps 3a implementation tight. Page-cache optimisation is Phase 3b; journaling is Phase 3d.
-  - **Part independence update**: the storage part still has no dependency on other parts. It gains a dependency on the host OS's file I/O primitives (open/read/write/fsync/close), which are target-defined per language.
+## Sub-part map
 
-- **Phase 3b additions — multi-page tables (on-disk):**
-  - Public API surface UNCHANGED. All 9 operations (`create_database`, `create_memory_database`, `open_database`, `close_database`, `create_table`, `insert_row`, `select_all`, `select_columns`, `update_row_at_cursor`, `delete_row_at_cursor`) keep their Phase 3a signatures.
-  - The on-disk backend's storage tree grows beyond a single leaf per table: see `spec/file-format.spec.md` § "Phase 3b — multi-page tables" for the interior-page (0x05) layout, split protocol, and B-tree read/write recipes.
-  - The cursor abstraction hides page boundaries from callers; vdbe and executor see the same per-row stream as Phase 3a regardless of tree depth.
-  - In-memory backend UNCHANGED.
-  - Simplicity strategy (whole-file slurp-on-open, flush-on-close) UNCHANGED from Phase 3a — Phase 3b still performs all I/O at open/close boundaries. Page-cache + partial-write support moves to Phase 3d (with the journal).
-  - `STORAGE_PAGE_FULL` now fires only in the narrower case where a split would require an interior-page-level split (deferred to 3c) or where a single row cannot fit in any page (deferred to 3c via overflow pages).
+- `parts/file-format/` — on-disk layout. Absorbs v1
+  `file-format.spec.md` (572 lines). Page types, header, page
+  encoding, varint, cell packing. Bidirectional compat with
+  mainline SQLite files.
+- `parts/btree/` — b-tree operations: insert, delete, split, merge,
+  cursor walk. Multi-page paging. Both table b-trees and index
+  b-trees.
+- `parts/pager/` — page cache, dirty-page tracking, eviction.
+  Absorbs v1 `pager-async.spec.md` (235 lines).
+- `parts/wal/` — write-ahead log. Absorbs v1 `wal.spec.md` (323
+  lines) including Phase 3d atomic-rename mode, Phase 4a reader,
+  Phase 4b per-commit append-on-write.
+- `parts/index/` — index management: creation, rowid-based lookup,
+  index maintenance on DML (Phase 9c), UNIQUE enforcement (Phase
+  9g).
 
-Storage MUST:
+## Cross-sub-part invariants
 
-- Preserve row insertion order
-- Treat table and column names case-sensitively for lookup
-- Copy or retain values (not borrow from caller) so the Row remains valid after the caller's inputs go out of scope — the exact copy strategy is target-defined
-- Surface exactly the `STORAGE_*` error conditions enumerated in the spec, each carrying the fields the spec names
+### Durability
 
-Storage MUST NOT:
+Fsync boundaries live in `parts/wal/` and `parts/pager/`. The rule
+(also in `/spec/durability.spec.md`): every `commit` returns only
+after the frame batch has been fsync'd to the WAL file. Checkpoint
+fsync's both the main DB file and truncates the WAL atomically.
 
-- Perform I/O (Phase 2a is in-memory only)
-- Depend on any other part's generated code
-- Silently coerce types (strict typing; only NULL is universal)
+### File-format compatibility
 
-## Implementation freedom
+The wire contract is SQLite's published file format 3. All
+sub-parts that read or write bytes to disk obey
+`parts/file-format/master.md`. A v1 LEAP-written DB must be readable
+by mainline SQLite byte-for-byte, and vice versa. This is tested
+via the roundtrip matrix (`tests/fuzz/file-format/`, 900/900 green
+as of v1 freeze).
 
-Data structure choice is the storage target's prerogative. Examples: a plain array-of-structs, a vector-of-rows with a side hash map for column-name lookup, a struct-of-arrays for column-store layouts. Ownership (arena allocator in C, `Vec<Row>` with owned `String`s in Rust) is target-defined. The test suite does not observe the internal representation — only the abstract operations.
+### Page size
 
-## Part independence
+Fixed 4096-byte pages for v1 and v2. Variable page size is out of
+scope.
 
-Storage depends only on:
+### WAL activation
 
-- `spec/storage.spec.md`
-- `schema/value.schema.json` (for the Value union)
+A `Database` opened on a path-backed file may operate in one of two
+WAL modes:
 
-It does NOT depend on the tokenizer, parser, or executor. Those parts are higher-level consumers.
+- **Phase 3d (atomic-rename)** — default for in-memory DBs and the
+  v1 simple path. Each commit rewrites the entire image via an
+  atomic rename.
+- **Phase 4b (append-on-write)** — active when `LEAP_WAL_APPEND=1`
+  AND the database is disk-backed. Commits append a dirty-page
+  frame batch to the WAL file; checkpoint folds the WAL into the
+  main file.
 
-## Output location
+The mode selection is the storage facade's concern; sub-parts do not
+branch on it beyond `parts/wal/` itself.
 
-Generated code lives in `src-{lang}/storage/`. Exposes the constructor and the four operations listed above (or their target-language equivalents). The executor part calls into this interface and no other.
+## What this part does NOT own
+
+- Query planning / index selection: the compiler chooses which index
+  to open; storage just opens it.
+- Concurrent writer coordination beyond single-writer serialization.
+  Multi-writer and replication are out of scope for v2.
+
+## Composition
+
+Each sub-part emits its own module. This part's generator produces
+a `Database` struct that holds handles into file-format, btree,
+pager, wal, and index sub-parts, and exposes the public interface
+above by delegating to them.

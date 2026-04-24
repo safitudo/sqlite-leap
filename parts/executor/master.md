@@ -1,58 +1,64 @@
+---
+name: executor
+kind: leaf
+inherits:
+  - /spec/memory-discipline.spec.md
+  - /parts/parser/master.md
+  - /parts/compiler/master.md
+  - /parts/vdbe/master.md
+  - /parts/storage/master.md
+emits:
+  c:
+    path: src-c/executor.c
+    headers: [src-c/executor.h]
+  rust:
+    path: src-rust/src/executor.rs
+---
+
 # Part: executor
 
-Top-level pipeline step. Compiles an AST to a VDBE Program and runs it against storage.
+Top-level statement execution driver. The glue that ties parser →
+compiler → vdbe → storage into a public `execute_sql(db, sql_text)
+-> Results` entry point.
 
-## Contract
+## Public interface
 
-- **Inputs:**
-  - `ast` — an AST node (`schema/ast.schema.json`)
-  - `storage_handle` — mutable reference to a Database
-- **Output on success:** a Result (`schema/result.schema.json`)
-- **Output on failure:** one of the `STORAGE_*` errors, propagated from either the compiler (schema-lookup failures) or the VDBE (storage-op failures during execution).
+- **Input:** a `Database` handle and a SQL source string (which may
+  contain multiple statements separated by `;`).
+- **Output on success:** for each statement, either `no_rows`
+  (DDL/DML) or a `rows` stream. In a batch, statements execute in
+  order; a failure on statement N aborts N+1..end.
+- **Output on failure:** the first error encountered, typed by the
+  sub-part that raised it. Errors carry their originating condition
+  unchanged — no re-wrapping that loses the named kind.
 
-## Required behaviour (Phase 2b)
+## Responsibilities
 
-The executor MUST implement, at the level of observable behaviour:
+1. **Tokenize + parse.** Call `tokenizer::tokenize(sql)` → tokens →
+   `parser::parse(tokens)` → `Ast`. Either step may raise a
+   `TOKENIZER_*` or `PARSE_ERROR` — return it.
+2. **Compile.** Call `compiler::compile(ast, &db)` → `Program` or
+   a structured compile error. Return compile errors.
+3. **Execute.** Call `vdbe::run(&program, &mut db)`. Consume its
+   row stream; emit to caller's result sink.
+4. **Transactional boundary.** Recognize `BEGIN` / `COMMIT` /
+   `ROLLBACK` and delegate to `Database::begin/commit/rollback`.
+   Implicit single-statement transactions wrap DML when no explicit
+   transaction is active.
+5. **Multi-statement batching.** Split on `;` at the top level
+   (respecting string/comment boundaries — the tokenizer does this
+   correctly). For each sub-statement, repeat steps 1–3.
 
-```
-execute(ast, storage_handle) := vdbe.run(compiler.compile(ast, storage_handle), storage_handle)
-```
+## Error handling
 
-or an equivalent expression. **Direct AST interpretation — bypassing either the compiler or the VDBE — is explicitly retired in Phase 2b and is a spec-discipline violation.**
+Each sub-part raises its own named condition. The executor is a
+pass-through: it does NOT rewrap. A caller (e.g., the sqllogictest
+harness) examines the condition's `kind` field to classify
+expected-fail vs unexpected-crash.
 
-Error propagation:
+## Regeneration envelope
 
-- If `compiler.compile(...)` fails with a `STORAGE_*` condition, `execute` returns that condition unchanged.
-- If `vdbe.run(...)` fails with a `STORAGE_*` condition, `execute` returns that condition unchanged.
-- The executor does NOT introduce new error names, does NOT wrap errors, and does NOT annotate them.
-
-## Per-AST-kind behaviour
-
-All four AST kinds (`CreateTable`, `Insert`, `SelectLiteral`, `SelectFrom`) flow through the same `compile → run` pipeline. There is no AST-kind-specific branching at the executor level in Phase 2b — all dispatch happens in the compiler (via AST kind) and in the VDBE (via opcode dispatch).
-
-## Required behaviour (continued)
-
-The executor MUST:
-
-- Be a pure function of `(AST, storage_handle)` as far as observable behaviour is concerned. Any internal caching (e.g. memoising compiled programs by AST) is target-defined and not required.
-- Preserve the Phase 2a observable semantics (row order, column order, error names + fields) exactly.
-
-The executor MUST NOT:
-
-- Read from or write to storage directly (only via compiler and VDBE)
-- Inspect the Program between compile and run for observable purposes (no program-conditional behaviour)
-- Introduce any new error names
-
-## Part independence
-
-Depends on:
-
-- The compiler part (`parts/compiler/`)
-- The vdbe part (`parts/vdbe/`)
-- `schema/ast.schema.json`, `schema/result.schema.json`
-
-Does NOT depend on the tokenizer, parser, or storage directly.
-
-## Output location
-
-Generated code lives in `src-{lang}/executor/`. Exposes exactly one public entry point that accepts `(AST, storage_handle)` and returns a Result or a propagated `STORAGE_*` error.
+- Target size: 300–600 lines per target.
+- No internal sub-parts; this is a leaf.
+- Test ownership: smoke tests for batch parsing + error routing
+  live here; per-feature tests live with their owning sub-part.

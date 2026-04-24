@@ -1,52 +1,91 @@
+---
+name: tokenizer
+kind: leaf
+inherits:
+  - /spec/memory-discipline.spec.md
+  - /schema/tokens.schema.json
+emits:
+  c:
+    path: src-c/tokenizer.c
+    headers: [src-c/tokenizer.h]
+  rust:
+    path: src-rust/src/tokenizer.rs
+---
+
 # Part: tokenizer
 
-Transforms a string of SQL input into a sequence of tokens per `spec/sql-grammar.spec.md` (section "Tokens").
+Consumes SQL source text. Produces a token stream conforming to
+`/schema/tokens.schema.json`.
 
-## Contract
+## Public interface
 
-- **Input:** one string of SQL text. Phase 1 assumes the string is pure ASCII. On any byte with value `> 0x7F`, the tokenizer MUST terminate unsuccessfully with `LEX_UNEXPECTED_CHARACTER` at the 0-based index of that byte. This preserves cross-build equivalence on non-ASCII input.
-- **Output on success:** an ordered sequence of tokens conforming to `schema/tokens.schema.json`. The sequence ends with exactly one `EOF` token whose `pos` equals the length of the input.
-- **Output on failure:** one of the error conditions enumerated in the "Error conditions (tokenizer)" section of the grammar spec, carrying the fields that spec requires.
+- **Input:** a byte slice borrowed from the caller (`'src` lifetime).
+- **Output on success:** an ordered sequence of tokens. Each token
+  carries its kind, its byte span in the source (start offset +
+  length), and — for identifier, literal, and numeric tokens — a
+  borrowed reference to the matching slice of source.
+- **Output on failure:** named error condition `TOKENIZER_INVALID`
+  with fields `{offset, reason}`. Named conditions
+  `TOKENIZER_UNTERMINATED_STRING`, `TOKENIZER_UNTERMINATED_COMMENT`
+  are subtypes.
 
-Each language target represents "success or failure" in its own idiomatic way (tagged union, `Result`, sum of return code + out-parameter, etc.). The part's schema (`schema.json` alongside this file) describes the abstract contract; the language target is free to translate it.
+## Token kinds (closed set)
 
-## Required behaviour
+- **Keywords:** case-insensitive match against the SQL reserved
+  word list. Canonical form is uppercase; the emitted token
+  normalizes but the source slice is preserved for diagnostics.
+- **Identifiers:** `[A-Za-z_][A-Za-z0-9_]*` unquoted; `"..."` or
+  `` `...` `` or `[...]` quoted. Quote form is preserved in a
+  secondary field so the parser can apply case-folding rules
+  correctly.
+- **Numeric literals:** integer (`\d+`), decimal (`\d+\.\d*` or
+  `\.\d+`), exponent (`...[eE][+-]?\d+`), hex (`0x[0-9A-Fa-f]+`).
+- **String literals:** `'...'` with `''` escape. No SQLite-specific
+  string concatenation at lex time.
+- **Blob literals:** `x'...'` / `X'...'` — hex byte sequence.
+- **Punctuation:** `( ) , ; . * + - / % & | < > = != <> <= >= <<
+  >> || ?`. Multi-character forms are lexed atomically.
+- **Whitespace and comments:** skipped, not emitted. `--` line
+  comments to end-of-line. `/* ... */` block comments, non-nesting.
+- **Parameter markers:** `?` (positional), `?NNN` (indexed),
+  `:name`, `@name`, `$name` — all emitted as a
+  `ParameterMarker` token with the marker kind and name.
+
+## Required behavior
 
 The tokenizer MUST:
 
-- Produce tokens left-to-right in source order
-- Consume and discard whitespace between tokens
-- Attach a `pos` field (0-based index of the token's first character) to every token
-- Emit exactly one `EOF` at the end
-- Terminate unsuccessfully with `LEX_UNEXPECTED_CHARACTER`, `LEX_UNTERMINATED_STRING`, or `LEX_INTEGER_OVERFLOW` on the conditions defined in the grammar spec
-- Be pure: it MUST NOT mutate the input, read global state, or perform I/O
+- Emit tokens in strict source order.
+- Never allocate per-token heap memory for the source slice — token
+  spans reference the input buffer.
+- Preserve case of identifier source text (the parser handles
+  case-folding).
+- Reject unterminated strings/comments with a precise offset.
+- Treat keywords as context-insensitive (no parser-driven
+  keywording); conflicts with identifiers are resolved by the
+  parser.
 
 The tokenizer MUST NOT:
 
-- Look ahead beyond what the grammar rules require
-- Interpret meaning beyond what the spec defines (e.g. no escape sequences other than `''` → `'`)
-- Combine adjacent tokens into higher-level structures — that is the parser's job
-- Import or reference any other part's generated code
+- Interpret literal values (no numeric conversion, no escape
+  processing beyond `''` in strings — the parser owns that).
+- Depend on any other part.
+- Allocate a dynamic token buffer if the target language's idiomatic
+  iterator model is available (Rust: iterator; C: callback or
+  reusable next-token call).
 
-## Part independence
+## Lexical ambiguity rules
 
-The tokenizer does not know about the parser, the executor, storage, or any future component. It only depends on:
+- Longest match wins: `<=` beats `<`; `!=` beats `!` + `=`.
+- Keyword vs identifier: if a source slice matches a keyword AND
+  it is not preceded by a disambiguating context (`.` for column
+  qualification), emit the keyword token. Context is not a lexer
+  concern; the parser reinterprets as identifier where needed (this
+  is called the "keywords-as-identifiers" rule in the parser).
 
-- `spec/sql-grammar.spec.md` (the rules — Phase 1 section + Phase 2a "Phase 2a tokens" section for the expanded token set)
-- `schema/tokens.schema.json` (the output contract)
+## Regeneration envelope
 
-## Phase 2a note
-
-Phase 2a expands the token set (keywords CREATE, TABLE, INSERT, INTO, VALUES, FROM, INTEGER, TEXT; plus IDENTIFIER, LPAREN, RPAREN, COMMA, STAR). See `spec/sql-grammar.spec.md` § "Phase 2a tokens" for rules. The contract in this file is unchanged; only the recognised token set grew. The keyword-vs-identifier precedence rule in the spec (longest ALPHANUM-run with `_`, match against keyword table case-insensitively; otherwise IDENTIFIER with case preserved in `name`) is authoritative for disambiguation.
-
-## Phase 2c-1 note
-
-Phase 2c-1 adds operator tokens: PLUS (`+`), MINUS (`-`), SLASH (`/`), EQ (`=`), NEQ (`!=`), LT (`<`), LE (`<=`), GT (`>`), GE (`>=`). See `spec/sql-grammar.spec.md` § "Phase 2c-1 tokens" for rules. Multi-character tokens (`!=`, `<=`, `>=`) require one-character lookahead and obey maximal-munch: `<=` is `LE`, not `LT` followed by `EQ`. A bare `!` (not followed by `=`) raises `LEX_UNEXPECTED_CHARACTER` at the `!`'s position. The contract of this part is unchanged; only the token set grew.
-
-## Implementation freedom
-
-The tokenizer MAY maintain opaque internal state (a cursor, a lookahead buffer, an explicit lexer struct, a closure over mutable variables, etc.) as an implementation detail of its entry point. This state is NOT part of the public contract. Each language target is free to express it as a free-function-plus-mutable-cursor, a struct-with-methods, a class, a coroutine, or any equivalent form. A reviewer MUST NOT treat "the tokenizer has (or lacks) a state object" as a correctness question — it is a stylistic choice delegated to the target.
-
-## Output location
-
-Generated code lives in `src-{lang}/tokenizer/` (path convention may be adjusted per language target, e.g. `src-rust/src/tokenizer/`, `src-c/tokenizer/`). It exposes exactly one public entry point that accepts the input string and returns the token sequence or the named error.
+- Target leaf size: ~500–800 lines per target.
+- Spec size budget: this file < 500 lines total.
+- Regeneration atomicity: a fresh sub-agent with this file + the
+  schema + the inherits chain must produce a passing tokenizer.
