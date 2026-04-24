@@ -139,10 +139,41 @@ This family calls (all declared in `/parts/storage/shapes.json`):
 Probe-key read uses `state.get_register(key_reg)` (borrow); the
 storage function receives `&Value` — no clone, no take.
 
+## Correctness pins
+
+Load-bearing rules the emission MUST satisfy. Any target that
+violates one is buggy.
+
+1. `Seek*`, `IdxNext` mutate the cursor — call
+   `state.cursor_mut(c)` to obtain the handle. `IdxRowid` is
+   read-only — use `state.cursor_borrow(c)`.
+2. Drop the take-then-reinstall dance entirely. `take_cursor` /
+   `set_cursor` are only correct for `OpenIdxRead` (install a newly
+   opened handle).
+3. Empty-slot guard at entry of `Seek*` / `IdxNext` / `IdxRowid`:
+   if `!state.cursor_is_open(c)` return
+   `Halt(Error(RuntimeCondition::CursorClosed))`. `OpenIdxRead` does
+   not guard — it is the installer.
+4. `Seek*` probe key: read `state.get_register(key_reg)` into a
+   local before calling `cursor_mut(c)`. In strict-borrow targets
+   (Rust) the two live borrows conflict; capture a clone of the
+   probe key first. Keys are typically `Integer`/`Real`; clone cost
+   is negligible. Non-borrow-checked targets preserve the same
+   ordering for source parallelism.
+5. Storage error collapsing per handler:
+   - `OpenIdxRead`: `TableNotFound` passes through; any other
+     storage condition → `Halt(Error(IoError))`.
+   - Seek / IdxNext / IdxRowid: propagate the storage condition as
+     `Halt(Error(cond))` unchanged.
+6. `IdxNext` jump-on-has-next convention: `Ok(true)` →
+   `Jump(jump_if_more)`; `Ok(false)` → `Continue`. Matches
+   `Next`/`Prev` in `opcodes-rows`.
+7. Collapse the four `Seek*` arms into a single dispatch keyed on a
+   comparator enum or function pointer — master.md-sanctioned
+   deduplication; do not replicate the body four times.
+
 ## Regeneration envelope
 
-- Spec (this file): < 150 lines.
+- Spec (this file): < 200 lines.
 - `shapes.json`: < 100 lines.
-- Each target emission: ~250-450 lines. Seek is four-way but share
-  the same shape; idiomatic emissions collapse the four arms into a
-  single dispatch.
+- Each target emission: 180-300 lines after dispatch collapse.

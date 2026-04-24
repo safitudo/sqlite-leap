@@ -1,0 +1,74 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/vdbe/parts/opcodes-rows",
+  "imports": {
+    "Register":         "/parts/core",
+    "CursorId":         "/parts/core",
+    "PC":               "/parts/core",
+    "Value":            "/parts/core",
+    "OpcodeOutcome":    "/parts/core",
+    "HaltStatus":       "/parts/core",
+    "RuntimeCondition": "/parts/core",
+    "VdbeState":        "/parts/vdbe"
+  },
+  "types": {
+    "OpcodeRows": {
+      "kind": "variant",
+      "doc": "Row-level table-cursor opcodes: positional walk (Rewind/Next/Prev/SeekRowid), column read, and row mutation (InsertRow/UpdateRow/DeleteRow). Every opcode assumes a table cursor is open at the named slot; empty-slot is ill-formed and Halts.",
+      "cases": {
+        "Rewind": {
+          "fields": { "cursor": "CursorId", "jump_if_empty": "PC" },
+          "doc": "Position the table cursor at the first row. If the table is empty: Jump(jump_if_empty) (skip the scan loop body). Else: Continue (cursor is on row 1)."
+        },
+        "Next": {
+          "fields": { "cursor": "CursorId", "jump_if_more": "PC" },
+          "doc": "Advance one row in forward order. If another row exists: Jump(jump_if_more) (re-enter loop body). Else: Continue (past-end, fall through to post-loop code). Jump-on-has-next convention — matches IdxNext in opcodes-scan."
+        },
+        "Prev": {
+          "fields": { "cursor": "CursorId", "jump_if_more": "PC" },
+          "doc": "Mirror of Next in reverse order. Jump-on-has-prev convention."
+        },
+        "SeekRowid": {
+          "fields": { "cursor": "CursorId", "rowid_reg": "Register", "jump_if_miss": "PC" },
+          "doc": "Position the cursor at the row with rowid = regs[rowid_reg] (must be Value::Integer). If found: Continue. If not found: Jump(jump_if_miss). If regs[rowid_reg] is not Integer: Halt(Error(TypeMismatch))."
+        },
+        "Column": {
+          "fields": { "cursor": "CursorId", "col_idx": "u32", "dest_reg": "Register" },
+          "doc": "Read column col_idx of the current row into regs[dest_reg]. Uses storage.cursor_column which returns an owned Value; the VDBE hands it to set_register. Err(CursorClosed) if cursor is at EOF/BOF."
+        },
+        "InsertRow": {
+          "fields": {
+            "cursor": "CursorId",
+            "column_names": { "option": { "list": "str" } },
+            "start_reg": "Register",
+            "count": "u32"
+          },
+          "doc": "Insert a row using regs[start_reg .. start_reg + count] as the values. column_names = None means positional; column_names = Some(list) means named (aligned with start_reg..). Delegates to storage.cursor_insert_row. Constraint violations Halt with Error(Constraint{NotNull,Unique,Check,Type})."
+        },
+        "UpdateRow": {
+          "fields": {
+            "cursor": "CursorId",
+            "column_names": { "list": "str" },
+            "start_reg": "Register",
+            "count": "u32"
+          },
+          "doc": "Update the current row. Only columns listed in column_names are changed; their new values come from regs[start_reg .. start_reg + count]. column_names is always pre-deduplicated by the compiler. Same error surface as InsertRow."
+        },
+        "DeleteRow": {
+          "fields": { "cursor": "CursorId" },
+          "doc": "Delete the current row via storage.cursor_delete_row. Cursor is left positioned so the next Next call returns the row that followed the deleted row. Err(CursorNotWritable) -> Halt(Error)."
+        }
+      }
+    }
+  },
+  "functions": {
+    "execute": {
+      "params": [
+        { "name": "op",    "type": { "borrow": "OpcodeRows" } },
+        { "name": "state", "type": { "mut":    "VdbeState" } }
+      ],
+      "returns": "OpcodeOutcome",
+      "doc": "Execute one row-family opcode against state. Per-opcode semantics in master.md. Outer VDBE loop interprets the returned outcome (Continue | Jump(PC) | Halt(status))."
+    }
+  }
+}

@@ -91,6 +91,68 @@
       ],
       "returns": { "result": { "ok": "i64", "err": "RuntimeCondition" } },
       "doc": "Read the rowid of the row the index cursor currently points at. Err(CursorClosed) if the cursor is at EOF/BOF or has been closed."
+    },
+    "cursor_rewind": {
+      "params": [
+        { "name": "cursor", "type": { "mut": "CursorHandle" } }
+      ],
+      "returns": { "result": { "ok": "bool", "err": "RuntimeCondition" } },
+      "doc": "Position a table cursor at the first row. Ok(true) if the table has at least one row (cursor is now on it); Ok(false) if the table is empty."
+    },
+    "cursor_next": {
+      "params": [
+        { "name": "cursor", "type": { "mut": "CursorHandle" } }
+      ],
+      "returns": { "result": { "ok": "bool", "err": "RuntimeCondition" } },
+      "doc": "Advance a table cursor by one row in forward order. Ok(true) if another row exists (cursor moved onto it); Ok(false) on past-end (cursor stays at EOF position)."
+    },
+    "cursor_prev": {
+      "params": [
+        { "name": "cursor", "type": { "mut": "CursorHandle" } }
+      ],
+      "returns": { "result": { "ok": "bool", "err": "RuntimeCondition" } },
+      "doc": "Step a table cursor backward by one row. Ok(true) if the previous row exists (cursor moved onto it); Ok(false) on before-start (cursor stays at BOF)."
+    },
+    "cursor_seek_rowid": {
+      "params": [
+        { "name": "cursor", "type": { "mut": "CursorHandle" } },
+        { "name": "rowid",  "type": "i64" }
+      ],
+      "returns": { "result": { "ok": "bool", "err": "RuntimeCondition" } },
+      "doc": "Position a table cursor at the row with the given rowid. Ok(true) if the row exists (cursor now on it); Ok(false) if not found (cursor position undefined — caller must not subsequently read without re-positioning)."
+    },
+    "cursor_column": {
+      "params": [
+        { "name": "cursor",    "type": { "borrow": "CursorHandle" } },
+        { "name": "col_index", "type": "u32" }
+      ],
+      "returns": { "result": { "ok": "Value", "err": "RuntimeCondition" } },
+      "doc": "Read column `col_index` of the row the cursor currently points at. Returns an OWNED Value — storage materializes the cell; caller (VDBE) hands it to set_register which takes ownership. Err(CursorClosed) if cursor is at EOF/BOF or closed."
+    },
+    "cursor_insert_row": {
+      "params": [
+        { "name": "cursor",       "type": { "mut": "CursorHandle" } },
+        { "name": "column_names", "type": { "option": { "list": "str" } } },
+        { "name": "values",       "type": { "list": { "borrow": "Value" } } }
+      ],
+      "returns": { "result": { "ok": "i64", "err": "RuntimeCondition" } },
+      "doc": "Insert a row via a writable table cursor. column_names = None means positional (one value per column in schema order); column_names = Some(list) means named (values aligned with column_names). Returns the new rowid. Constraint violations surface as Err(Constraint{NotNull,Unique,Check,Type}). Err(CursorNotWritable) on a read-only cursor."
+    },
+    "cursor_update_row": {
+      "params": [
+        { "name": "cursor",       "type": { "mut": "CursorHandle" } },
+        { "name": "column_names", "type": { "list": "str" } },
+        { "name": "values",       "type": { "list": { "borrow": "Value" } } }
+      ],
+      "returns": { "result": { "ok": "unit", "err": "RuntimeCondition" } },
+      "doc": "Update the row the writable cursor currently points at. Only named columns change. column_names is ALWAYS pre-deduplicated by the compiler. Same error surface as cursor_insert_row. Err(CursorNotWritable) on a read-only cursor."
+    },
+    "cursor_delete_row": {
+      "params": [
+        { "name": "cursor", "type": { "mut": "CursorHandle" } }
+      ],
+      "returns": { "result": { "ok": "unit", "err": "RuntimeCondition" } },
+      "doc": "Delete the row the writable cursor currently points at. The cursor is left positioned so that the next `cursor_next` call returns the row that followed the deleted row (if any). Err(CursorNotWritable) on a read-only cursor."
     }
   }
 }
