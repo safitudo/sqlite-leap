@@ -2,11 +2,12 @@
   "$schema": "../../../../schema/shape.schema.json",
   "owner": "/parts/vdbe/parts/opcodes-control",
   "imports": {
-    "Register":      "/parts/core",
-    "Value":         "/parts/core",
-    "OpcodeOutcome": "/parts/core",
-    "HaltStatus":    "/parts/core",
-    "VdbeState":     "/parts/vdbe"
+    "Register":         "/parts/core",
+    "Value":            "/parts/core",
+    "OpcodeOutcome":    "/parts/core",
+    "HaltStatus":       "/parts/core",
+    "RuntimeCondition": "/parts/core",
+    "VdbeState":        "/parts/vdbe"
   },
   "types": {
     "OpcodeControl": {
@@ -36,6 +37,10 @@
         "Return": {
           "fields": {},
           "doc": "Pop the return stack; jump to the popped PC."
+        },
+        "HaltError": {
+          "fields": { "condition": "RuntimeCondition" },
+          "doc": "Halt the VDBE with HaltStatus::Error(condition). Used by INSERT OR ABORT/FAIL/ROLLBACK on conflict (condition = ConstraintUnique etc.). Distinct from Halt(Ok): the program terminates abnormally and the caller observes the runtime condition."
         }
       }
     }
@@ -47,7 +52,7 @@
         { "name": "state", "type": { "mut":    "VdbeState" } }
       ],
       "returns": "OpcodeOutcome",
-      "doc": "Execute one control opcode against the state. Returns Continue, Jump(target), or Halt(Error(OpcodeIllegal)) on return-stack underflow/overflow."
+      "doc": "Execute one control opcode against the state. Returns Continue, Jump(target), Halt(Error(condition)) for HaltError, or Halt(Error(OpcodeIllegal)) on return-stack underflow/overflow."
     }
   }
 }

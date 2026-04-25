@@ -604,10 +604,15 @@ opcodes — no new VDBE instructions needed.
      they reference non-projection columns the request is rejected
      with `"deferred: DISTINCT + ORDER BY referencing non-projected
      column"`.
-12e. **ORDER BY across JOIN / DISTINCT across JOIN** — both produce
-     `CompileError "deferred: ORDER BY across JOIN sources"` /
-     `"deferred: DISTINCT across JOIN sources"`. The buffer pattern
-     ports cleanly but is out of scope for this wave.
+12e. **ORDER BY across JOIN / DISTINCT across JOIN** — admitted via
+     the same buffer-sort-dedup-replay pattern. The JOIN-branch
+     compiler threads a `BufferCfg` through the recursive
+     `emit_inner_sources` → `emit_where_and_project` walk; the
+     innermost emission writes `BufferAppend` instead of `ResultRow`,
+     and the post-loop tail emits `BufferSort` / `BufferDedup` /
+     `BufferRewind` / `BufferRead` / `ResultRow`. ORDER BY keys may
+     reference any source's qualified columns. Multi-source DISTINCT
+     dedup is total-row-equality on the projection.
 12f. **LIMIT/OFFSET combined with DISTINCT or ORDER BY** —
      `CompileError "deferred: LIMIT/OFFSET with DISTINCT or ORDER
      BY"`. The buffer pattern can absorb LIMIT (truncate after

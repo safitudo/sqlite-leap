@@ -48,6 +48,15 @@ unbounded recursion).
 Pop the top of the return stack. Return `Jump(popped_pc)`. If the
 stack is empty, return `Halt(Error(RuntimeCondition::OpcodeIllegal))`.
 
+### `HaltError { condition }`
+
+Return `Halt(Error(condition))` unconditionally. Used by INSERT
+OR ABORT/FAIL/ROLLBACK on conflict (condition =
+`ConstraintUnique`) and any compile-emitted abort path. Distinct
+from a clean Halt(Ok): the runtime condition surfaces to the
+caller so the embedding layer can map it to its native error
+shape.
+
 ## Truthiness rule
 
 `If` / `IfNot` interpret register values as follows:
