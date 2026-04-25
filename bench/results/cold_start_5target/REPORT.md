@@ -1,0 +1,37 @@
+# Lane 1 — 5-target cold start
+
+Generated 2026-04-25T09:04:55Z on Darwin arm64.
+
+Median wallclock over 11 samples for a process running a single
+`SELECT 1+2` query in memory. Includes process spawn, image load,
+runtime init, parser/compiler/VDBE invocation, and result emission.
+One warm-up run is discarded before measurement to page-cache the
+image (identically for every target).
+
+Mainline baseline: `sqlite3 :memory: "SELECT 1+2;"`.
+Each leap target runs the equivalent fixture via its slt_runner.
+
+Resolution: Python `time.perf_counter()` (sub-millisecond).
+
+| target | median (ms) | vs mainline | notes |
+|---|---:|---:|---|
+| c | 2.818 | 1.29x | slt_runner(c) on cold_start.test |
+| rust | 2.845 | 1.28x | slt_runner(rust) on cold_start.test |
+| zig | 3.003 | 1.21x | slt_runner(zig) on cold_start.test |
+| go | 3.511 | 1.04x | slt_runner(go) on cold_start.test |
+| python | 125.129 | 0.03x | slt_runner(python) on cold_start.test |
+| sqlite3 (mainline) | 3.639 | 1.00x | system `3.51.0` |
+
+Ratio convention: mainline-wallclock / leap-wallclock. >1.00x means
+leap is **faster** to cold-start.
+
+## Caveats
+- macOS arm64 only. Linux cross-validation needed for publication.
+- The Python row includes CPython interpreter init
+  (`3.10.12`) — not directly
+  comparable to native binaries.
+- Mainline `sqlite3` is the CLI shell binary (includes readline + cmd
+  parsing). A pure libsqlite3 `sqlite3_open + sqlite3_exec` would be
+  lower; we report the published binary as our baseline.
+
+Fixture: `bench/fixtures/cold_start.test`.

@@ -1,0 +1,4 @@
+query I nosort
+SELECT 1 + 2
+----
+3
