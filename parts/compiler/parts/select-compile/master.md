@@ -704,6 +704,120 @@ shared `slot: 0` buffer is the only state that persists across cores.
 - `"deferred: non-literal LIMIT in compound SELECT"` /
   `"deferred: non-literal OFFSET in compound SELECT"`.
 
+## Subqueries and materialization (α17)
+
+The compiler admits three expression-level subquery forms via a
+**materialize-then-probe** lowering. Each inner SELECT is compiled
+standalone, its `ResultRow` opcode is rewritten to `BufferAppend`, its
+`Halt` is stripped, and the resulting block is spliced as a **prelude**
+before the outer scan loop's `OpenRead`. The outer body then reads from
+the materialized buffer.
+
+### Admitted forms
+
+- **Scalar subquery** (`(SELECT ...)` used as an expression):
+  materialize the inner into a 1-column buffer. At eval time:
+  `BufferRewind(slot, end=EMPTY)` → `BufferRead(slot, dest, 1)` →
+  `Goto DONE` / `EMPTY: LoadConst(dest, Null)` / `DONE:`. Returns the
+  first row's first column, or `Null` if empty. SQLite's "more than
+  one row" case is not policed — we take the first row.
+- **EXISTS / NOT EXISTS**: materialize the inner (width irrelevant —
+  `result_count` is unused). At eval time: `BufferRewind` → set
+  `dest = 1` (or `0` for NOT EXISTS); `EMPTY: dest = 0` (or `1`).
+- **IN / NOT IN (SELECT single-column)**: materialize into a 1-column
+  buffer. At eval time: compute lhs; scan the buffer linearly via
+  `BufferRewind`/`BufferRead`/`BufferNext` with `Eq` comparison;
+  `dest = 1` on first match, `0` at end-of-scan; NOT IN negates. The
+  SQL NULL-semantics case (no match but buffer contains NULL → result
+  is NULL) is simplified to `0` — documented probe deviation.
+
+### Deferred forms (clean-stop)
+
+- **Derived-table FROM** (`FROM (SELECT ...) AS x`): the outer scan
+  loop's primary source is assumed to be a real table cursor. Using a
+  buffer-backed virtual cursor requires either a new opcode family
+  (buffer-as-cursor) or refactoring `compile_single_table` to accept
+  a `Source` trait with two implementations. Clean-stops with
+  `"deferred: derived-table subquery in FROM"`.
+- **Non-recursive CTE** (`WITH x AS (SELECT ...) SELECT ...`): same
+  blocker as derived-table — the CTE's materialized result needs to
+  feed the outer loop as if it were a named table. Clean-stops with
+  `"deferred: WITH (CTE) materialization"`.
+- **Correlated subqueries**: an inner `Col` reference to an outer-
+  scope column would need re-evaluation per outer row (rebuild buffer
+  every iteration). Currently the prelude runs ONCE before the outer
+  loop — any reference to a Col that isn't in the inner's own FROM
+  schema produces `CompileError` from the inner compile (via the
+  standard "unknown column" path). A dedicated correlated-subquery
+  lowering is a follow-up.
+
+### Schema resolution for inner SELECTs
+
+Inner SELECTs reference tables (e.g. `FROM u`) that the single-schema
+entry point `compile_select` does not know about. Callers invoke the
+new `compile_select_with_schemas(stmt, primary, extras)` entry point
+which installs a thread-local registry of `{lowercase_name →
+TableSchema}`. When the single-table compile path detects this
+registry, it allocates a `SubCtx` and threads it into WHERE/projection
+compilation. `materialize_inner_select` consults the registry to
+resolve the inner FROM's schema.
+
+### Subquery opcode weaving rules
+
+`SubCtx` tracks three offsets that every inner opcode is shifted by
+before splicing into the outer program:
+- **`reg_offset`**: every inner register is shifted so the inner's
+  register window doesn't alias the outer's. Starts above the outer's
+  expression-scratch region, grows after each inner.
+- **`next_cursor`**: every inner cursor id is shifted so inner and
+  outer cursors coexist in the same `VdbeState.cursors` vector.
+- **`agg_offset`**: every inner aggregate slot id is shifted for the
+  same reason. Outer `num_aggregates` reports the **total** (outer
+  plus all inner) count.
+
+Within the returned outer `CompileSelectOk`:
+- `num_cursors` = outer + Σ inner.num_cursors
+- `num_aggregates` = outer + Σ inner.num_aggregates
+- `num_registers` = recomputed from the woven program via
+  `count_max_register`
+- Buffer slot 0 is reserved for the outer DISTINCT / ORDER BY buffer;
+  inner subqueries allocate from slot 1 upward via
+  `SubCtx::fresh_buffer_slot`.
+
+### PC rebase for subquery-generated code
+
+The three subquery lowering helpers (`compile_scalar_subquery`,
+`compile_exists_subquery`, `compile_in_subquery`) emit opcodes whose
+PC targets are self-relative within the returned `code` slice (same
+convention as `compile_case`). The outer emitter calls
+`splice_compiled`, which invokes `rebase_pc` on every opcode. For α17,
+`rebase_pc` is extended to also rebase `BufferRewind.end_pc` and
+`BufferNext.body_pc` (previously only Goto/If/IfNot were rebased) —
+the scalar / EXISTS / IN lowerings all emit self-relative buffer
+iteration jumps and would otherwise produce infinite loops.
+
+### Pins added in α17
+
+23. **Scalar subquery empty-row semantics** — if the materialized
+    buffer is empty, the result register is set to `Value::Null` (not
+    a runtime error). Matches SQLite for a scalar subquery that
+    returns zero rows.
+24. **Scalar subquery multi-row** — SQLite-standard behavior would
+    error on > 1 row. The probe takes the FIRST row's first column
+    without policing. Documented deviation; a follow-up could add a
+    `BufferAssertSingle` opcode.
+25. **EXISTS is total** — never returns NULL; `Integer(0)` or
+    `Integer(1)` only.
+26. **IN / NOT IN NULL-semantics deviation** — SQL would return
+    `NULL` if no match found and the RHS contains NULL. The probe
+    returns `0` (i.e. "no match found"). Documented deviation; proper
+    NULL handling requires a per-row type check during the linear
+    scan.
+27. **Subquery prelude runs once** — the inner materialization runs
+    exactly once, before the outer OpenRead. Any inner reference to a
+    row-scoped column of the outer would be stale — this is the
+    correlated-subquery case, deferred.
+
 ## Regeneration envelope
 
 - Line budget: **~400-600 lines** of Rust. The opcode weaving is
