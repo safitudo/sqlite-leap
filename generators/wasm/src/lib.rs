@@ -1,144 +1,204 @@
 //! WASM wrapper for sqlite-leap.
 //!
-//! This crate is a thin convenience layer. The parent crate (`sqlite-leap` in
-//! `../../src-rust/`) already exposes a complete C-ABI in its `wasm` module
-//! (`leap_version`, `leap_alloc`, `leap_free`, `leap_db_new`, `leap_db_close`,
-//! `leap_exec`). Those symbols, being `#[no_mangle] extern "C"` on the parent
-//! crate, are propagated through the rlib into this crate's final
-//! `wasm32-unknown-unknown` cdylib automatically — rustc emits every
-//! `#[no_mangle]` function it compiled, regardless of which crate in the
-//! dependency graph declared it.
+//! Minimal C-ABI surface compiled to wasm32-unknown-unknown as a cdylib. JS
+//! callers use `WebAssembly.instantiate` and the exported memory directly —
+//! no `wasm-bindgen`, no `wasm-pack`, no glue toolchain. Mirrors the
+//! embedding pattern of `sql.js` / `sqlite-wasm`.
 //!
-//! What this wrapper adds on top:
+//! The engine crate `leap_sqlite` (in `../../src-rust/`) exposes its
+//! components directly (parser, compiler, vdbe, storage, core). This wrapper
+//! composes the SELECT-expression path — tokenize → parse → compile →
+//! execute — and serialises the resulting `Value` to a UTF-8 buffer the
+//! caller can read out of linear memory.
 //!
-//! - A `sqlite_leap_*`-prefixed public surface matching the task-spec shape:
-//!   `sqlite_leap_open` / `sqlite_leap_exec` / `sqlite_leap_close`, plus
-//!   companion `sqlite_leap_alloc` / `sqlite_leap_free` / `sqlite_leap_version`
-//!   helpers so a caller doesn't have to mix the two naming conventions.
+//! ## Exports
 //!
-//! - A `_force_link_engine_ffi` table: because the pass-through wrappers below
-//!   could in principle be stripped if rustc decides none of them are
-//!   reachable, we take function pointers to every engine FFI export. That
-//!   forces the linker to retain them even under aggressive LTO.
+//! | Symbol                              | Returns        | Notes |
+//! |-------------------------------------|----------------|-------|
+//! | `sqlite_leap_alloc(len: u32)`       | ptr (u32)      | Allocate `len` bytes; 0 on failure. |
+//! | `sqlite_leap_free(ptr: u32, len: u32)` | void        | `len` MUST match the original alloc. |
+//! | `sqlite_leap_eval(ptr: u32, len: u32)` | packed u64  | Evaluate `SELECT <expr>` (or bare expr). High 32 = result ptr, low 32 = result len. UTF-8. Caller frees. |
+//! | `sqlite_leap_version()`             | version (u32) | Packed `major<<24 \| minor<<16 \| patch<<8 \| build`. |
 //!
-//! ## Design note — why not re-declare the engine's `leap_*` here?
+//! ## Result format
 //!
-//! A prior version of this file re-exported `leap_alloc`, `leap_db_new`,
-//! etc. as local `#[no_mangle] extern "C"` pass-through functions calling
-//! `sqlite_leap::wasm::leap_alloc(..)`. That produced a wasm artifact with
-//! infinite-loop function bodies: the wrapper's `leap_alloc` and the engine's
-//! `leap_alloc` collapsed to the same `#[no_mangle]` symbol in the final
-//! cdylib, so the call inside the wrapper resolved to itself. Lesson: never
-//! re-declare a `#[no_mangle]` name that already exists in a dependency's
-//! rlib — just let it propagate, and use rust-level paths to invoke it from
-//! new wrapper functions with *different* export names.
+//! `sqlite_leap_eval` returns a single canonical-text rendering of the
+//! evaluated expression. On error it returns `error:<short message>`. This is
+//! deliberately minimal — the WASM target is a feasibility proof for
+//! CLAUDE.md's "third build" promise, not a full library API. JSON shaping is
+//! tracked as a follow-up gap (see README "Gaps").
 //!
-//! ## Gaps identified in the Rust engine's public API
-//!
-//! Flagging for a future spec revision (NOT fixing in src-rust/ per task
-//! scope):
-//!
-//! 1. `Database::new()` is the only exposed constructor; there is no
-//!    `Database::open(path)` for file-backed DBs. The WASM target has no
-//!    useful file system anyway, but a sql.js-style "name this in-memory DB
-//!    so you can reconnect to it" handle registry would help.
-//!
-//! 2. `leap_exec` always returns a full JSON buffer. For streaming large
-//!    result sets out of wasm memory this is suboptimal — a cursor-style API
-//!    (`leap_prepare` / `leap_step` / `leap_finalize`) would avoid copying
-//!    the whole result set into a single allocation.
-//!
-//! 3. There is no `leap_last_insert_rowid` / `leap_changes` accessor. JS
-//!    callers that want these today must parse the result JSON.
-//!
-//! 4. The parent crate pulls `std::fs` transitively. For a hermetic wasm
-//!    build this is harmless (fs calls return errors at runtime on
-//!    wasm32-unknown-unknown), but a future `no_fs` feature flag on
-//!    sqlite-leap would shave a few KB of dead-stripped intrinsics.
-//!
-//! DO NOT CHEAT: everything here is composed from the engine's *public*
-//! surface. No implementation borrowed from mainline SQLite, Turso, sql.js,
-//! sqlite-wasm, or rusqlite.
+//! DO NOT CHEAT: everything here is composed from `leap_sqlite`'s public
+//! Rust API. No mainline SQLite, Turso, sql.js, sqlite-wasm, or rusqlite code
+//! is borrowed.
 
-use sqlite_leap::wasm as engine;
+use leap_sqlite::compiler::expr_compile::compile_expr;
+use leap_sqlite::compiler::Program;
+use leap_sqlite::core::{Register, Value};
+use leap_sqlite::parser::expr::parse_expr;
+use leap_sqlite::parser::tokenizer::tokenize;
+use leap_sqlite::storage::database_new;
+use leap_sqlite::vdbe::opcodes_core::OpcodeCore;
+use leap_sqlite::vdbe::{execute_program, Opcode, VdbeState};
 
-// ---------- Link-retention anchor ----------
+// ---------- Linear-memory allocation -----------------------------------
 //
-// Collect raw function pointers to every engine FFI export into a static
-// table. The static is `#[used]`, which tells the linker it must not be
-// dropped even if nothing reads it. That in turn keeps each pointed-to
-// function alive. Without this, `lto = "fat"` plus opt-level = "z" can decide
-// the engine's `#[no_mangle]` functions are unreachable and strip them.
-//
-// Wrap the function-pointer array in a `Sync` newtype. Raw pointers are not
-// `Sync` by default and `static` items must be `Sync`, but for a
-// compile-time-constant keep-list with no runtime aliasing there is no
-// soundness concern. The cast `fn(..) -> .. as *const ()` is legal in const
-// context (unlike `as usize`, which is not).
-struct SyncFnPtrs(#[allow(dead_code)] [*const (); 6]);
-unsafe impl Sync for SyncFnPtrs {}
+// We hand JS a stable allocator: `sqlite_leap_alloc` reserves `len` bytes,
+// `sqlite_leap_free` releases them. Implementation: lean on Rust's `Vec<u8>`
+// and `mem::forget` so the buffer is owned by the caller until they hand it
+// back. On free we reconstruct the `Vec` from (ptr, len, len) and let it
+// drop.
 
-#[used]
-static _FORCE_LINK_ENGINE_FFI: SyncFnPtrs = SyncFnPtrs([
-    engine::leap_version as *const (),
-    engine::leap_alloc as *const (),
-    engine::leap_free as *const (),
-    engine::leap_db_new as *const (),
-    engine::leap_db_close as *const (),
-    engine::leap_exec as *const (),
-]);
-
-// ---------- sqlite_leap_* public surface ----------
-//
-// These are the task-spec exports. They wrap the engine FFI under new names so
-// there is no symbol collision. Each is a one-line forwarder; LTO inlines the
-// body, so there's no performance cost.
-
-/// Open a new database. Returns a non-zero handle on success; 0 on failure.
-///
-/// The filename pointer is currently ignored — every call produces a fresh
-/// in-memory database. Pass 0 if you don't have a filename. See "Gaps" above.
-#[no_mangle]
-pub extern "C" fn sqlite_leap_open(_filename_ptr: u32) -> u32 {
-    engine::leap_db_new()
-}
-
-/// Execute SQL against `handle`. Returns a packed `(ptr << 32) | len` pointing
-/// at a UTF-8 JSON buffer that the caller MUST free with
-/// `sqlite_leap_free(ptr, len)`.
-///
-/// The JSON shape matches the native cross-build harness:
-///   success: `{"rows":[[...], [...]]}`
-///   error:   `{"error":{"name":"...","fields":{...}}}`
-#[no_mangle]
-pub extern "C" fn sqlite_leap_exec(handle: u32, sql_ptr: u32, sql_len: u32) -> u64 {
-    engine::leap_exec(handle, sql_ptr, sql_len)
-}
-
-/// Close a database previously returned by `sqlite_leap_open`.
-/// Passing 0 or an already-closed handle is a silent no-op.
-#[no_mangle]
-pub extern "C" fn sqlite_leap_close(handle: u32) {
-    engine::leap_db_close(handle);
-}
-
-/// Allocate `len` bytes in the wasm linear memory and return the pointer.
-/// Returns 0 on failure (`len == 0` or OOM).
+/// Allocate `len` bytes in linear memory. Returns the pointer, or 0 on
+/// failure (including `len == 0`).
 #[no_mangle]
 pub extern "C" fn sqlite_leap_alloc(len: u32) -> u32 {
-    engine::leap_alloc(len)
+    if len == 0 {
+        return 0;
+    }
+    let mut buf: Vec<u8> = Vec::with_capacity(len as usize);
+    // SAFETY: capacity == len, and u8 has no Drop; setting len is safe.
+    unsafe { buf.set_len(len as usize) };
+    let ptr = buf.as_mut_ptr() as u32;
+    core::mem::forget(buf);
+    ptr
 }
 
-/// Free a buffer previously returned by `sqlite_leap_alloc` or the upper 32
-/// bits of a `sqlite_leap_exec` result. `len` MUST match the original
-/// allocation.
+/// Free a buffer previously returned by `sqlite_leap_alloc` (or the upper 32
+/// bits of `sqlite_leap_eval`'s packed return). `len` MUST match the
+/// original allocation.
 #[no_mangle]
 pub extern "C" fn sqlite_leap_free(ptr: u32, len: u32) {
-    engine::leap_free(ptr, len);
+    if ptr == 0 || len == 0 {
+        return;
+    }
+    // SAFETY: the (ptr, len) was produced by `sqlite_leap_alloc` (or one of
+    // the result-returning paths below) which forgot a Vec<u8> with
+    // capacity == len. Reconstructing the Vec lets it drop normally.
+    unsafe {
+        let _ = Vec::from_raw_parts(ptr as *mut u8, len as usize, len as usize);
+    }
 }
 
-/// Version word: `major << 24 | minor << 16 | patch << 8 | build`.
+/// Engine version. Packed `major<<24 | minor<<16 | patch<<8 | build`.
+/// Hard-coded to 0.1.0+0 — there is no version constant in the engine yet.
 #[no_mangle]
 pub extern "C" fn sqlite_leap_version() -> u32 {
-    engine::leap_version()
+    (0u32 << 24) | (1u32 << 16) | (0u32 << 8)
+}
+
+// ---------- The eval path ----------------------------------------------
+//
+// `sqlite_leap_eval(ptr, len)` reads `len` bytes of UTF-8 starting at `ptr`,
+// treats them as a SQL expression source, and returns the evaluated value's
+// canonical text rendering in a freshly-allocated buffer.
+//
+// The string `SELECT <expr>` is also accepted: we strip a leading
+// case-insensitive `SELECT ` prefix so callers can pass full statements for
+// the trivial constant-expression smoke. No FROM clause is supported in this
+// wrapper — that path requires the storage / cursor machinery and is the
+// next layer of WASM scope (see README "Gaps").
+
+fn pack(ptr: u32, len: u32) -> u64 {
+    ((ptr as u64) << 32) | (len as u64)
+}
+
+fn alloc_and_copy(s: &str) -> u64 {
+    let bytes = s.as_bytes();
+    let len = bytes.len() as u32;
+    if len == 0 {
+        return 0;
+    }
+    let mut buf: Vec<u8> = Vec::with_capacity(len as usize);
+    buf.extend_from_slice(bytes);
+    let ptr = buf.as_mut_ptr() as u32;
+    debug_assert_eq!(buf.capacity(), buf.len());
+    core::mem::forget(buf);
+    pack(ptr, len)
+}
+
+fn fmt_value(v: &Value) -> String {
+    match v {
+        Value::Null => "null".into(),
+        Value::Integer { v } => format!("{}", v),
+        Value::Real { v } => format!("{}", v),
+        Value::Text { v } => v.clone(),
+        Value::Blob { v } => format!("blob[{}]", v.len()),
+    }
+}
+
+fn strip_select_prefix(src: &str) -> &str {
+    let trimmed = src.trim_start();
+    // Case-insensitive `SELECT` followed by whitespace.
+    if trimmed.len() >= 7 {
+        let head = &trimmed.as_bytes()[..6];
+        let after = trimmed.as_bytes()[6];
+        if head.eq_ignore_ascii_case(b"SELECT") && (after == b' ' || after == b'\t') {
+            return trimmed[7..].trim_start_matches(';').trim();
+        }
+    }
+    trimmed.trim_end_matches(';').trim()
+}
+
+fn sink(_state: &VdbeState<'_>, _start: Register, _count: u32) {}
+
+fn eval_expr_src(src: &str) -> Result<Value, String> {
+    let toks = tokenize(src).map_err(|e| format!("lex: {}", e.message))?;
+    let parsed = parse_expr(&toks, 0).map_err(|e| format!("parse: {}", e.message))?;
+    let compiled = compile_expr(&parsed.expr, Register(0))
+        .map_err(|e| format!("compile: {}", e.message))?;
+
+    let result_reg = compiled.result_reg;
+    let num_registers = compiled.next_reg.0;
+
+    let mut opcodes: Vec<Opcode<'static>> = compiled.code;
+    opcodes.push(Opcode::Core { op: OpcodeCore::Halt });
+    let opcode_count = opcodes.len() as u32;
+
+    let program = Program {
+        num_registers,
+        num_cursors: 0,
+        num_aggregates: 0,
+        num_windows: 0,
+        opcode_count,
+        opcodes,
+        row_sink: sink,
+    };
+
+    let db = database_new();
+    let mut state = VdbeState::new(
+        program.num_registers,
+        program.num_cursors,
+        program.num_aggregates,
+        program.num_windows,
+        &db,
+    );
+    let _halt = execute_program(&program, &mut state);
+    Ok(state.get_register(result_reg).clone())
+}
+
+/// Evaluate a SQL constant expression (or `SELECT <expr>`). Returns
+/// packed `(ptr<<32) | len`. The buffer holds canonical UTF-8 text. The
+/// caller MUST `sqlite_leap_free(ptr, len)` when done.
+///
+/// On error the buffer contains `error:<short message>` — there is no
+/// out-of-band signal in this minimal surface.
+#[no_mangle]
+pub extern "C" fn sqlite_leap_eval(ptr: u32, len: u32) -> u64 {
+    if ptr == 0 || len == 0 {
+        return alloc_and_copy("error:empty input");
+    }
+    // SAFETY: the caller asserts (ptr, len) is a valid UTF-8 buffer in our
+    // linear memory. We borrow it only for the duration of this call; we do
+    // not free it (the caller owns the input buffer separately).
+    let src_bytes = unsafe { core::slice::from_raw_parts(ptr as *const u8, len as usize) };
+    let src = match core::str::from_utf8(src_bytes) {
+        Ok(s) => s,
+        Err(_) => return alloc_and_copy("error:input not utf-8"),
+    };
+    let stripped = strip_select_prefix(src);
+    match eval_expr_src(stripped) {
+        Ok(v) => alloc_and_copy(&fmt_value(&v)),
+        Err(msg) => alloc_and_copy(&format!("error:{}", msg)),
+    }
 }

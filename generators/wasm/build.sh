@@ -31,8 +31,8 @@ PROFILE="${PROFILE:-release}"
 OUT_DIR="$REPO_ROOT/src-wasm"
 ARTIFACT_NAME="sqlite_leap.wasm"
 
-if [ ! -d "$REPO_ROOT/src-rust/src" ]; then
-    echo "[generators/wasm] ERROR: src-rust/ has no src/ — run generators/rust/generate.sh first." >&2
+if [ ! -f "$REPO_ROOT/src-rust/lib.rs" ]; then
+    echo "[generators/wasm] ERROR: src-rust/lib.rs missing — run generators/rust/generate.sh first." >&2
     exit 1
 fi
 

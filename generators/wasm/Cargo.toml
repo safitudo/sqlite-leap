@@ -24,7 +24,8 @@ crate-type = ["cdylib", "rlib"]
 # talks raw C-ABI to JS (ptr, len, u64 packed results), mirroring the sql.js /
 # sqlite-wasm embedding pattern without pulling the wasm-bindgen glue toolchain.
 [dependencies]
-sqlite-leap = { path = "../../src-rust" }
+# The engine crate is named `leap_sqlite` (see ../../src-rust/Cargo.toml).
+leap_sqlite = { path = "../../src-rust" }
 
 # Release profile tuned for a small wasm artifact. `panic = "abort"` drops the
 # unwinding machinery; `lto = "fat"` and `codegen-units = 1` let LLVM strip all
