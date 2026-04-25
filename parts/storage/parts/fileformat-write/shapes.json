@@ -17,11 +17,12 @@
 
     "WriteOk": {
       "kind": "record",
-      "doc": "Successful write: the new DbHeader.change_counter, the rowid assigned to the inserted row, and the total bytes written (== file size, since the probe handles only single-page tables).",
+      "doc": "Successful write: the new DbHeader.change_counter, the rowid assigned to the inserted row, the total bytes written (== file size after write), and a `did_split` flag indicating whether a leaf-page split fired during this insert. did_split=true also implies database_size grew (1 new page for non-root leaf split, 2 new pages for root-split).",
       "fields": {
         "new_change_counter": "u32",
         "assigned_rowid":     "i64",
-        "bytes_written":      "u32"
+        "bytes_written":      "u32",
+        "did_split":          "bool"
       }
     }
   },

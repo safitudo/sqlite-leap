@@ -167,9 +167,38 @@ else
 fi
 echo
 
+echo -e "${BOLD}### Part 5: Multi-page btree-write split${NC}"
+echo
+echo -e "${YELLOW}$ bash tests/fixtures/build_split_fixture.sh /tmp/split_probe.db${NC}"
+bash tests/fixtures/build_split_fixture.sh /tmp/split_probe.db | sed 's/^/  /'
+
+run_target "Rust:   trigger root-split (270th insert)" \
+    "cargo run --example fileformat_split_runner -- /tmp/split_probe.db" \
+    "cargo run --quiet --manifest-path src-rust/Cargo.toml --example fileformat_split_runner -- /tmp/split_probe.db 2>/dev/null"
+
+echo -e "${BOLD}─── mainline sqlite3 sees post-split file as valid ───${NC}"
+echo -e "${YELLOW}$ sqlite3 /tmp/split_probe.db 'SELECT count(*) FROM t'${NC}"
+SPLIT_COUNT=$(sqlite3 /tmp/split_probe.db "SELECT count(*) FROM t")
+echo "  $SPLIT_COUNT"
+echo -e "${YELLOW}$ sqlite3 /tmp/split_probe.db 'PRAGMA integrity_check'${NC}"
+SPLIT_INTEG=$(sqlite3 /tmp/split_probe.db "PRAGMA integrity_check")
+echo "  $SPLIT_INTEG"
+echo -e "${YELLOW}$ sqlite3 /tmp/split_probe.db 'SELECT id FROM t ORDER BY id' | check contiguous${NC}"
+SPLIT_CONTIG=$(sqlite3 /tmp/split_probe.db "SELECT id FROM t ORDER BY id" | awk 'BEGIN{prev=0; ok=1} {if ($1 != prev+1) {ok=0; print "GAP at " prev " -> " $1; exit}; prev=$1} END {if (ok) print "contiguous 1.." prev}')
+echo "  $SPLIT_CONTIG"
+SPLIT_SIZE=$(stat -f%z /tmp/split_probe.db 2>/dev/null || stat -c%s /tmp/split_probe.db)
+echo "  file size after split: $SPLIT_SIZE (was 8192; delta = $((SPLIT_SIZE - 8192)) = 2 * 4096)"
+if [ "$SPLIT_COUNT" = "270" ] && [ "$SPLIT_INTEG" = "ok" ] && [ "$SPLIT_SIZE" = "16384" ]; then
+    echo -e "  ${GREEN}root-split: count=270, integrity=ok, +2 pages${NC}"
+else
+    echo -e "  FAIL: count=$SPLIT_COUNT integrity='$SPLIT_INTEG' size=$SPLIT_SIZE"
+fi
+echo
+
 echo -e "${BOLD}═══════════════════════════════════════════════════════════════${NC}"
 echo -e "${GREEN}  5-target SELECT + DML + compound-expr steel thread: GREEN${NC}"
 echo -e "${GREEN}  Mainline-compatible file-format write:               GREEN${NC}"
+echo -e "${GREEN}  Multi-page btree-write split (Rust):                 GREEN${NC}"
 echo -e "${BOLD}═══════════════════════════════════════════════════════════════${NC}"
 echo
 echo "Data-path LOC (agent-emitted from specs only, excludes runners):"
