@@ -58,9 +58,29 @@
       }
     },
 
+    "CompoundOp": {
+      "kind": "variant",
+      "doc": "Set operator in a compound SELECT. `Union` dedups the union; `UnionAll` preserves duplicates; `Intersect` keeps rows in both sides; `Except` keeps rows in the left side not present in the right. Parsed from keywords `UNION`, `UNION ALL`, `INTERSECT`, `EXCEPT`.",
+      "cases": {
+        "Union":    { "doc": "`UNION` — set union, duplicates removed." },
+        "UnionAll": { "doc": "`UNION ALL` — multiset union, duplicates preserved." },
+        "Intersect":{ "doc": "`INTERSECT` — set intersection." },
+        "Except":   { "doc": "`EXCEPT` — set difference (left − right)." }
+      }
+    },
+
+    "CompoundTail": {
+      "kind": "record",
+      "doc": "One element of a compound SELECT's left-associative tail: the operator binding this core to the accumulated left, and the core itself. `select` MUST have empty `order_by`, None `limit`/`offset`, and empty `compound` — enforced at parse time (per-core trailing clauses in compound position are a parse error).",
+      "fields": {
+        "op":     "CompoundOp",
+        "select": "SelectStmt"
+      }
+    },
+
     "SelectStmt": {
       "kind": "record",
-      "doc": "Parsed SELECT statement (single, non-compound). Compound SELECTs (UNION/INTERSECT/EXCEPT), CTEs, and window functions are deferred to follow-up leaves. The probe covers: DISTINCT flag, projection list, FROM (single table OR JOINs), WHERE, GROUP BY, HAVING, ORDER BY, LIMIT/OFFSET. All `option<Expr>` are present iff the clause was written. group_by is empty iff the clause was omitted.",
+      "doc": "Parsed SELECT statement. Non-compound queries have `compound = []` and their own `order_by` / `limit` / `offset` fields describe trailing clauses on the single statement. Compound queries (UNION/UNION ALL/INTERSECT/EXCEPT) parse LEFT-ASSOCIATIVELY: the outer record holds the FIRST core's fields (distinct, projection, from, where_, group_by, having) plus a non-empty `compound` list; `order_by` / `limit` / `offset` attach to the COMPOUND AS A WHOLE (applied after the set operation). Per-core trailing clauses before a compound operator are a parse error. Each `CompoundTail` nests a `SelectStmt` whose own `order_by` / `limit` / `offset` / `compound` MUST be empty.",
       "fields": {
         "distinct":   "bool",
         "projection": { "list": "ProjectionItem" },
@@ -70,7 +90,8 @@
         "having":     { "option": "Expr" },
         "order_by":   { "list": "OrderByItem" },
         "limit":      { "option": "Expr" },
-        "offset":     { "option": "Expr" }
+        "offset":     { "option": "Expr" },
+        "compound":   { "list": "CompoundTail" }
       }
     },
 

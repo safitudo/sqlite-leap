@@ -33,6 +33,15 @@ Admitted clauses (in grammatical order):
 - `HAVING` expr — predicate evaluated post-aggregation.
 - `ORDER BY` expr [ASC|DESC] comma-separated.
 - `LIMIT` expr [`OFFSET` expr].
+- Compound SELECT: `A UNION [ALL] B`, `A INTERSECT B`, `A EXCEPT B`.
+  Left-associative: `A UNION B UNION C` parses as
+  `{core=A, compound=[(Union,B),(Union,C)]}`. ORDER BY / LIMIT /
+  OFFSET MUST attach to the LAST core only and bind to the whole
+  compound — they live on the outer `SelectStmt`'s own order_by /
+  limit / offset fields. Per-core ORDER BY / LIMIT / OFFSET
+  (before a compound operator) is a parse-time error
+  `"ORDER BY before compound operator is not allowed"` /
+  `"LIMIT before compound operator is not allowed"`.
 
 Deferred (flag ParseError with `"deferred: <construct>"` if seen;
 resolve in follow-up leaves):
@@ -41,7 +50,6 @@ resolve in follow-up leaves):
   `"deferred: NATURAL JOIN"` message).
 - Subqueries in FROM (derived tables).
 - `WITH` (CTE).
-- Compound SELECT (UNION / INTERSECT / EXCEPT).
 - Window functions (`OVER`).
 - Bare-ident implicit alias (`SELECT expr alias` without AS).
 
@@ -313,6 +321,20 @@ This is pin #9 below.
     state, no tokenizer re-invocation.
 14. **Recursive integration** — every embedded expression is parsed
     through the imported `parse_expr`, not a local re-implementation.
+15. **Compound SELECT shape** — `A UNION B`, `A UNION ALL B`,
+    `A INTERSECT B`, `A EXCEPT B`. Parses LEFT-ASSOCIATIVELY into the
+    outer `SelectStmt.compound: list<CompoundTail>`. Each
+    `CompoundTail` stores `{ op: CompoundOp, select: SelectStmt }`
+    where the nested `select` MUST have empty `order_by`, `limit` /
+    `offset` both `None`, and empty `compound` — enforced at parse
+    time. `CompoundOp ∈ { Union, UnionAll, Intersect, Except }`.
+16. **Compound SELECT trailing clauses** — ORDER BY / LIMIT / OFFSET
+    appearing BEFORE a compound operator is a parse-time error. They
+    MAY appear only after the LAST core of the compound; they attach
+    to the OUTER `SelectStmt`'s own `order_by` / `limit` / `offset`
+    fields and apply to the compound as a whole. A non-compound
+    query behaves exactly as before (compound=[], order_by / limit
+    / offset on the outer are the single-statement's clauses).
 
 ## Regeneration envelope
 

@@ -40,6 +40,14 @@ Admitted:
   buffer-sort-replay pattern. ORDER BY across the JOIN compile
   path remains deferred.
 
+Admitted (see §"Compound SELECT" below):
+- **Compound SELECT** (`A UNION [ALL] B` with any number of cores,
+  left-associative). `INTERSECT` and `EXCEPT` are parser-admitted but
+  compiler-deferred with the message `"deferred: INTERSECT compound
+  SELECT (needs BufferIntersect opcode)"` or the EXCEPT equivalent —
+  each needs a VDBE buffer-set-op opcode that is not yet part of the
+  shape.
+
 Deferred (CompileError `"deferred: <construct>"`):
 - **Multi-group aggregation** — `GROUP BY` with more than one
   potential group. **SPEC GAP**: opcodes-agg / VdbeState provide
@@ -621,6 +629,80 @@ opcodes — no new VDBE instructions needed.
     uses opcodes already declared by the VDBE shape; no custom
     helpers leak. `compile_expr` calls go through the imported
     function unchanged.
+14. **Compound SELECT column-count match** — every core of a
+    compound SELECT must expand to the SAME projection arity (after
+    Star / TableStar expansion). Mismatch is a compile-time
+    CompileError `"compound SELECT: column count mismatch"`.
+15. **Compound SELECT value comparison** — dedup (UNION) and any
+    inter-core set comparison use the same canonical total order
+    used by `BufferDedup` / `BufferSort` for DISTINCT (total-row
+    equality). Per-column type-affinity coercion is NOT performed;
+    values compare byte-identically under the canonical order.
+16. **Compound SELECT per-core trailing clauses** — per-core ORDER
+    BY / LIMIT / OFFSET are rejected at the parser. The compiler
+    asserts defensively; encountering a compound core with non-empty
+    `order_by` / `limit` / `offset` is a CompileError `"compound
+    SELECT: per-core ORDER BY not allowed"` (or LIMIT/OFFSET).
+17. **Compound SELECT outer trailing clauses** — outer `order_by`
+    keys MUST be positional IntLits (1-based) or `Col { name }`
+    references matching a projection item (by explicit alias first,
+    then by a trailing-`Col`-expression name, case-insensitive).
+    Other forms defer with `"deferred: complex outer ORDER BY in
+    compound SELECT"`. Outer LIMIT / OFFSET MUST be integer literals;
+    non-literal forms defer with `"deferred: non-literal LIMIT/OFFSET
+    in compound SELECT"`.
+
+## Compound SELECT
+
+Admitted: any number of cores combined with `UNION` and `UNION ALL`
+(mixed or uniform). `INTERSECT` / `EXCEPT` are admitted at the
+parser but clean-stopped at the compiler with a `"deferred: ..."`
+CompileError pending a VDBE BufferIntersect / BufferExcept opcode.
+
+### Lowering
+
+One shared row buffer (slot 0) accumulates every core's rows. Each
+core is compiled independently via the single-core path (`ResultRow`
++ `Halt` + its own cursors + its own local registers). The compound
+driver then:
+
+1. Emits `BufferOpen { slot: 0, num_cols: result_count }` once.
+2. For each core, in left-to-right order:
+   - Rewrites every `ResultRow { start, count }` → `BufferAppend
+     { slot: 0, first_reg: start, num_cols: count }`.
+   - Strips the trailing `Halt`.
+   - Rebases absolute PC targets inside the core's opcode block by
+     the block's placement offset in the final program.
+   - Appends the rebased block to the final program.
+3. If ANY tail uses `Union` (vs `UnionAll`), emits
+   `BufferSort { slot: 0, keys = all projection cols ASC }` followed
+   by `BufferDedup { slot: 0 }`. Otherwise (all `UnionAll`) no sort
+   and no dedup — rows retain per-core insertion order.
+4. If the outer `order_by` is non-empty, emits `BufferSort { slot: 0,
+   keys = resolved ORDER BY indices/directions }`.
+5. Emits a replay loop: `BufferRewind` → `BufferRead` → optional
+   OFFSET / LIMIT gating → `ResultRow` → `BufferNext` →
+   (body_pc = REPLAY_TOP). Then `Halt`.
+
+Cross-core register/cursor reuse is safe because each core runs to
+completion (closing its cursors) before the next core begins. The
+shared `slot: 0` buffer is the only state that persists across cores.
+
+### Compile errors specific to compound SELECT
+
+- `"compound SELECT: column count mismatch"` — projection arities
+  differ.
+- `"compound SELECT: per-core ORDER BY not allowed"` /
+  `"compound SELECT: per-core LIMIT/OFFSET not allowed"` — defensive
+  assertion (parser also rejects).
+- `"deferred: INTERSECT compound SELECT (needs BufferIntersect
+  opcode)"` — INTERSECT clean-stop.
+- `"deferred: EXCEPT compound SELECT (needs BufferExcept opcode)"` —
+  EXCEPT clean-stop.
+- `"deferred: complex outer ORDER BY in compound SELECT"` — outer
+  ORDER BY key is neither positional nor a projection-name reference.
+- `"deferred: non-literal LIMIT in compound SELECT"` /
+  `"deferred: non-literal OFFSET in compound SELECT"`.
 
 ## Regeneration envelope
 

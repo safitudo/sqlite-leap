@@ -45,3 +45,5 @@ tests/sqllogictest/.fetched/
 
 # tests/sqllogictest/results/ IS committed — small logs (~28 KB each) are
 # evidence for the corpus-pass claims in DASHBOARD.md.
+
+.claude/

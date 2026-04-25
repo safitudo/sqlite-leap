@@ -7,6 +7,8 @@
     "ProjectionItem": "/parts/parser/parts/select-stmt",
     "TableRef":       "/parts/parser/parts/select-stmt",
     "OrderByItem":    "/parts/parser/parts/select-stmt",
+    "CompoundOp":     "/parts/parser/parts/select-stmt",
+    "CompoundTail":   "/parts/parser/parts/select-stmt",
     "Expr":           "/parts/parser/parts/expr",
     "Register":       "/parts/core",
     "Value":          "/parts/core",
@@ -49,10 +51,18 @@
 
   "functions": {
     "compile_select": {
-      "doc": "Compile a parsed SELECT statement into a VDBE opcode sequence, given a TableSchema for its FROM table (or an empty TableSchema for no-FROM SELECTs). Emits opcodes that execute the query and invoke the caller's ResultRow sink for each row that passes WHERE. Caller must wrap in Program, instantiate VdbeState, and run execute_program. Probe scope per master.md — no JOIN, no ORDER BY, no aggregates.",
+      "doc": "Compile a parsed SELECT statement into a VDBE opcode sequence, given a TableSchema for its FROM table (or an empty TableSchema for no-FROM SELECTs). Emits opcodes that execute the query and invoke the caller's ResultRow sink for each row that passes WHERE. Caller must wrap in Program, instantiate VdbeState, and run execute_program. For compound SELECTs (stmt.compound non-empty) this function delegates to `compile_select_compound`, replicating the single schema to every core — which is correct only when every core references the same table; otherwise callers MUST use `compile_select_compound` directly with one schema per core.",
       "params": [
         { "name": "stmt",   "type": { "borrow": "SelectStmt" } },
         { "name": "schema", "type": { "borrow": "TableSchema" } }
+      ],
+      "returns": { "result": { "ok": "CompileSelectOk", "err": "CompileError" } }
+    },
+    "compile_select_compound": {
+      "doc": "Compile a compound SELECT (UNION / UNION ALL; INTERSECT / EXCEPT clean-stop as deferred). `schemas` supplies one schema per core in left-to-right order — `schemas[0]` describes the outer `stmt`'s own core, `schemas[i+1]` describes `stmt.compound[i].select`. Returns a single CompileSelectOk whose opcode list opens buffer slot 0, runs each core (with ResultRow rewritten to BufferAppend into slot 0), applies sort/dedup per compound semantics, applies the outer ORDER BY / LIMIT / OFFSET, and replays the buffer. Column-count mismatch across cores -> CompileError. Non-compound input (empty compound tail) delegates to compile_select with schemas[0].",
+      "params": [
+        { "name": "stmt",    "type": { "borrow": "SelectStmt" } },
+        { "name": "schemas", "type": { "borrow": { "list": { "borrow": "TableSchema" } } } }
       ],
       "returns": { "result": { "ok": "CompileSelectOk", "err": "CompileError" } }
     }
