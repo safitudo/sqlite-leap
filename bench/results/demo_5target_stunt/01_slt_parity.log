@@ -1,0 +1,153 @@
+[1m═══════════════════════════════════════════════════════════════[0m
+[1m  5-target sqllogictest matrix[0m
+[1m═══════════════════════════════════════════════════════════════[0m
+
+Fixture: tests/sqllogictest/5target_harness/extended.test
+
+[1m── Building per-target drivers ──[0m
+  rust    ... [0;32mok[0m
+  python  ... [0;32mok[0m
+  c       ... [0;32mok[0m
+  zig     ... [0;32mok[0m
+  go      ... [0;32mok[0m
+
+[1m── Running each target on the fixture ──[0m
+
+line    kind       rust    python  c       zig     go     
+24      statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+27      statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+30      statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+33      statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+36      statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+39      statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+42      statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+45      statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+48      statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+51      statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+54      statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+57      statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+60      statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+63      statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+66      statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+69      statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+76      query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+85      query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+94      query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+108     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+116     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+121     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+126     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+131     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+136     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+141     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+150     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+155     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+163     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+169     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+176     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+182     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+189     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+196     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+202     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+209     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+217     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+224     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+231     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+238     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+243     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+254     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+259     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+266     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+282     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+289     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+295     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+302     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+309     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+314     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+324     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+333     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+342     query      [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m
+349     query      [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m
+355     query      [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m
+360     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+373     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+382     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+391     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+400     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+405     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+418     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+423     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+428     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+433     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+438     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+443     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+448     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+453     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+458     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+468     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+482     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+496     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+502     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+512     query      [0;32mPASS   [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;32mPASS   [0m
+522     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;33mDEFER  [0m [0;32mPASS   [0m
+531     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;33mDEFER  [0m [0;32mPASS   [0m
+540     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;33mDEFER  [0m [0;32mPASS   [0m
+549     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;33mDEFER  [0m [0;32mPASS   [0m
+562     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+567     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+572     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+577     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+586     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+591     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+596     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+601     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+606     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+612     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+624     query      [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m
+633     query      [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m
+640     query      [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m
+646     query      [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m
+655     query      [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m
+664     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+670     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+675     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+681     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+686     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+696     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+702     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+709     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+719     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+724     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+729     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+734     query      [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m
+739     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+744     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+753     query      [0;32mPASS   [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;32mPASS   [0m
+761     query      [0;32mPASS   [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;32mPASS   [0m
+769     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+782     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+796     query      [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m
+804     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+812     query      [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m
+822     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+831     query      [0;32mPASS   [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;32mPASS   [0m [0;33mDEFER  [0m
+841     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;33mDEFER  [0m [0;32mPASS   [0m
+850     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;33mDEFER  [0m [0;32mPASS   [0m
+859     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;33mDEFER  [0m [0;32mPASS   [0m
+869     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+873     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+877     query      [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m
+886     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+891     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+
+[1m── Per-target summary ──[0m
+  SUMMARY target=rust pass=113 fail=0 defer=12 total=125
+  SUMMARY target=python pass=109 fail=0 defer=16 total=125
+  SUMMARY target=c pass=109 fail=0 defer=16 total=125
+  SUMMARY target=zig pass=103 fail=0 defer=22 total=125
+  SUMMARY target=go pass=112 fail=0 defer=13 total=125
+
+[1m── Cross-target equivalence ──[0m
+  [0;32mOK[0m all participating targets agree on every record
+
+[1m[0;32mRESULT: every participating target green; no divergence.[0m

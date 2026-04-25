@@ -1,0 +1,86 @@
+{"new_change_counter":5002,"assigned_rowid":5001,"bytes_written":94208,"did_split":false,"depth_increased":false}
+> Err(CompileError {
+    |         ----------------------- matches all the relevant values
+...
+524 |         Expr::WindowCall { .. } => Err(CompileError {
+    |         ^^^^^^^^^^^^^^^^^^^^^^^ no value can reach this
+    |
+    = note: `#[warn(unreachable_patterns)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+    --> compiler/select_compile.rs:7341:9
+     |
+7341 |     let mut after_stage = stage_pos_base + 1;
+     |         ----^^^^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `max_buffer_slot_used` is never used
+   --> compiler/select_compile.rs:654:4
+    |
+654 | fn max_buffer_slot_used<'src>(ops: &[Opcode<'src>]) -> u32 {
+    |    ^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `ident_text` is never used
+  --> parser/create_table_stmt.rs:71:4
+   |
+71 | fn ident_text<'src>(tokens: &[Token<'src>], i: u32) -> Option<&'src str> {
+   |    ^^^^^^^^^^
+
+{"new_change_counter":272,"assigned_rowid":271,"bytes_written":16384,"did_split":false,"depth_increased":false}
+  prefill=270 rust -> b5f1f8978407c13291c0fa124ec1e955e2b45ff4
+{"new_change_counter":272,"assigned_rowid":271,"bytes_written":16384,"did_split":false,"depth_increased":false}
+  prefill=270 c -> b5f1f8978407c13291c0fa124ec1e955e2b45ff4
+  prefill=270 zig -> b5f1f8978407c13291c0fa124ec1e955e2b45ff4
+{"new_change_counter":272,"assigned_rowid":271,"bytes_written":16384,"did_split":false,"depth_increased":false}
+  prefill=270 go -> b5f1f8978407c13291c0fa124ec1e955e2b45ff4
+{"new_change_counter":272,"assigned_rowid":271,"bytes_written":16384,"did_split":false,"depth_increased":false}
+  prefill=270 python -> b5f1f8978407c13291c0fa124ec1e955e2b45ff4
+warning: unreachable pattern
+   --> compiler/select_compile.rs:524:9
+    |
+396 |         Expr::WindowCall { .. } => Err(CompileError {
+    |         ----------------------- matches all the relevant values
+...
+524 |         Expr::WindowCall { .. } => Err(CompileError {
+    |         ^^^^^^^^^^^^^^^^^^^^^^^ no value can reach this
+    |
+    = note: `#[warn(unreachable_patterns)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+    --> compiler/select_compile.rs:7341:9
+     |
+7341 |     let mut after_stage = stage_pos_base + 1;
+     |         ----^^^^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `max_buffer_slot_used` is never used
+   --> compiler/select_compile.rs:654:4
+    |
+654 | fn max_buffer_slot_used<'src>(ops: &[Opcode<'src>]) -> u32 {
+    |    ^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `ident_text` is never used
+  --> parser/create_table_stmt.rs:71:4
+   |
+71 | fn ident_text<'src>(tokens: &[Token<'src>], i: u32) -> Option<&'src str> {
+   |    ^^^^^^^^^^
+
+{"new_change_counter":5002,"assigned_rowid":5001,"bytes_written":94208,"did_split":false,"depth_increased":false}
+  prefill=5000 rust -> fef632262aa2b02fb620b6c3dcfab5ba55cb1bda
+{"new_change_counter":5002,"assigned_rowid":5001,"bytes_written":94208,"did_split":false,"depth_increased":false}
+  prefill=5000 c -> fef632262aa2b02fb620b6c3dcfab5ba55cb1bda
+  prefill=5000 zig -> fef632262aa2b02fb620b6c3dcfab5ba55cb1bda
+{"new_change_counter":5002,"assigned_rowid":5001,"bytes_written":94208,"did_split":false,"depth_increased":false}
+  prefill=5000 go -> fef632262aa2b02fb620b6c3dcfab5ba55cb1bda
+{"new_change_counter":5002,"assigned_rowid":5001,"bytes_written":94208,"did_split":false,"depth_increased":false}
+  prefill=5000 python -> fef632262aa2b02fb620b6c3dcfab5ba55cb1bda

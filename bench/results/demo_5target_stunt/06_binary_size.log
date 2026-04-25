@@ -1,0 +1,71 @@
+>>> Rust (release-small: opt-level=z, lto=fat, panic=abort, strip)
+warning: unreachable pattern
+   --> compiler/select_compile.rs:524:9
+    |
+396 |         Expr::WindowCall { .. } => Err(CompileError {
+    |         ----------------------- matches all the relevant values
+...
+524 |         Expr::WindowCall { .. } => Err(CompileError {
+    |         ^^^^^^^^^^^^^^^^^^^^^^^ no value can reach this
+    |
+    = note: `#[warn(unreachable_patterns)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+    --> compiler/select_compile.rs:7341:9
+     |
+7341 |     let mut after_stage = stage_pos_base + 1;
+     |         ----^^^^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `max_buffer_slot_used` is never used
+   --> compiler/select_compile.rs:654:4
+    |
+654 | fn max_buffer_slot_used<'src>(ops: &[Opcode<'src>]) -> u32 {
+    |    ^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `ident_text` is never used
+  --> parser/create_table_stmt.rs:71:4
+   |
+71 | fn ident_text<'src>(tokens: &[Token<'src>], i: u32) -> Option<&'src str> {
+   |    ^^^^^^^^^^
+
+warning: `leap_sqlite` (lib) generated 4 warnings (run `cargo fix --lib -p leap_sqlite` to apply 1 suggestion)
+    Finished `release-small` profile [optimized] target(s) in 0.00s
+>>> C (-Os, strip, dead-code eliminations)
+>>> Zig (-Doptimize=ReleaseSmall, strip)
+OK: Zig SELECT steel thread green
+>>> Go (-ldflags '-s -w' -trimpath)
+>>> Python (source bytes; interpreter footprint reported separately)
+# Lane 5 — 5-target binary size
+
+Generated 2026-04-25T09:16:56Z on Darwin arm64.
+Mainline sqlite3 baseline: `/usr/bin/sqlite3` = 4690560 bytes (4580.6 KB).
+
+Each row builds the same SELECT behavioral smoke (parser + compiler + VDBE + storage)
+with the smallest-binary flags available in that toolchain.
+
+| target | bytes | KB | vs sqlite3 mainline | notes |
+|---|---:|---:|---:|---|
+| c | 157752 | 154.1 | 0.03x | gcc -Os -ffunction-sections + dead-strip + strip |
+| rust | 536032 | 523.5 | 0.11x | cargo --profile release-small |
+| zig | 2449864 | 2392.4 | 0.52x | zig build -Doptimize=ReleaseSmall + strip |
+| go | 2344898 | 2289.9 | 0.50x | go build -trimpath -ldflags '-s -w' |
+| python | 553975 | 541.0 | 0.12x | .py source only; interpreter python3.10 = 33816 bytes (excluded) |
+| sqlite3 (mainline) | 4690560 | 4580.6 | 1.00x | system `3.51.0` |
+
+**Smallest binary target:** c at 157752 bytes (154.1 KB).
+**C target beats mainline sqlite3:** YES (0.03x of mainline).
+
+Notes:
+- Python is reported as engine-package `.py` source bytes; the CPython interpreter
+  (python3.10, 33816 bytes) is NOT bundled and not counted.
+- Mainline sqlite3 includes the CLI shell, readline, ICU shim — apples-to-oranges
+  vs leap-sqlite which only embeds the engine; we report it as published.
+- All builds invoked from this script are reproducible: see source for flags.
+
+report written to: /Users/stanislav/code/sqlite-leap/bench/results/binary_size_5target/REPORT.md

@@ -1,0 +1,14 @@
+build rust   ... ok
+build python ... ok
+build go     ... ok
+build zig    ... ok
+build c      ... ok
+
+== count_star_x3 ==
+  rust   OK   (reference)
+  python OK   (matches rust)
+  go     OK   (matches rust)
+  zig    OK   (matches rust)
+  c      OK   (matches rust)
+
+RESULT: all targets agree on canonical output across 1 corpus file(s)

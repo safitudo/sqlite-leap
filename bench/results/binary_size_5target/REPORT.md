@@ -1,6 +1,6 @@
 # Lane 5 — 5-target binary size
 
-Generated 2026-04-25T08:56:46Z on Darwin arm64.
+Generated 2026-04-25T09:16:56Z on Darwin arm64.
 Mainline sqlite3 baseline: `/usr/bin/sqlite3` = 4690560 bytes (4580.6 KB).
 
 Each row builds the same SELECT behavioral smoke (parser + compiler + VDBE + storage)

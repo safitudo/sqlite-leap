@@ -1,0 +1,44 @@
+{"new_change_counter":3,"assigned_rowid":2,"bytes_written":8192}
+4:9
+    |
+396 |         Expr::WindowCall { .. } => Err(CompileError {
+    |         ----------------------- matches all the relevant values
+...
+524 |         Expr::WindowCall { .. } => Err(CompileError {
+    |         ^^^^^^^^^^^^^^^^^^^^^^^ no value can reach this
+    |
+    = note: `#[warn(unreachable_patterns)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+    --> compiler/select_compile.rs:7341:9
+     |
+7341 |     let mut after_stage = stage_pos_base + 1;
+     |         ----^^^^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `max_buffer_slot_used` is never used
+   --> compiler/select_compile.rs:654:4
+    |
+654 | fn max_buffer_slot_used<'src>(ops: &[Opcode<'src>]) -> u32 {
+    |    ^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `ident_text` is never used
+  --> parser/create_table_stmt.rs:71:4
+   |
+71 | fn ident_text<'src>(tokens: &[Token<'src>], i: u32) -> Option<&'src str> {
+   |    ^^^^^^^^^^
+
+{"new_change_counter":3,"assigned_rowid":2,"bytes_written":8192}
+  rust -> 8461b47e7a9d4354c3de30cd5fb687286f0d0e78
+{"new_change_counter":3,"assigned_rowid":2,"bytes_written":8192}
+  c -> 8461b47e7a9d4354c3de30cd5fb687286f0d0e78
+  zig -> 8461b47e7a9d4354c3de30cd5fb687286f0d0e78
+{"new_change_counter":3,"assigned_rowid":2,"bytes_written":8192}
+  go -> 8461b47e7a9d4354c3de30cd5fb687286f0d0e78
+{"new_change_counter":3,"assigned_rowid":2,"bytes_written":8192}
+  python -> 8461b47e7a9d4354c3de30cd5fb687286f0d0e78
