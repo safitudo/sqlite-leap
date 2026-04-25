@@ -140,6 +140,28 @@ has not yet returned past-end.
 `false` → `Continue` (past-end). Matches table `Next`'s jump-on-HAS-NEXT
 convention.
 
+### `BufferIntersect { dest_slot, src_slots }` (α20)
+
+Compound-SELECT set-op. `src_slots` is a non-empty list of row-buffer
+slot indices; every source must already hold the per-core output rows.
+The opcode:
+
+1. Opens `dest_slot` with `num_cols` taken from `src_slots[0]`.
+2. Iterates rows of `src_slots[0]`; each row qualifies iff it is
+   present in every other source slot under the canonical total order
+   (row-equality ≡ equal under `compare_values` per column).
+3. Sorts `dest_slot` and collapses adjacent duplicates — the result is
+   deterministic regardless of source-row insertion order.
+4. `Continue`.
+
+Source slots are not mutated.
+
+### `BufferExcept { dest_slot, src_slots }` (α20)
+
+Compound-SELECT set-op. As `BufferIntersect` but a row qualifies iff
+it is present in `src_slots[0]` and absent from every other source.
+Result is likewise sorted + dedup'd. `Continue`.
+
 ## Invariants
 
 - `cursor` is in `[0, state.num_cursors)` and points to an open

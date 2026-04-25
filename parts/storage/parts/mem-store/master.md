@@ -122,6 +122,12 @@ them.
 - **v2:** shared-mutability write path via Rc<RefCell> (Rust) / pointer-into-Database (C).
 - **v3:** cursor_delete_row LIVE with scan-invariant preservation.
 - **v4 (2026-04-24):** `MemTable.column_names` added; `database_install_table` takes a column_names list; `cursor_update_row` LIVE — resolves column names to row indices via MemTable.column_names and overwrites specified slots. If a target emission of an earlier version is still on disk, callers pass an empty column_names list to preserve existing behavior for INSERT/SELECT/DELETE; UPDATE will error with IoError (or SchemaMissing if the target adds that variant).
+- **v5 (2026-04-24, α11):** rowid tracking — parallel `rowids` vector; explicit-rowid insert path via "rowid" column-name; `cursor_seek_rowid` LIVE.
+- **v6 (2026-04-24, α20):** view registry. `Database` gains a `views: Vec<ViewEntry>` field where `ViewEntry` holds `name: String` plus `select_sql: String` (the stored SELECT text). The compiler re-tokenizes + re-parses the stored text at each reference — views are resolved as synthetic derived-table sources, never mutate the `tables` array. New API:
+  - `database_install_view(db, name, select_sql)` — overwrites any existing view with the same name (ASCII-case-insensitive).
+  - `database_drop_view(db, name) -> bool` — returns true if a view was removed, false if no match (caller chooses whether a missing-view DROP is silent or an error).
+  - `database_lookup_view(db, name) -> Option<&ViewEntry>` — read-only fetch.
+  Views do NOT appear in `tables`; name collisions between a real table and a view are a caller-side error and are not prevented by storage. The VIEW entries are plain data — cycle detection lives in the compiler.
 
 ## Error return discipline
 

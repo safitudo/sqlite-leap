@@ -42,11 +42,19 @@ Admitted:
 
 Admitted (see §"Compound SELECT" below):
 - **Compound SELECT** (`A UNION [ALL] B` with any number of cores,
-  left-associative). `INTERSECT` and `EXCEPT` are parser-admitted but
-  compiler-deferred with the message `"deferred: INTERSECT compound
-  SELECT (needs BufferIntersect opcode)"` or the EXCEPT equivalent —
-  each needs a VDBE buffer-set-op opcode that is not yet part of the
-  shape.
+  left-associative). `INTERSECT` and `EXCEPT` are also admitted under
+  the α20 shape: each core drains into its own buffer slot, then
+  `BufferIntersect { dest, srcs }` / `BufferExcept { dest, srcs }`
+  (see opcodes-rows) combines them into the replay buffer. Mixed
+  compounds (any combination of UNION/INTERSECT/EXCEPT in one tail
+  list) are still deferred pending a left-associative fold.
+- **VIEW references** (α20). When an outer or inner SELECT's FROM
+  references a name registered in the view registry (threaded via
+  `compile_select_with_db`), the view's stored SELECT text is
+  re-tokenized + re-parsed and materialized as a derived table
+  using the α19 buffered-source machinery. A cycle-detection stack
+  raises `CompileError "view cycle detected: <name>"` for
+  self-referential or transitively recursive views.
 
 Deferred (CompileError `"deferred: <construct>"`):
 - **Multi-group aggregation** — `GROUP BY` with more than one
@@ -695,10 +703,9 @@ shared `slot: 0` buffer is the only state that persists across cores.
 - `"compound SELECT: per-core ORDER BY not allowed"` /
   `"compound SELECT: per-core LIMIT/OFFSET not allowed"` — defensive
   assertion (parser also rejects).
-- `"deferred: INTERSECT compound SELECT (needs BufferIntersect
-  opcode)"` — INTERSECT clean-stop.
-- `"deferred: EXCEPT compound SELECT (needs BufferExcept opcode)"` —
-  EXCEPT clean-stop.
+- `"deferred: mixed INTERSECT/EXCEPT/UNION in one compound SELECT"` —
+  the compound-shape classifier rejects a compound whose tails mix
+  set-op families (homogeneous-per-statement only in α20).
 - `"deferred: complex outer ORDER BY in compound SELECT"` — outer
   ORDER BY key is neither positional nor a projection-name reference.
 - `"deferred: non-literal LIMIT in compound SELECT"` /
