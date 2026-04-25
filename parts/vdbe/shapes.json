@@ -231,7 +231,7 @@
           { "name": "kind", "type": "AggFuncKind" }
         ],
         "returns": "Value",
-        "doc": "Finalize the accumulator at slot and return its value. Empty-group rules: Count* → Integer(0); Sum → Null; Total → Real(0.0); Avg → Null; Min/Max → Null; GroupConcat → Null. Non-empty: Count* → Integer(n); Sum → Integer if int-only, else Real; Total → Real; Avg → Real(sum/count); Min/Max → best Value seen; GroupConcat → Text(buffer). After Final, the slot is semantically consumed; the next Reset re-initializes."
+        "doc": "Finalize the accumulator at slot and return its value. Empty-group rules: Count* → Integer(0); Sum → Null; Total → Real(0.0); Avg → Null; Min/Max → Null; GroupConcat → Null. Non-empty: Count* → Integer(n); Sum → Integer if int-only, else Real; Total → Real; Avg → ALWAYS Real(sum/count) — even when every input was Integer, the result is Real (matches mainline SQLite; implementations MUST cast the running sum to f64 / double / float64 before dividing by count, never returning Integer); Min/Max → best Value seen; GroupConcat → Text(buffer). After Final, the slot is semantically consumed; the next Reset re-initializes."
       },
       {
         "name": "aggregate_value",

@@ -877,3 +877,18 @@ SELECT id FROM nums WHERE id IS NULL
 query I nosort
 SELECT id FROM nullable WHERE k > 1000
 ----
+
+# =============================================================
+# Section 21: AVG result-type pin (always Real, even int-only inputs)
+# Mainline SQLite: SELECT AVG(int_col) → Real with .0; LEAP must match.
+# =============================================================
+
+query R nosort
+SELECT AVG(val) FROM nums
+----
+30.0
+
+query R nosort
+SELECT AVG(id) FROM nums
+----
+3.0
