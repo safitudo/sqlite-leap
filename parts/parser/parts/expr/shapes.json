@@ -66,6 +66,8 @@
                      "fields": { "table": { "optional": "string" }, "name": "string" } },
         "Call":    { "doc": "Function call: `NAME(arg0, arg1, ...)`. The `*` wildcard argument (e.g. `count(*)`) is deferred; `NAME()` with no args is allowed.",
                      "fields": { "name": "string", "args": { "list": "Expr" } } },
+        "WindowCall": { "doc": "Windowed function call: `NAME(args) OVER ( [PARTITION BY ...] [ORDER BY ...] )`. Admitted in v2 narrow form — no frame clause, no named-window reference. partition_by and order_by may both be empty (then OVER () means single window over all rows). For aggregate-named functions (count/sum/avg/min/max), the compiler maps the inner Call shape to the existing AggFuncKind. Rank-style names (row_number / rank / dense_rank) are treated as zero-arg window kinds. SAME structural relationship to recursion as `Call` — the args list and partition_by list and order_by list each carry sub-Exprs subject to per-target self-recursion mapping.",
+                     "fields": { "name": "string", "args": { "list": "Expr" }, "partition_by": { "list": "Expr" }, "order_by": { "list": "WindowOrderItem" } } },
         "Unary":   { "doc": "Unary (prefix) operator applied to a sub-expression.",
                      "fields": { "op": "UnaryOp", "arg": "Expr" } },
         "Binary":  { "doc": "Binary (infix) operator applied to two sub-expressions. `lhs op rhs` — left-associative by the precedence table in master.md.",
@@ -95,6 +97,15 @@
       "fields": {
         "when_expr": "Expr",
         "then_expr": "Expr"
+      }
+    },
+
+    "WindowOrderItem": {
+      "kind": "record",
+      "doc": "One ORDER BY item inside an OVER clause. Mirrors the OrderByItem shape used by SelectStmt but lives in the expr part to avoid an inverse import. desc=true iff the surface used `DESC`; ASC is the default.",
+      "fields": {
+        "expr": "Expr",
+        "desc": "bool"
       }
     },
 

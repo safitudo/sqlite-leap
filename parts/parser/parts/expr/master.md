@@ -107,7 +107,24 @@ encountered):
   a literal/expression list is admitted.
 - REGEXP / MATCH operators (LIKE / GLOB / COLLATE are admitted).
 - Bitwise NOT `~`, unary `+`.
-- Window functions, `OVER` clauses.
+- Named window references (`WINDOW w AS ...` declared in the SELECT
+  and referenced as `func() OVER w`) — parser admits only inline
+  window specs.
+- Window frame clauses (`ROWS BETWEEN ...`, `RANGE BETWEEN ...`,
+  `GROUPS BETWEEN ...`) — parser rejects with ParseError on
+  `KwRows`/`KwRange`/`KwGroups` inside an OVER clause.
+
+Window functions (admitted in v2 narrow form):
+- `NAME(args) OVER ( [PARTITION BY e1, e2, ...] [ORDER BY o1 [DESC],
+  o2, ...] )`. Produces a `WindowCall { name, args, partition_by,
+  order_by }` AST variant. The `OVER` token is admitted as a postfix
+  immediately after the closing `)` of a function call (Call /
+  Call_star / Call_distinct shapes alike). The OVER spec is
+  REQUIRED to be a parenthesised inline spec — bare `OVER w` (named
+  window) is rejected. PARTITION BY and ORDER BY are individually
+  optional; both absent (`OVER ()`) is admitted and means "single
+  window over all rows". Frame clauses inside the OVER body are
+  rejected (see Deferred).
 
 ## Qualified columns
 
