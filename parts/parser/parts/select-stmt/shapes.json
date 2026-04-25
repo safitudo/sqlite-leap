@@ -45,7 +45,19 @@
                       "kind":  "JoinKind",
                       "on":    { "option": "Expr" },
                       "using": { "list": "string" }
-                    } }
+                    } },
+        "Subquery": { "doc": "α15: derived-table `(SELECT ...) [AS alias]`. Compiler clean-stops with 'deferred: derived-table subquery in FROM' until CTE/derived-table materialization lands.",
+                      "fields": { "select": "SelectStmt", "alias": { "option": "string" } } }
+      }
+    },
+
+    "CteBinding": {
+      "kind": "record",
+      "doc": "α15: one binding in a WITH clause: `name [(col_list)] AS (SELECT ...)`. `columns` is present iff the source spelled the explicit column-list form. `WITH RECURSIVE` is parse-time deferred.",
+      "fields": {
+        "name": "string",
+        "columns": { "option": { "list": "string" } },
+        "select": "SelectStmt"
       }
     },
 
@@ -91,7 +103,8 @@
         "order_by":   { "list": "OrderByItem" },
         "limit":      { "option": "Expr" },
         "offset":     { "option": "Expr" },
-        "compound":   { "list": "CompoundTail" }
+        "compound":   { "list": "CompoundTail" },
+        "with_clauses": { "list": "CteBinding" }
       }
     },
 

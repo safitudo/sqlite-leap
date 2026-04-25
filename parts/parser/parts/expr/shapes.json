@@ -79,7 +79,13 @@
         "Like":    { "doc": "`expr [NOT] LIKE pattern [ESCAPE esc]` and `expr [NOT] GLOB pattern`. kind discriminates LIKE vs GLOB — they share the AST shape but compile to distinct opcodes. negated reflects a leading NOT. escape is present iff source had `ESCAPE <expr>` (LIKE only; parser rejects `GLOB ... ESCAPE ...`). Parsed as a postfix at comparison-tier precedence.",
                      "fields": { "expr": "Expr", "pattern": "Expr", "escape": { "optional": "Expr" }, "negated": "bool", "kind": "LikeKind" } },
         "Collate": { "doc": "`expr COLLATE name` — collation annotation. The compiler is a stub for now (returns CompileError 'deferred: COLLATE comparison'); the AST node is preserved so a later semantic pass can wire it to the runtime collation path. name is the surface ident (e.g. 'BINARY', 'NOCASE', 'RTRIM'). Parsed as a postfix at the highest precedence (binds tighter than Concat).",
-                     "fields": { "expr": "Expr", "name": "string" } }
+                     "fields": { "expr": "Expr", "name": "string" } },
+        "Subquery": { "doc": "α15: scalar subquery `(SELECT ...)` embedded in an expression position. Semantics: run the inner SELECT; if it emits zero rows the expression value is NULL; if it emits one-or-more rows the value is the FIRST row's FIRST column (SQLite semantics — no error on multi-row). Correlated subqueries (inner SELECT references outer columns) are compile-time deferred. Compiler currently clean-stops with 'deferred: scalar subquery'.",
+                     "fields": { "select": "SelectStmt" } },
+        "Exists":   { "doc": "α15: `EXISTS (SELECT ...)`. Value is 1 if the inner SELECT emits at least one row, else 0. `negated=true` flips. `NOT EXISTS` is parsed as `Unary(Not, Exists{negated:false})` rather than `Exists{negated:true}` — the parser leaves negation handling to the existing Unary Not path. Compiler currently clean-stops with 'deferred: EXISTS subquery'.",
+                     "fields": { "select": "SelectStmt", "negated": "bool" } },
+        "InSubquery": { "doc": "α15: `expr IN (SELECT ...)` / `expr NOT IN (SELECT ...)`. Compiles by materializing the inner SELECT into a buffer then linear-scanning per outer row. Compiler currently clean-stops with 'deferred: IN subquery'.",
+                     "fields": { "lhs": "Expr", "select": "SelectStmt", "negated": "bool" } }
       }
     },
 
