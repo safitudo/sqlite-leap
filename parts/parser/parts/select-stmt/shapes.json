@@ -22,12 +22,30 @@
       }
     },
 
+    "JoinKind": {
+      "kind": "variant",
+      "doc": "Form of join between two TableRefs. `Inner` is the default for an unqualified `JOIN` keyword. `Left` is `LEFT [OUTER] JOIN` — preserves all left rows, padding with NULLs when no right row matches. `Cross` is `CROSS JOIN` and the implicit comma form `t1, t2` — Cartesian product, no ON/USING permitted (parse error if either appears alongside CROSS). RIGHT, FULL, and NATURAL are deferred (parse-time error with `\"deferred: <form>\"`).",
+      "cases": {
+        "Inner": { "doc": "INNER JOIN (also the default `JOIN`). Requires either ON or USING or — by SQLite leniency — neither (degenerates to cross product); for the probe, require ON or USING for INNER JOIN." },
+        "Left":  { "doc": "LEFT [OUTER] JOIN. Right side may be NULL-filled when no row matches the predicate." },
+        "Cross": { "doc": "CROSS JOIN or comma-separated FROM list. Cartesian product; ON/USING not permitted." }
+      }
+    },
+
     "TableRef": {
       "kind": "variant",
-      "doc": "Source of rows in a FROM clause. Probe scope: single named table (optionally aliased). JOINs, derived tables, and subqueries are deferred.",
+      "doc": "Source of rows in a FROM clause. Recursive: a `Joined` carries left/right TableRefs which may themselves be `Joined`. Multi-way joins are left-associative — `a JOIN b ON ... JOIN c ON ...` parses as `Joined(Joined(Named(a), Named(b), ...), Named(c), ...)`. `using` is the column-name list from `USING (c1, c2, ...)` — empty list iff USING was not written. Subqueries / derived tables in FROM remain deferred.",
       "cases": {
-        "Named": { "doc": "A bare table name, optionally aliased via `AS alias` or bare-ident follow.",
-                    "fields": { "name": "string", "alias": { "option": "string" } } }
+        "Named":  { "doc": "A bare table name, optionally aliased via `AS alias`.",
+                    "fields": { "name": "string", "alias": { "option": "string" } } },
+        "Joined": { "doc": "Two TableRefs combined by a JoinKind. `on` is present iff `ON <expr>` was written; `using` is non-empty iff `USING (col, ...)` was written. ON and USING are mutually exclusive (parse error if both). For Cross, both `on` is None and `using` is empty (parse error otherwise).",
+                    "fields": {
+                      "left":  "TableRef",
+                      "right": "TableRef",
+                      "kind":  "JoinKind",
+                      "on":    { "option": "Expr" },
+                      "using": { "list": "string" }
+                    } }
       }
     },
 
@@ -42,7 +60,7 @@
 
     "SelectStmt": {
       "kind": "record",
-      "doc": "Parsed SELECT statement (single, non-compound). Compound SELECTs (UNION/INTERSECT/EXCEPT), CTEs, and window functions are deferred to follow-up leaves. The probe covers: DISTINCT flag, projection list, FROM (single table), WHERE, GROUP BY, HAVING, ORDER BY, LIMIT/OFFSET. All `option<Expr>` are present iff the clause was written. group_by is empty iff the clause was omitted.",
+      "doc": "Parsed SELECT statement (single, non-compound). Compound SELECTs (UNION/INTERSECT/EXCEPT), CTEs, and window functions are deferred to follow-up leaves. The probe covers: DISTINCT flag, projection list, FROM (single table OR JOINs), WHERE, GROUP BY, HAVING, ORDER BY, LIMIT/OFFSET. All `option<Expr>` are present iff the clause was written. group_by is empty iff the clause was omitted.",
       "fields": {
         "distinct":   "bool",
         "projection": { "list": "ProjectionItem" },

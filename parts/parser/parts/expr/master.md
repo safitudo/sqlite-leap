@@ -18,7 +18,8 @@ ad-hoc table, or reaching for a parser-generator crate?**
 
 Admitted:
 - Literals: `IntLit`, `RealLit`, `StrLit`, `Null`.
-- Column references (unqualified): `colname`.
+- Column references: `colname` (unqualified) and `t.col` (table-qualified).
+  See §"Qualified columns" below.
 - Function calls: `NAME(arg0, arg1, ...)`, including `NAME()`. Three
   call-form sugars are admitted (parser-level desugar; no AST variant):
   - `NAME(*)` — wildcard arg form, used by `count(*)`. Rewrites to
@@ -92,7 +93,6 @@ Admitted:
 
 Deferred (not parsed by this probe; parser returns ParseError if
 encountered):
-- Table-qualified column references (`t.col`).
 - REGEXP / MATCH (LIKE / GLOB / CAST / COLLATE are now admitted — see above).
 - Subqueries (`(SELECT ...)`) and `EXISTS (SELECT ...)` — these introduce a
   parser dependency on `/parts/parser/parts/select-stmt::SelectStmt`. They
@@ -108,6 +108,26 @@ encountered):
 - REGEXP / MATCH operators (LIKE / GLOB / COLLATE are admitted).
 - Bitwise NOT `~`, unary `+`.
 - Window functions, `OVER` clauses.
+
+## Qualified columns
+
+The `Col` AST node carries an optional `table` qualifier. Unqualified
+column references (`colname`) parse with `table` absent. Qualified
+references (`t.col`) parse with `table = Some(t)` and `name = col`. The
+qualifier is the table name (or alias) as written in the source; it is
+preserved verbatim (no case folding). Resolution semantics — matching
+`table` against the FROM clause's tables/aliases — are the responsibility
+of the per-statement compilers.
+
+Disambiguation rule: an `Ident` followed by `Dot` followed by another
+`Ident` is always a qualified column reference. The parser does not
+admit `t.*` as an expression (the wildcard form lives in the projection
+shape; see `/parts/parser/parts/select-stmt`). Two-level qualification
+`schema.table.col` is deferred and yields a ParseError when encountered.
+
+The qualifier is checked AFTER the call-form check: an `Ident` followed
+by `LParen` is still a `Call`. `Dot` after the call site (`f(x).y`) is
+not admitted by this probe.
 
 ## Declared shapes (in `shapes.json`)
 
@@ -220,7 +240,11 @@ parse_prefix(tokens, i):
                                                        Call(name, args)
                                          else      -> parse comma-list;
                                                        Call(name, args)
-                            else     -> Col(name)
+                            Dot     -> qualified column ref `t.col`:
+                                       consume Dot; require tokens[i+2] is Ident (col);
+                                       Col { table: Some(name), name: col }
+                                       (advances past name, Dot, col — three tokens)
+                            else    -> Col { table: None, name }
         LParen           -> '(' expr ')' — parse inner expr, expect RParen
         KwCase           -> parse_case(tokens, i)
         KwCast           -> parse_cast(tokens, i)
@@ -362,14 +386,16 @@ bind tighter than every binary.
    The sugar applies regardless of `<name>`; semantic rejection of
    non-aggregate uses (e.g. `lower(*)`) is a downstream compiler
    responsibility.
-8. **Column vs call disambiguation** — an `Ident` token followed by
-   `LParen` is always a `Call`; otherwise it's a `Col`. No lookahead
-   beyond one token is required.
+8. **Column vs call vs qualified disambiguation** — an `Ident` token
+   followed by `LParen` is always a `Call`; an `Ident` followed by
+   `Dot` is always a qualified `Col` (consume Ident, Dot, Ident);
+   otherwise it's an unqualified `Col`. One-token lookahead suffices.
 9. **Deferred constructs → ParseError** — encountering a token kind
-   not in the admitted set (e.g. `KwCase`, `KwBetween`, `Dot` after
-   ident) produces a ParseError with `message` naming the
-   unsupported construct (`"deferred: CASE"`, `"deferred: qualified
-   column reference"`, etc.) and pointing at the offending token.
+   not in the admitted set (e.g. `KwRegexp`, `KwMatch`) produces a
+   ParseError with `message` naming the unsupported construct
+   (`"deferred: REGEXP"`, etc.) and pointing at the offending token.
+   `Dot` after an Ident is now admitted (qualified column ref);
+   only a non-Ident token after the Dot is an error.
 10. **End-of-stream handling** — a successful parse returns `next`
     pointing at the first token not consumed. Running off the end
     of a sub-expression (e.g. `1 +` with no following operand)
@@ -450,6 +476,21 @@ bind tighter than every binary.
     `Collate { expr: Col("a"), name: "NOCASE" }`. COLLATE binds at
     the highest tier, so `a COLLATE NOCASE = b` parses to
     `Binary(Eq, Collate{Col(a), NOCASE}, Col(b))`.
+25. **Qualified columns** — `t.col` parses to
+    `Col { table: Some("t"), name: "col" }`. Unqualified `col`
+    parses to `Col { table: None, name: "col" }`. The dotted form
+    is recognised in `parse_prefix` after the call-form check:
+    sequence is Ident, Dot, Ident — three tokens consumed. A
+    non-Ident token after the Dot (e.g. `t.*`, `t.123`) is a
+    ParseError `"expected column name after '.'"`. Two-level
+    qualification (`s.t.col`) is deferred: the trailing Dot after
+    the second Ident yields ParseError `"deferred: schema-qualified
+    column reference"`. Mixed bare and qualified within a single
+    expression is admitted (`a + t.b`). Function-call qualifier
+    `f(x).y` is NOT admitted (parser stops at the call result;
+    `Dot` after `RParen` is not consumed). The qualifier is
+    preserved verbatim — no case folding at parse time; downstream
+    compilers may compare case-insensitively per SQL conventions.
 
 ## Regeneration envelope
 

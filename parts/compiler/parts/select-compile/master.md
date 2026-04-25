@@ -49,8 +49,10 @@ Deferred (CompileError `"deferred: <construct>"`):
   Until a follow-up adds one, multi-group `GROUP BY` produces
   CompileError `"deferred: multi-group GROUP BY (spec gap: needs
   ephemeral-table or Sort opcode family)"`.
-- JOINs, subqueries, ORDER BY, top-level DISTINCT, compound SELECT,
+- subqueries, ORDER BY, top-level DISTINCT, compound SELECT,
   CTE, window functions.
+
+JOIN support is admitted in this part — see §JOINs below.
 
 ## Declared shapes (in `shapes.json`)
 
@@ -212,6 +214,121 @@ Notes:
   `compile_expr_in_schema` that intercepts `Call` nodes whose name
   is in the aggregate set.
 
+### Cb. JOINs (multi-source SELECT)
+
+If `stmt.from` is a `TableRef::Joined` (or transitively contains one),
+the compiler flattens the recursive tree into a left-to-right list of
+SOURCES, where each source carries its `(table_name, alias?, schema,
+join_kind, predicate?)` and a 0-based source index. The leftmost source
+has `join_kind = Inner` synthetically (it's the outer driver, not joined
+to anything). Each subsequent source carries the JoinKind that bound it
+to the accumulated left.
+
+USING(c1, c2, ...) is desugared at compile time into an equivalent ON
+predicate `Eq(left.c, right.c) AND ...` where each `c` resolves into
+the left accumulated schema (any source so far) and the right schema
+(the new source). The USING column names are also marked as
+"join-eliminated" on the right side so that `SELECT *` expansion emits
+each USING column only once (taken from the LEFT side).
+
+Caller's TableSchema input — a single TableSchema — is generalized to
+a list provided in source order. The probe accepts a parallel
+`schemas: Vec<TableSchema>` matched up to flattened sources by
+position. (The public function signature stays — `compile_select`
+accepts a single TableSchema, but the JOIN path takes a multi-schema
+overload `compile_select_multi`. Both forms are exercised.)
+
+#### Register layout
+
+```
+[0 .. ncol_total)             : column scratch, source by source
+[ncol_total .. ncol_total+P)  : packed projection outputs (P cols)
+[above]                       : WHERE / ON scratch + LIMIT counters
+                                + per-source "matched" flag for LEFT
+```
+
+`ncol_total = sum(schemas[i].columns.len())`. Source `s`'s column
+scratch starts at `column_base[s]`.
+
+#### Nested-loop emission
+
+For sources S0, S1, ..., Sn (left-to-right):
+
+```
+OpenRead { cursor: 0, table: S0.name }
+Rewind   { cursor: 0, jump_if_empty: END }
+TOP_0:
+    emit Column for every column of S0 into scratch[S0]
+
+    OpenRead { cursor: 1, table: S1.name }
+    Rewind   { cursor: 1, jump_if_empty: AFTER_1 }      # for INNER/CROSS
+                                                         # (LEFT: branches to LEFT_NULL_FILL_1)
+    LoadConst matched_1, 0                               # only for LEFT
+    TOP_1:
+        emit Column for every column of S1 into scratch[S1]
+
+        # Evaluate the join predicate for (S0, S1):
+        if pred_1 is Some:
+            cond = compile_expr_in_multi_schema(pred_1, schemas[..=1], column_base)
+            IfNot cond -> NEXT_1
+        # ...recurse for S2, S3, ... or, at the last source, do projection.
+
+        # innermost (after all sources rewound + columns fetched):
+        compile WHERE -> IfNot -> NEXT_inner
+        compile each projection item -> ResultRow
+
+    NEXT_1:
+        Next { cursor: 1, jump_if_more: TOP_1 }
+    AFTER_1:
+        # LEFT-only NULL-fill: if matched_1 == 0, NULL-out S1's scratch
+        # block and run the inner body once.
+        Close { cursor: 1 }
+
+NEXT_0:
+    Next { cursor: 0, jump_if_more: TOP_0 }
+END:
+    Close { cursor: 0 }
+    Halt
+```
+
+For LEFT JOIN at depth k:
+- Reset `matched_k = 0` after the outer Rewind on S_k's parent's row.
+- After the ON predicate passes (and before recursing deeper / or before
+  emitting), set `matched_k = 1`.
+- After the inner loop completes (NEXT_k loop ended), if `matched_k == 0`,
+  fill all of S_k's column scratch with `Value::Null` via LoadConst into
+  each scratch register, then run the inner-body block once with NULLs.
+
+For CROSS / INNER without predicate (after USING desugar): same as INNER
+with predicate, except the IfNot is omitted.
+
+#### Column resolution across multiple sources
+
+`Expr::Col { table: Some(qual), name }` resolves to the unique source
+whose `name` or `alias` matches `qual` (case-insensitive ASCII), then
+the column index inside that source's schema. If no source matches:
+CompileError `"unknown table qualifier: <qual>"`. If two sources share
+the same name+alias (impossible by construction in the probe — caller
+must supply distinct names/aliases), the FIRST is taken.
+
+`Expr::Col { table: None, name }` resolves by scanning every source's
+schema in order. If one match: use it. If 0 matches: CompileError
+`"unknown column: <name>"`. If 2+ matches AND the column is not in any
+USING list, CompileError `"ambiguous column: <name>"`. USING-listed
+columns resolve unambiguously to the LEFT-most source that contributes
+the column (so `SELECT k FROM t JOIN u USING (k)` selects `t.k`).
+
+#### `*` and `t.*` expansion under JOINs
+
+`*` expands to (for each source S in order, for each column C in
+S.schema): `Expr::Col { table: None, name: C.name }` — but USING-eliminated
+columns on RIGHT-hand sources are skipped (so each USING column appears
+exactly once).
+
+`t.*` expands to the columns of the source whose name/alias matches `t`,
+qualified-only (USING-elimination does not apply to `t.*`). Unknown
+qualifier → CompileError.
+
 ### D. Multi-group GROUP BY — DEFERRED (spec gap)
 
 If `stmt.group_by` is non-empty, emit
@@ -327,10 +444,37 @@ opcodes — no new VDBE instructions needed.
 9. **num_registers bounds check** — the emitted
    `num_registers` is >= the highest register index used by any
    opcode. Off-by-one is a pin.
-10. **Deferred constructs** — JOINs / multi-group GROUP BY /
+10. **Deferred constructs** — multi-group GROUP BY /
     ORDER BY / top-level DISTINCT / subqueries each produce a
     CompileError with the `"deferred: <construct>"` message. The
     compiler does not silently accept-then-ignore.
+10g. **JOIN nested-loop semantics** — `SELECT a, b FROM t, u` (CROSS)
+     emits exactly `|t| * |u|` rows — every left-row paired with every
+     right-row, in left-major order.
+10h. **INNER JOIN with ON** — `SELECT t.a, u.x FROM t INNER JOIN u ON
+     t.a = u.k` emits one row per (t-row, u-row) pair where the predicate
+     is truthy; non-matching pairs are skipped. Unmatched left rows
+     produce no output (vs LEFT, where they emit a NULL-padded row).
+10i. **LEFT JOIN NULL-fill** — `SELECT t.a, u.x FROM t LEFT JOIN u ON
+     t.a = u.k` emits one row per left row: if 1+ right rows match the
+     predicate, one output per match; if 0 right rows match, exactly
+     one output with all u-side columns set to `Value::Null`.
+10j. **USING (cols)** — `t JOIN u USING (k)` is semantically equivalent
+     to `t JOIN u ON t.k = u.k` for predicate purposes. In a `SELECT *`
+     projection, the join columns appear ONCE (taken from the left
+     side). USING with no shared column or with a column that doesn't
+     exist in BOTH schemas → CompileError `"USING column <name> not in
+     both joined relations"`.
+10k. **CROSS JOIN constraint** — A `Cross` join with non-empty `on` or
+     non-empty `using` is a CompileError (already gated by parser, but
+     the compiler asserts defensively).
+10l. **Multi-source qualifier resolution** — `Expr::Col { table: Some(t), name }`
+     resolves to the source whose `name` or `alias` equals `t`
+     (case-insensitive). Unknown qualifier → CompileError
+     `"unknown table qualifier: <t>"`. Unqualified column resolves
+     unambiguously by scanning all sources; 2+ sources match (and the
+     column is not in any USING list at the join above them) →
+     CompileError `"ambiguous column: <name>"`.
 10a. **Aggregate detection** — a query is in single-group aggregation
      mode iff (a) at least one aggregate-named `Call` appears in
      projection/HAVING/ORDER BY, OR (b) a non-empty `group_by` whose

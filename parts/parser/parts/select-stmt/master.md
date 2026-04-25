@@ -20,8 +20,14 @@ larger grammar.
 Admitted clauses (in grammatical order):
 - `SELECT [DISTINCT | ALL]`
 - Projection list: `* | table.* | expr [AS alias]` comma-separated.
-- `FROM` clause: single named table with optional alias (`t`, `t t2`,
-  `t AS t2`).
+- `FROM` clause: a `TableRef` tree built from named tables and joins.
+  Forms admitted (left-associative, see §JOINs below):
+  - single named table with optional alias (`t`, `t AS t2`);
+  - comma list `t1, t2` (treated as `t1 CROSS JOIN t2`);
+  - `t1 [INNER] JOIN t2 ON <expr>` / `... USING (c1, ...)`;
+  - `t1 LEFT [OUTER] JOIN t2 ON <expr>` / `... USING (c1, ...)`;
+  - `t1 CROSS JOIN t2` (no ON/USING permitted);
+  - 3+ way chains: `a JOIN b ON ... JOIN c ON ...`.
 - `WHERE` expr.
 - `GROUP BY` expr [, expr]* — comma-separated list of grouping expressions.
 - `HAVING` expr — predicate evaluated post-aggregation.
@@ -30,7 +36,9 @@ Admitted clauses (in grammatical order):
 
 Deferred (flag ParseError with `"deferred: <construct>"` if seen;
 resolve in follow-up leaves):
-- JOINs (INNER / LEFT / RIGHT / FULL / CROSS / NATURAL / USING / ON).
+- RIGHT / FULL / NATURAL JOIN (the keywords are recognized and rejected
+  with a clean `"deferred: RIGHT JOIN"` / `"deferred: FULL JOIN"` /
+  `"deferred: NATURAL JOIN"` message).
 - Subqueries in FROM (derived tables).
 - `WITH` (CTE).
 - Compound SELECT (UNION / INTERSECT / EXCEPT).
@@ -41,7 +49,9 @@ resolve in follow-up leaves):
 
 - `SelectStmt` — the top-level parsed statement record.
 - `ProjectionItem` — 3-case variant: `Star | TableStar | Expr`.
-- `TableRef` — variant with one case `Named`.
+- `TableRef` — recursive variant: `Named { name, alias }` |
+  `Joined { left, right, kind, on, using }`.
+- `JoinKind` — `Inner | Left | Cross`.
 - `OrderByItem` — `{ expr, desc: bool }`.
 - `SelectParseOk` — `{ stmt, next: u32 }`.
 - `parse_select(tokens, start) -> result<SelectParseOk, ParseError>`.
@@ -108,16 +118,83 @@ parse_projection_item(tokens, i):
 parse_from_opt(tokens, i):
     if tokens[i] != KwFrom: return None, i
     i += 1
+    left, i = parse_table_atom(tokens, i)
+    # Left-associative join chain.
+    loop:
+        kind, on, using, right_or_none, i_or_break = try_parse_join_suffix(tokens, i, left)
+        if right_or_none is None: break
+        left = Joined { left, right: right_or_none, kind, on, using }
+        i = i_or_break
+    return Some(left), i
+
+parse_table_atom(tokens, i):
+    # Subquery / parenthesized table-ref:
+    if tokens[i] == LParen:
+        return Err("deferred: parenthesized table-ref / subquery in FROM")
     if tokens[i] != Ident: error("expected table name after FROM")
     name = tokens[i].text; i += 1
     alias = None
     if tokens[i] == KwAs and tokens[i+1] == Ident:
         alias = tokens[i+1].text; i += 2
-    # bare-ident alias (t t2) is DEFERRED — flag ParseError here if we
-    # see an Ident immediately after the table name that would be
-    # ambiguous. For the probe, only the explicit `AS` form produces
-    # an alias.
-    return Some(Named { name, alias }), i
+    # bare-ident alias still deferred for now.
+    return Named { name, alias }, i
+
+try_parse_join_suffix(tokens, i, left):
+    # Returns (kind, on, using, right, next_i) — or signals "no more joins"
+    # by returning right=None.
+    case tokens[i]:
+        Comma:                       # implicit cross
+            i += 1
+            right = parse_table_atom(tokens, i)
+            return (Cross, None, [], right, i')
+        KwCross:                     # CROSS JOIN
+            i += 1
+            expect KwJoin; i += 1
+            right = parse_table_atom(tokens, i)
+            # CROSS forbids ON/USING:
+            if tokens[i'] in {KwOn, KwUsing}: error("CROSS JOIN cannot have ON/USING")
+            return (Cross, None, [], right, i')
+        KwInner:                     # INNER [JOIN]
+            i += 1
+            expect KwJoin; i += 1
+            right = parse_table_atom(tokens, i)
+            on, using, i'' = parse_join_constraint(tokens, i')
+            return (Inner, on, using, right, i'')
+        KwLeft:                      # LEFT [OUTER] JOIN
+            i += 1
+            if tokens[i] == KwOuter: i += 1
+            expect KwJoin; i += 1
+            right = parse_table_atom(tokens, i)
+            on, using, i'' = parse_join_constraint(tokens, i')
+            return (Left, on, using, right, i'')
+        KwJoin:                      # plain JOIN == INNER JOIN
+            i += 1
+            right = parse_table_atom(tokens, i)
+            on, using, i'' = parse_join_constraint(tokens, i')
+            return (Inner, on, using, right, i'')
+        KwRight:  error("deferred: RIGHT JOIN")
+        KwFull:   error("deferred: FULL JOIN")
+        KwNatural: error("deferred: NATURAL JOIN")
+        else: return (_, _, _, None, i)   # no join suffix; loop ends
+
+parse_join_constraint(tokens, i):
+    # ON or USING — at most one of each. INNER/LEFT JOIN must have one.
+    if tokens[i] == KwOn:
+        i += 1
+        expr, i = parse_expr(tokens, i)
+        return Some(expr), [], i
+    if tokens[i] == KwUsing:
+        i += 1
+        expect LParen; i += 1
+        cols = []
+        loop:
+            if tokens[i] != Ident: error("expected column ident in USING list")
+            cols.push(tokens[i].text); i += 1
+            if tokens[i] == Comma: i += 1; continue
+            break
+        expect RParen; i += 1
+        return None, cols, i
+    error("expected ON or USING after INNER/LEFT JOIN")
 
 parse_where_opt(tokens, i):
     if tokens[i] != KwWhere: return None, i
@@ -180,10 +257,23 @@ This is pin #9 below.
    and the overall parse fails with the expression parser's error.
 4. **FROM optional** — omit FROM entirely and `from: None`. No-FROM
    SELECT (e.g. `SELECT 1 + 2`) is a valid SQLite form.
-5. **Single table only (probe)** — `FROM a, b`, `FROM a JOIN b`,
-   `FROM (SELECT ...)`, `FROM ( ... ) AS x` all produce a ParseError
-   with a `deferred: <form>` message pointing at the first unexpected
-   token.
+5. **JOIN forms** — comma-list, `[INNER] JOIN ... ON ...`,
+   `[INNER] JOIN ... USING (...)`, `LEFT [OUTER] JOIN ... ON ...`,
+   `LEFT [OUTER] JOIN ... USING (...)`, and `CROSS JOIN ...` all parse
+   to `TableRef::Joined { left, right, kind, on, using }`. Multi-way
+   joins are LEFT-ASSOCIATIVE: `a JOIN b ON p1 JOIN c ON p2` →
+   `Joined(Joined(a,b,Inner,Some(p1),[]), c, Inner, Some(p2), [])`.
+5a. **JOIN constraint discipline** — `INNER`/`LEFT` JOIN MUST be followed
+    by `ON expr` OR `USING (cols...)` — neither is a ParseError
+    `"expected ON or USING after INNER/LEFT JOIN"`. `CROSS JOIN` and the
+    comma form MUST NOT have ON/USING — both is a ParseError
+    `"CROSS JOIN cannot have ON/USING"`. ON and USING are mutually
+    exclusive at one join — if both are written, the second is a
+    ParseError `"ON and USING are mutually exclusive"`.
+5b. **JOIN deferred forms** — `RIGHT JOIN`, `FULL JOIN`, `NATURAL JOIN`,
+    parenthesized table-refs, and FROM-clause subqueries all produce
+    ParseErrors with a `"deferred: <form>"` message at the first
+    unexpected token. (Bare-ident alias `t t2` remains deferred too.)
 6. **WHERE accepts any Expr** — delegates to `parse_expr`. Expression
    errors propagate as-is (token_index, line, column preserved).
 6a. **GROUP BY** — appears AFTER WHERE, BEFORE HAVING/ORDER BY/LIMIT.
