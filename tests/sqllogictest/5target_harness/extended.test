@@ -1,0 +1,879 @@
+# 5-target extended sqllogictest fixture.
+#
+# Expanded coverage for the 5-target matrix (Rust / Python / C / Zig / Go).
+# All records are CREATE TABLE / INSERT / SELECT only — the harness drivers
+# don't dispatch UPDATE/DELETE/CREATE-VIEW from SQL text, so coverage of
+# those is exercised separately (parts/compiler/parts/{update,delete}-compile).
+#
+# Format: same thin subset as canonical.test —
+#   * `statement ok` — SQL must execute without error
+#   * `query <typestring> nosort` — SQL must execute and emit the listed
+#     rows in the order shown, value-per-line.
+# Blank lines separate records. Lines starting with `#` are comments.
+#
+# DEFER bias: queries that use features outside the v1 steel-thread
+# (JOINs through SQL-text, CTE, UNION beyond simple, scalar/EXISTS/IN
+# subqueries) are deliberately included so the matrix surfaces parity
+# breadth + honest gaps. A DEFER on every target is the documented
+# expected outcome — not a regression.
+
+# =============================================================
+# Section 1: base tables for primary scenarios
+# =============================================================
+
+statement ok
+CREATE TABLE nums (id INTEGER, val INTEGER)
+
+statement ok
+INSERT INTO nums VALUES (1, 10)
+
+statement ok
+INSERT INTO nums VALUES (2, 20)
+
+statement ok
+INSERT INTO nums VALUES (3, 30)
+
+statement ok
+INSERT INTO nums VALUES (4, 40)
+
+statement ok
+INSERT INTO nums VALUES (5, 50)
+
+statement ok
+CREATE TABLE people (id INTEGER, name TEXT)
+
+statement ok
+INSERT INTO people VALUES (1, 'alice')
+
+statement ok
+INSERT INTO people VALUES (2, 'bob')
+
+statement ok
+INSERT INTO people VALUES (3, 'carol')
+
+statement ok
+INSERT INTO people VALUES (4, 'dave')
+
+statement ok
+CREATE TABLE nullable (k INTEGER, v INTEGER)
+
+statement ok
+INSERT INTO nullable VALUES (1, 100)
+
+statement ok
+INSERT INTO nullable VALUES (2, 200)
+
+statement ok
+INSERT INTO nullable VALUES (3, NULL)
+
+statement ok
+INSERT INTO nullable VALUES (4, 400)
+
+# =============================================================
+# Section 2: simple SELECT projections
+# =============================================================
+
+query I nosort
+SELECT id FROM nums
+----
+1
+2
+3
+4
+5
+
+query I nosort
+SELECT val FROM nums
+----
+10
+20
+30
+40
+50
+
+query II nosort
+SELECT id, val FROM nums
+----
+1
+10
+2
+20
+3
+30
+4
+40
+5
+50
+
+query T nosort
+SELECT name FROM people
+----
+alice
+bob
+carol
+dave
+
+query I nosort
+SELECT 1 + 2
+----
+3
+
+query I nosort
+SELECT 100 - 25
+----
+75
+
+query I nosort
+SELECT 6 * 7
+----
+42
+
+query I nosort
+SELECT 100 / 4
+----
+25
+
+query I nosort
+SELECT 17 % 5
+----
+2
+
+query T nosort
+SELECT 'hello world'
+----
+hello world
+
+# =============================================================
+# Section 3: WHERE filters
+# =============================================================
+
+query I nosort
+SELECT id FROM nums WHERE id = 3
+----
+3
+
+query I nosort
+SELECT id FROM nums WHERE id <> 3
+----
+1
+2
+4
+5
+
+query I nosort
+SELECT id FROM nums WHERE id < 3
+----
+1
+2
+
+query I nosort
+SELECT id FROM nums WHERE id <= 3
+----
+1
+2
+3
+
+query I nosort
+SELECT id FROM nums WHERE id > 3
+----
+4
+5
+
+query I nosort
+SELECT id FROM nums WHERE id >= 3
+----
+3
+4
+5
+
+query I nosort
+SELECT id FROM nums WHERE id > 1 AND id < 5
+----
+2
+3
+4
+
+query I nosort
+SELECT id FROM nums WHERE id = 1 OR id = 5
+----
+1
+5
+
+query I nosort
+SELECT id FROM nums WHERE id = 1 OR id = 3 OR id = 5
+----
+1
+3
+5
+
+query I nosort
+SELECT id FROM nums WHERE NOT (id = 3)
+----
+1
+2
+4
+5
+
+query I nosort
+SELECT id FROM nums WHERE (id > 1 AND id < 4) OR id = 5
+----
+2
+3
+5
+
+query I nosort
+SELECT id FROM nums WHERE val > 25
+----
+3
+4
+5
+
+query I nosort
+SELECT id FROM nums WHERE val * 2 > 50
+----
+3
+4
+5
+
+query T nosort
+SELECT name FROM people WHERE name = 'bob'
+----
+bob
+
+query T nosort
+SELECT name FROM people WHERE name <> 'alice'
+----
+bob
+carol
+dave
+
+# =============================================================
+# Section 4: NULL handling
+# =============================================================
+
+query I nosort
+SELECT k FROM nullable WHERE v IS NULL
+----
+3
+
+query I nosort
+SELECT k FROM nullable WHERE v IS NOT NULL
+----
+1
+2
+4
+
+query II nosort
+SELECT k, v FROM nullable
+----
+1
+100
+2
+200
+3
+NULL
+4
+400
+
+# =============================================================
+# Section 5: BETWEEN / IN
+# =============================================================
+
+query I nosort
+SELECT id FROM nums WHERE id BETWEEN 2 AND 4
+----
+2
+3
+4
+
+query I nosort
+SELECT id FROM nums WHERE id NOT BETWEEN 2 AND 4
+----
+1
+5
+
+query I nosort
+SELECT id FROM nums WHERE id IN (1, 3, 5)
+----
+1
+3
+5
+
+query I nosort
+SELECT id FROM nums WHERE id NOT IN (2, 4)
+----
+1
+3
+5
+
+query I nosort
+SELECT id FROM nums WHERE id IN (3)
+----
+3
+
+query T nosort
+SELECT name FROM people WHERE name IN ('alice', 'carol')
+----
+alice
+carol
+
+# =============================================================
+# Section 6: ORDER BY / LIMIT / OFFSET / DISTINCT
+# =============================================================
+
+query I nosort
+SELECT id FROM nums ORDER BY id
+----
+1
+2
+3
+4
+5
+
+query I nosort
+SELECT id FROM nums ORDER BY id DESC
+----
+5
+4
+3
+2
+1
+
+query I nosort
+SELECT id FROM nums ORDER BY id LIMIT 3
+----
+1
+2
+3
+
+query I nosort
+SELECT id FROM nums ORDER BY id LIMIT 2 OFFSET 2
+----
+3
+4
+
+query I nosort
+SELECT id FROM nums ORDER BY id DESC LIMIT 1
+----
+5
+
+query I nosort
+SELECT DISTINCT val FROM nums
+----
+10
+20
+30
+40
+50
+
+# =============================================================
+# Section 7: arithmetic / projection expressions
+# =============================================================
+
+query I nosort
+SELECT id + 100 FROM nums
+----
+101
+102
+103
+104
+105
+
+query I nosort
+SELECT val - id FROM nums
+----
+9
+18
+27
+36
+45
+
+query I nosort
+SELECT val / 10 FROM nums
+----
+1
+2
+3
+4
+5
+
+query I nosort
+SELECT -id FROM nums WHERE id = 1
+----
+-1
+
+query I nosort
+SELECT id * id FROM nums
+----
+1
+4
+9
+16
+25
+
+# =============================================================
+# Section 8: aggregates (no GROUP BY)
+# =============================================================
+
+query I nosort
+SELECT COUNT(*) FROM nums
+----
+5
+
+query I nosort
+SELECT COUNT(id) FROM nums
+----
+5
+
+query I nosort
+SELECT COUNT(v) FROM nullable
+----
+3
+
+query I nosort
+SELECT SUM(val) FROM nums
+----
+150
+
+query I nosort
+SELECT MIN(val) FROM nums
+----
+10
+
+query I nosort
+SELECT MAX(val) FROM nums
+----
+50
+
+query I nosort
+SELECT SUM(val) FROM nums WHERE id > 100
+----
+NULL
+
+query I nosort
+SELECT COUNT(*) FROM nums WHERE id > 100
+----
+0
+
+query II nosort
+SELECT MIN(val), MAX(val) FROM nums
+----
+10
+50
+
+# =============================================================
+# Section 9: GROUP BY / HAVING
+# =============================================================
+
+query II nosort
+SELECT id, COUNT(*) FROM nums GROUP BY id
+----
+1
+1
+2
+1
+3
+1
+4
+1
+5
+1
+
+query II nosort
+SELECT id, val FROM nums GROUP BY id, val
+----
+1
+10
+2
+20
+3
+30
+4
+40
+5
+50
+
+query I nosort
+SELECT id FROM nums GROUP BY id HAVING id > 3
+----
+4
+5
+
+query II nosort
+SELECT id, SUM(val) FROM nums GROUP BY id HAVING SUM(val) > 25
+----
+3
+30
+4
+40
+5
+50
+
+query I nosort
+SELECT v IS NULL FROM nullable GROUP BY v IS NULL ORDER BY v IS NULL
+----
+0
+1
+
+# =============================================================
+# Section 10: CASE expressions
+# =============================================================
+
+query I nosort
+SELECT CASE WHEN id = 1 THEN 100 ELSE 0 END FROM nums
+----
+100
+0
+0
+0
+0
+
+query I nosort
+SELECT CASE WHEN id = 1 THEN 100 WHEN id = 2 THEN 200 ELSE 0 END FROM nums
+----
+100
+200
+0
+0
+0
+
+query I nosort
+SELECT CASE WHEN val > 25 THEN 1 ELSE 0 END FROM nums
+----
+0
+0
+1
+1
+1
+
+query I nosort
+SELECT CASE WHEN id > 2 THEN CASE WHEN id = 3 THEN 33 ELSE 99 END ELSE 0 END FROM nums
+----
+0
+0
+33
+99
+99
+
+# =============================================================
+# Section 11: aggregates with WHERE
+# =============================================================
+
+query I nosort
+SELECT SUM(val) FROM nums WHERE id <= 3
+----
+60
+
+query I nosort
+SELECT COUNT(*) FROM nums WHERE val >= 30
+----
+3
+
+query I nosort
+SELECT MAX(val) FROM nums WHERE id < 4
+----
+30
+
+query I nosort
+SELECT MIN(id) FROM nums WHERE val > 20
+----
+3
+
+# =============================================================
+# Section 12: SELECT literals / expressions without FROM
+# =============================================================
+
+query I nosort
+SELECT 1
+----
+1
+
+query I nosort
+SELECT 1 + 2 + 3
+----
+6
+
+query I nosort
+SELECT (10 - 4) * 2
+----
+12
+
+query T nosort
+SELECT 'foo'
+----
+foo
+
+query II nosort
+SELECT 1, 2
+----
+1
+2
+
+query I nosort
+SELECT CASE WHEN 1 < 2 THEN 1 ELSE 0 END
+----
+1
+
+# =============================================================
+# Section 13: features beyond v1 steel-thread (expected DEFER)
+# These records are kept so the matrix surfaces the boundary of
+# the implemented compile path. A DEFER on every target is the
+# documented expected outcome here, not a regression.
+# =============================================================
+
+query I nosort
+SELECT t.id FROM nums AS t INNER JOIN nums AS u ON t.id = u.id
+----
+1
+2
+3
+4
+5
+
+query I nosort
+WITH cte AS (SELECT id FROM nums WHERE id > 2) SELECT id FROM cte
+----
+3
+4
+5
+
+query I nosort
+SELECT id FROM nums WHERE id IN (SELECT id FROM nums WHERE id > 3)
+----
+4
+5
+
+query I nosort
+SELECT id FROM nums WHERE EXISTS (SELECT 1 FROM nums AS u WHERE u.id = nums.id)
+----
+1
+2
+3
+4
+5
+
+query I nosort
+SELECT (SELECT MAX(val) FROM nums)
+----
+50
+
+# =============================================================
+# Section 14: more WHERE patterns
+# =============================================================
+
+query I nosort
+SELECT id FROM nums WHERE id + 1 > 4
+----
+4
+5
+
+query I nosort
+SELECT id FROM nums WHERE val - 10 = 0
+----
+1
+
+query I nosort
+SELECT id FROM nums WHERE (val % 20) = 0
+----
+2
+4
+
+query I nosort
+SELECT id FROM nums WHERE val = 30
+----
+3
+
+query II nosort
+SELECT id, val FROM nums WHERE id >= 2 AND id <= 4 ORDER BY id
+----
+2
+20
+3
+30
+4
+40
+
+query I nosort
+SELECT id FROM nums WHERE val IN (20, 40, 60)
+----
+2
+4
+
+query I nosort
+SELECT id FROM nums WHERE val BETWEEN 20 AND 40
+----
+2
+3
+4
+
+query T nosort
+SELECT name FROM people WHERE id BETWEEN 2 AND 3
+----
+bob
+carol
+
+# =============================================================
+# Section 15: more aggregate patterns
+# =============================================================
+
+query I nosort
+SELECT SUM(val) FROM nums WHERE val BETWEEN 20 AND 40
+----
+90
+
+query I nosort
+SELECT COUNT(*) FROM nums WHERE id IN (1, 2, 3)
+----
+3
+
+query I nosort
+SELECT MAX(id) FROM nums WHERE val < 100
+----
+5
+
+query I nosort
+SELECT MIN(val) FROM nullable WHERE v IS NOT NULL
+----
+100
+
+query I nosort
+SELECT SUM(v) FROM nullable
+----
+700
+
+query I nosort
+SELECT COUNT(*) FROM nullable WHERE v IS NULL
+----
+1
+
+# =============================================================
+# Section 16: GROUP BY breadth
+# =============================================================
+
+query II nosort
+SELECT val % 20, COUNT(*) FROM nums GROUP BY val % 20 ORDER BY val % 20
+----
+0
+2
+10
+3
+
+query II nosort
+SELECT val % 20, SUM(id) FROM nums GROUP BY val % 20 ORDER BY val % 20
+----
+0
+6
+10
+9
+
+query I nosort
+SELECT COUNT(*) FROM nums GROUP BY id HAVING COUNT(*) >= 1
+----
+1
+1
+1
+1
+1
+
+# =============================================================
+# Section 17: ORDER BY combinations
+# =============================================================
+
+query II nosort
+SELECT id, val FROM nums ORDER BY val DESC
+----
+5
+50
+4
+40
+3
+30
+2
+20
+1
+10
+
+query II nosort
+SELECT id, val FROM nums ORDER BY val DESC LIMIT 2
+----
+5
+50
+4
+40
+
+query T nosort
+SELECT name FROM people ORDER BY name DESC
+----
+dave
+carol
+bob
+alice
+
+query T nosort
+SELECT name FROM people ORDER BY id LIMIT 2
+----
+alice
+bob
+
+# =============================================================
+# Section 18: DISTINCT breadth
+# =============================================================
+
+query I nosort
+SELECT DISTINCT id FROM nums
+----
+1
+2
+3
+4
+5
+
+query I nosort
+SELECT DISTINCT val % 20 FROM nums ORDER BY val % 20
+----
+0
+10
+
+# =============================================================
+# Section 19: chained CASE / boolean projections
+# =============================================================
+
+query I nosort
+SELECT CASE WHEN id < 3 THEN 1 WHEN id = 3 THEN 2 ELSE 3 END FROM nums
+----
+1
+1
+2
+3
+3
+
+query I nosort
+SELECT CASE WHEN val > 20 AND val < 50 THEN 1 ELSE 0 END FROM nums
+----
+0
+0
+1
+1
+0
+
+query I nosort
+SELECT id FROM nums WHERE CASE WHEN id < 3 THEN 1 ELSE 0 END = 1
+----
+1
+2
+
+# =============================================================
+# Section 20: empty-result probes
+# =============================================================
+
+query I nosort
+SELECT id FROM nums WHERE id > 1000
+----
+
+query I nosort
+SELECT id FROM nums WHERE id IS NULL
+----
+
+query I nosort
+SELECT id FROM nullable WHERE k > 1000
+----
