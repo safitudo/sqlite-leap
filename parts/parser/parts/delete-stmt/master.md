@@ -8,63 +8,55 @@ emits:
 
 # DELETE statement parser
 
-Parses a basic `DELETE FROM <table> [WHERE <expr>]` statement. The
-simplest DML form — proves the statement-parser pattern handles
-plain conditional bulk-delete.
+Parses `DELETE FROM <table> [USING <other_table> [AS alias]]
+[WHERE <expr>] [RETURNING <result_columns>]`.
 
 ## Scope
 
 Admitted:
 - `DELETE FROM <ident>` — delete all rows.
 - `DELETE FROM <ident> WHERE <expr>` — delete filtered rows.
+- `DELETE FROM <ident> USING <other_ident> [AS alias] WHERE <expr>` —
+  cross-table delete (single-table USING stub; multi-table joins land
+  when select-stmt's FromClause is wide enough to import).
+- Optional trailing `RETURNING <result_columns>`.
 
-Deferred (`deferred: <construct>`):
-- `DELETE ... RETURNING ...`.
-- `DELETE FROM <schema>.<table>` (qualified table).
-- `DELETE FROM <table> AS <alias>` (alias).
+Deferred:
+- Schema-qualified table.
+- Alias on DELETE target.
 - `WITH ... DELETE ...` (CTE prefix).
-- Table-valued functions as target.
 
-## Algorithm
+## Algorithm (sketch)
 
 ```
 parse_delete(tokens, i):
-    expect tokens[i] == KwDelete; i += 1
-    expect tokens[i] == KwFrom;   i += 1
-    if tokens[i] != Ident: ParseError "expected table name after DELETE FROM"
-    table_name = tokens[i].text; i += 1
-    if tokens[i] == Dot: ParseError "deferred: schema-qualified table"
-    if tokens[i] == KwAs: ParseError "deferred: DELETE alias"
-    where_ = None
-    if tokens[i] == KwWhere:
-        i += 1
-        expr, i = parse_expr(tokens, i)
-        where_ = Some(expr)
-    if tokens[i] == KwReturning: ParseError "deferred: RETURNING"
-    return Ok({ stmt: { table: table_name, where_ }, next: i })
+    expect KwDelete; expect KwFrom
+    table = ident
+    reject Dot/KwAs as before
+    using = optional KwUsing -> ident [AS ident]
+    where_ = optional KwWhere expr
+    returning = optional KwReturning <result_columns>
+    return Ok
 ```
 
 ## Correctness pins
 
-1. **No-WHERE** — `DELETE FROM t` parses to
-   `{ table: "t", where_: None }`. This is the "delete all rows" form.
-2. **With WHERE** — `DELETE FROM t WHERE a = 1` parses with
-   `where_: Some(Binary(Eq, Col(a), IntLit(1)))`.
-3. **Missing FROM** — `DELETE t` is a ParseError (`"expected FROM"`).
-4. **Missing table** — `DELETE FROM` (immediately followed by `;`)
-   is a ParseError (`"expected table name after DELETE FROM"`).
-5. **Schema-qualified deferred** — `DELETE FROM s.t` is
-   `deferred: schema-qualified table`.
-6. **Alias deferred** — `DELETE FROM t AS x` is `deferred: DELETE alias`.
-7. **RETURNING deferred** — `DELETE FROM t RETURNING a` is
-   `deferred: RETURNING`.
-8. **WHERE delegates** — embedded expression errors propagate as-is.
-9. **Owned strings** — `table` is an owned copy.
-10. **Statement terminator** — parser stops BEFORE `;` / Eof.
-11. **No inline tests, no invented helpers**.
+1. No-WHERE — same as before.
+2. With WHERE — same as before.
+3. Missing FROM, missing table — same errors as before.
+4. **USING** — `DELETE FROM t USING other WHERE t.id = other.id`
+   parses with `using == Some({table:"other", alias:None})`.
+5. **USING AS alias** — admitted.
+6. **RETURNING** — `... RETURNING t.id` parses one Expr ResultColumn.
+7. **RETURNING star** — admitted.
+8. Embedded WHERE expression errors propagate.
+9. Owned strings.
+10. Statement terminator — parser stops BEFORE `;` / Eof.
+11. No inline tests, no invented helpers.
+12. **Reuse of ResultColumn** — imported from insert-stmt.
 
 ## Regeneration envelope
 
-- Line budget: **~90-140 lines** of Rust / **~180-280 lines** of C.
-- No dependencies beyond std.
-- Public items: `DeleteStmt`, `DeleteParseOk`, `parse_delete`.
+- Line budget: ~200-320 lines of Rust / ~350-650 lines of C.
+- Public items: `DeleteUsingStub`, `DeleteStmt`, `DeleteParseOk`,
+  `parse_delete`.

@@ -6,16 +6,28 @@
     "Token":      "/parts/parser/parts/tokenizer",
     "TokenKind":  "/parts/parser/parts/tokenizer",
     "Expr":       "/parts/parser/parts/expr",
-    "ParseError": "/parts/parser/parts/expr"
+    "ParseError": "/parts/parser/parts/expr",
+    "ResultColumn": "/parts/parser/parts/insert-stmt"
   },
 
   "types": {
+    "DeleteUsingStub": {
+      "kind": "record",
+      "doc": "Forward-declared stub for a DELETE-USING clause. Like update-stmt's FromClauseStub, this is a single-table placeholder until select-stmt's FromClause is rich enough to replace it.",
+      "fields": {
+        "table": "string",
+        "alias": { "optional": "string" }
+      }
+    },
+
     "DeleteStmt": {
       "kind": "record",
-      "doc": "Parsed DELETE statement: target table plus optional WHERE expression. Absence of WHERE means 'delete every row'. RETURNING, schema-qualified tables, CTE prefix, DELETE ... FROM ... WHERE EXISTS (subquery) all deferred.",
+      "doc": "Parsed DELETE statement: target table plus optional USING / WHERE / RETURNING.",
       "fields": {
-        "table":  "string",
-        "where_": { "optional": "Expr" }
+        "table":     "string",
+        "using":     { "optional": "DeleteUsingStub" },
+        "where_":    { "optional": "Expr" },
+        "returning": { "list": "ResultColumn" }
       }
     },
 
@@ -31,7 +43,7 @@
 
   "functions": {
     "parse_delete": {
-      "doc": "Parse `DELETE FROM <table> [WHERE <expr>]`. Rejects RETURNING, schema-qualified tables, and subqueries-in-FROM (none admitted) with `deferred: <construct>` messages. Delegates to parse_expr for WHERE.",
+      "doc": "Parse `DELETE FROM <table> [USING <table> [AS alias]] [WHERE <expr>] [RETURNING <result_columns>]`.",
       "params": [
         { "name": "tokens", "type": { "borrow": { "list": "Token" } } },
         { "name": "start",  "type": "u32" }

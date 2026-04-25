@@ -17,6 +17,15 @@
       }
     },
 
+    "LikeKind": {
+      "kind": "variant",
+      "doc": "Pattern-match operator family. `Like` is SQL LIKE (case-insensitive, %/_ wildcards). `Glob` is SQL GLOB (case-sensitive, *,?,[abc] wildcards). The two share an AST representation (`Expr::Like`) but the runtime opcode differs — see expr-compile.",
+      "cases": {
+        "Like": { "doc": "SQL LIKE — case-insensitive, %/_ wildcards." },
+        "Glob": { "doc": "SQL GLOB — case-sensitive, *,?,[abc] wildcards." }
+      }
+    },
+
     "BinaryOp": {
       "kind": "variant",
       "doc": "Infix operators admitted by the expression parser, at full SQLite precedence tiers (see master.md §Precedence). IS and the compound comparison operators like BETWEEN/IN/LIKE are deferred.",
@@ -64,7 +73,13 @@
         "IsNull":  { "doc": "Postfix null-test: `arg IS NULL` (negated=false) or `arg IS NOT NULL` (negated=true). Lower precedence than comparison; higher than AND/OR. The general `IS` operator and `IS DISTINCT FROM` are deferred.",
                      "fields": { "arg": "Expr", "negated": "bool" } },
         "Case":    { "doc": "CASE expression (searched form). branches is a non-empty list of (when_expr, then_expr) pairs evaluated in order: the first when_expr that evaluates truthy yields its then_expr. If none match, else_ is evaluated (if present) or Null is returned. Simple-form CASE (`CASE x WHEN v1 THEN r1 ...`) is desugared at parse time: each branch's when_expr becomes `Binary(Eq, clone(x), v_i)`, so downstream compilers only ever see searched form. Precedence: prefix (consumed by parse_prefix), terminated by KwEnd.",
-                     "fields": { "branches": { "list": "CaseBranch" }, "else_": { "optional": "Expr" } } }
+                     "fields": { "branches": { "list": "CaseBranch" }, "else_": { "optional": "Expr" } } },
+        "Cast":    { "doc": "`CAST(expr AS type)` — coerce expr to a named type. type_name is the surface text of the type (uppercase by parser convention: 'INTEGER', 'REAL', 'TEXT', 'BLOB', 'NUMERIC', etc.). The compiler maps type_name to a CastKind; unrecognised type_name → CompileError(deferred). Parsed as a prefix construct (KwCast).",
+                     "fields": { "expr": "Expr", "type_name": "string" } },
+        "Like":    { "doc": "`expr [NOT] LIKE pattern [ESCAPE esc]` and `expr [NOT] GLOB pattern`. kind discriminates LIKE vs GLOB — they share the AST shape but compile to distinct opcodes. negated reflects a leading NOT. escape is present iff source had `ESCAPE <expr>` (LIKE only; parser rejects `GLOB ... ESCAPE ...`). Parsed as a postfix at comparison-tier precedence.",
+                     "fields": { "expr": "Expr", "pattern": "Expr", "escape": { "optional": "Expr" }, "negated": "bool", "kind": "LikeKind" } },
+        "Collate": { "doc": "`expr COLLATE name` — collation annotation. The compiler is a stub for now (returns CompileError 'deferred: COLLATE comparison'); the AST node is preserved so a later semantic pass can wire it to the runtime collation path. name is the surface ident (e.g. 'BINARY', 'NOCASE', 'RTRIM'). Parsed as a postfix at the highest precedence (binds tighter than Concat).",
+                     "fields": { "expr": "Expr", "name": "string" } }
       }
     },
 

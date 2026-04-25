@@ -19,7 +19,27 @@ ad-hoc table, or reaching for a parser-generator crate?**
 Admitted:
 - Literals: `IntLit`, `RealLit`, `StrLit`, `Null`.
 - Column references (unqualified): `colname`.
-- Function calls: `NAME(arg0, arg1, ...)`, including `NAME()`.
+- Function calls: `NAME(arg0, arg1, ...)`, including `NAME()`. Three
+  call-form sugars are admitted (parser-level desugar; no AST variant):
+  - `NAME(*)` — wildcard arg form, used by `count(*)`. Rewrites to
+    `Call { name: <name> + "_star", args: [] }`. The select compiler
+    recognizes `count_star` as `AggFuncKind::CountStar`. For names
+    other than `count`, the rewrite still runs structurally;
+    downstream compilation rejects unknown `<name>_star` builtins.
+  - `NAME(DISTINCT arg)` — distinct-arg form, used by `count(DISTINCT
+    expr)`. Rewrites to `Call { name: <name> + "_distinct", args:
+    [arg] }`. The compiler maps `count_distinct` to
+    `AggFuncKind::CountDistinct`; for other names, downstream
+    compilation rejects.
+  - `NAME(ALL arg)` — explicit-all keyword. The `ALL` keyword is
+    consumed and discarded; the result is `Call { name: <name>,
+    args: [arg] }` — identical to the bare form. SQL standard noise
+    word for aggregates.
+  Only ONE of `*` / `DISTINCT` / `ALL` may appear, and only as the
+  FIRST token after `(`. `count(DISTINCT a, b)` is a parser error
+  (`"DISTINCT call argument must be a single expression"`).
+  `count(*)` with additional args is a parser error
+  (`"'*' wildcard argument cannot be combined with other arguments"`).
 - Parenthesized sub-expressions: `(expr)` — no AST node, shape only.
 - Prefix unary: `-expr`, `NOT expr`.
 - Binary operators at the precedence tiers in §Precedence below.
@@ -43,6 +63,21 @@ Admitted:
   e_i)`, wrapped in `Unary(Not, ...)` for NOT IN. `expr` is cloned
   per item. Precedence: postfix at comparison tier. Subquery form
   `IN (SELECT ...)` is deferred.
+- `CAST(expr AS type)` — prefix construct on `KwCast`. After `KwCast` expect
+  `LParen`, parse inner expression at bp=0, expect `KwAs`, expect an `Ident`
+  (the type name), expect `RParen`. Produces `Cast { expr, type_name }` where
+  `type_name` is the raw ident text (uppercased to canonicalise common forms:
+  `integer` / `Integer` / `INTEGER` all become `"INTEGER"`).
+- `expr LIKE pattern`, `expr NOT LIKE pattern`, `expr LIKE pattern ESCAPE esc`,
+  `expr NOT LIKE pattern ESCAPE esc`, `expr GLOB pattern`, `expr NOT GLOB pattern` —
+  postfix at comparison-tier precedence (`lbp = 5`). Parses pattern at bp=5
+  so AND/OR don't bleed in. ESCAPE is admitted only for LIKE; parser rejects
+  `GLOB ... ESCAPE ...` with a ParseError. Produces
+  `Like { expr, pattern, escape, negated, kind }`.
+- `expr COLLATE name` — postfix at the highest precedence tier (`lbp = 21`,
+  binds tighter than Concat). After `KwCollate`, expect an `Ident` for the
+  collation name. Produces `Collate { expr, name }` where `name` is the
+  surface ident text uppercased.
 - `CASE ... END` — searched and simple forms. Searched:
   `CASE WHEN p1 THEN r1 [WHEN p2 THEN r2 ...] [ELSE e] END` produces
   `Case { branches: [(p1, r1), (p2, r2), ...], else_: Some(e) | None }`.
@@ -58,16 +93,19 @@ Admitted:
 Deferred (not parsed by this probe; parser returns ParseError if
 encountered):
 - Table-qualified column references (`t.col`).
-- CAST / COLLATE / LIKE / GLOB / REGEXP / MATCH.
-- Subqueries (`(SELECT ...)`).
-- `count(*)` wildcard argument.
+- REGEXP / MATCH (LIKE / GLOB / CAST / COLLATE are now admitted — see above).
+- Subqueries (`(SELECT ...)`) and `EXISTS (SELECT ...)` — these introduce a
+  parser dependency on `/parts/parser/parts/select-stmt::SelectStmt`. They
+  are deferred from this batch because select-stmt is being concurrently
+  edited by another agent. To be added as a follow-up: `Subquery { stmt }`,
+  `Exists { stmt, negated }` Expr variants.
 - Blob literals, parameter placeholders.
 - General `IS` operator (`a IS b`), `ISNULL` / `NOTNULL` keyword
   forms, `IS DISTINCT FROM`. Only postfix `IS NULL` / `IS NOT NULL`
   is admitted (see above).
 - `IN (SELECT ...)` subquery form. Only `IN (expr, expr, ...)` with
   a literal/expression list is admitted.
-- COLLATE / GLOB / REGEXP / MATCH.
+- REGEXP / MATCH operators (LIKE / GLOB / COLLATE are admitted).
 - Bitwise NOT `~`, unary `+`.
 - Window functions, `OVER` clauses.
 
@@ -144,6 +182,16 @@ parse_bp(tokens, i, min_bp):
             #   one item    → Binary(Eq, lhs, e) (wrapped in Not if NOT IN)
             #   n items     → left-fold as Binary(Or, Binary(Or, ...), Binary(Eq, lhs, e_n))
             continue
+        # Postfix LIKE / NOT LIKE / GLOB / NOT GLOB at comparison tier (lbp=5).
+        if (tok.kind == KwLike or tok.kind == KwGlob or
+            (tok.kind == KwNot and (tokens[i+1].kind == KwLike or tokens[i+1].kind == KwGlob)))
+           and 5 >= min_bp:
+            (lhs, i) = parse_like_postfix(tokens, i, lhs)
+            continue
+        # Postfix COLLATE at highest precedence tier (lbp=21).
+        if tok.kind == KwCollate and 21 >= min_bp:
+            (lhs, i) = parse_collate_postfix(tokens, i, lhs)
+            continue
         (op, lbp, rbp) = infix_lookup(tok.kind)  # None if tok is not an infix op
         if op is None or lbp < min_bp:
             break
@@ -161,12 +209,54 @@ parse_prefix(tokens, i):
                          -> literal node, i+=1
         KwNull           -> Null node, i+=1
         Ident (name)     -> look at tokens[i+1]:
-                            LParen  -> Call(name, args); parse arg list
-                                       (comma-separated exprs until RParen)
+                            LParen  -> Call(name, args); parse arg list:
+                                       peek tokens[i+2]:
+                                         Star      -> consume; expect RParen;
+                                                       Call(name+"_star", [])
+                                         KwDistinct-> consume; parse one expr at bp=0;
+                                                       expect RParen;
+                                                       Call(name+"_distinct", [arg])
+                                         KwAll     -> consume; parse comma-list;
+                                                       Call(name, args)
+                                         else      -> parse comma-list;
+                                                       Call(name, args)
                             else     -> Col(name)
         LParen           -> '(' expr ')' — parse inner expr, expect RParen
         KwCase           -> parse_case(tokens, i)
+        KwCast           -> parse_cast(tokens, i)
         _                -> ParseError("expected prefix expression")
+
+parse_cast(tokens, i):
+    # i points at KwCast.
+    i += 1
+    require tokens[i] == LParen; i += 1
+    (inner, i) = parse_bp(tokens, i, 0)
+    require tokens[i] == KwAs; i += 1
+    require tokens[i] is Ident; type_name = uppercase(text); i += 1
+    require tokens[i] == RParen; i += 1
+    return (Cast { expr: inner, type_name }, i)
+
+parse_like_postfix(tokens, i, lhs):
+    # i points at KwLike/KwGlob OR at KwNot with KwLike/KwGlob at i+1.
+    negated = false
+    if tokens[i] == KwNot: negated = true; i += 1
+    kind = tokens[i] == KwLike ? LikeKind::Like : LikeKind::Glob
+    is_glob = (kind == LikeKind::Glob)
+    i += 1
+    (pat, i) = parse_bp(tokens, i, 5)        # pattern at bp=5 to keep AND/OR out
+    escape = None
+    if tokens[i] == KwEscape:
+        if is_glob: return ParseError("ESCAPE not allowed with GLOB")
+        i += 1
+        (esc, i) = parse_bp(tokens, i, 5)
+        escape = Some(esc)
+    return (Like { expr: lhs, pattern: pat, escape, negated, kind }, i)
+
+parse_collate_postfix(tokens, i, lhs):
+    # i points at KwCollate.
+    i += 1
+    require tokens[i] is Ident; name = uppercase(text); i += 1
+    return (Collate { expr: lhs, name }, i)
 
 parse_case(tokens, i):
     # i points at KwCase. Consume it.
@@ -258,6 +348,20 @@ bind tighter than every binary.
    `Call { name: "f", args: [a, b, c] }`. `f()` parses with empty
    args. A trailing comma before `)` is a ParseError. Nested calls
    `f(g(x), y)` produce a recursive `Call` inside `args`.
+   Three sugars (parser-level desugar; no AST variant added):
+   - `count(*)` parses as `Call { name: "count_star", args: [] }`.
+     Wildcard with extra args (`count(*, x)`) is a ParseError
+     `"'*' wildcard argument cannot be combined with other arguments"`.
+   - `count(DISTINCT x)` parses as
+     `Call { name: "count_distinct", args: [x] }`. The DISTINCT
+     keyword is consumed; exactly one expression must follow before
+     `)`. More than one yields ParseError
+     `"DISTINCT call argument must be a single expression"`.
+   - `agg(ALL x)` parses as `Call { name: "agg", args: [x] }` —
+     identical to the bare form. ALL is a noise keyword.
+   The sugar applies regardless of `<name>`; semantic rejection of
+   non-aggregate uses (e.g. `lower(*)`) is a downstream compiler
+   responsibility.
 8. **Column vs call disambiguation** — an `Ident` token followed by
    `LParen` is always a `Call`; otherwise it's a `Col`. No lookahead
    beyond one token is required.
@@ -332,6 +436,20 @@ bind tighter than every binary.
     1 ELSE 0 END + 1` parses as `Binary(Plus, Case{...}, IntLit("1"))`
     because CASE is a prefix/atom construct. `NOT CASE ... END`
     parses as `Unary(Not, Case{...})`.
+22. **CAST prefix** — `CAST('123' AS INTEGER)` parses to
+    `Cast { expr: StrLit("'123'"), type_name: "INTEGER" }`. type_name
+    is uppercased; whitespace inside the parens follows the same
+    skip rules as elsewhere. Missing `AS`, missing type ident, or
+    missing closing `)` is a ParseError.
+23. **LIKE / GLOB postfix** — `'abc' LIKE 'a%'` parses to
+    `Like { expr: StrLit("'abc'"), pattern: StrLit("'a%'"), escape: None,
+    negated: false, kind: LikeKind::Like }`. `NOT LIKE` flips negated.
+    `'abc' GLOB '*c'` produces `kind: LikeKind::Glob`. ESCAPE clause
+    sets `escape = Some(...)`. ESCAPE with GLOB is a ParseError.
+24. **COLLATE postfix** — `a COLLATE NOCASE` parses to
+    `Collate { expr: Col("a"), name: "NOCASE" }`. COLLATE binds at
+    the highest tier, so `a COLLATE NOCASE = b` parses to
+    `Binary(Eq, Collate{Col(a), NOCASE}, Col(b))`.
 
 ## Regeneration envelope
 

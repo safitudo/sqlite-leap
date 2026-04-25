@@ -6,23 +6,82 @@
     "Token":      "/parts/parser/parts/tokenizer",
     "TokenKind":  "/parts/parser/parts/tokenizer",
     "Expr":       "/parts/parser/parts/expr",
-    "ParseError": "/parts/parser/parts/expr"
+    "ParseError": "/parts/parser/parts/expr",
+    "SelectStmt": "/parts/parser/parts/select-stmt",
+    "ResultColumn": "/parts/parser/parts/select-stmt"
   },
 
   "types": {
+    "OrAction": {
+      "kind": "variant",
+      "doc": "Conflict-resolution prefix on a write. Mirrors the SQL `OR <action>` clause: REPLACE, IGNORE, ABORT, FAIL, ROLLBACK. Parser-only; the compiler decides how to lower it.",
+      "cases": {
+        "Replace":  { "doc": "OR REPLACE — overwrite on uniqueness conflict." },
+        "Ignore":   { "doc": "OR IGNORE — skip the row on conflict." },
+        "Abort":    { "doc": "OR ABORT — default. Roll back the offending statement only." },
+        "Fail":     { "doc": "OR FAIL — abort the statement, leave prior changes." },
+        "Rollback": { "doc": "OR ROLLBACK — abort the entire transaction." }
+      }
+    },
+
+    "UpdateAssignment": {
+      "kind": "record",
+      "doc": "Re-export of update-stmt's UpdateAssignment shape so the ON CONFLICT DO UPDATE clause can carry a list of `col = expr` pairs without circular import. Kept as a local record (not imported) because shape.schema.json does not yet support back-references between sibling parts.",
+      "fields": {
+        "column": "string",
+        "value":  "Expr"
+      }
+    },
+
+    "ConflictClause": {
+      "kind": "variant",
+      "doc": "Body of an `ON CONFLICT (col_list) DO ...` clause. `target` is the column list naming the conflict target index (empty list = unspecified target — parser admits but compiler may reject).",
+      "cases": {
+        "DoNothing": {
+          "doc": "ON CONFLICT (...) DO NOTHING — silently skip conflicting rows.",
+          "fields": { "target": { "list": "string" } }
+        },
+        "DoUpdate": {
+          "doc": "ON CONFLICT (...) DO UPDATE SET col = expr [, ...] [WHERE expr] — UPSERT.",
+          "fields": {
+            "target":   { "list": "string" },
+            "set_list": { "list": "UpdateAssignment" },
+            "where_":   { "optional": "Expr" }
+          }
+        }
+      }
+    },
+
+    "ResultColumn": {
+      "kind": "variant",
+      "doc": "Item in a RETURNING clause. Mirrors a single-table projection: `*`, `t.*`, or `expr [AS alias]`.",
+      "cases": {
+        "Star":      { "doc": "`*` — every column of the affected row." },
+        "TableStar": { "doc": "`t.*` — every column of one table.",
+                        "fields": { "table": "string" } },
+        "Expr":      { "doc": "`expr` or `expr AS alias`.",
+                        "fields": { "expr": "Expr", "alias": { "optional": "string" } } }
+      }
+    },
+
     "InsertStmt": {
       "kind": "record",
-      "doc": "Parsed INSERT statement. Covers `INSERT INTO table [(col, ...)] VALUES (expr, ...), (expr, ...), ...`. Named column list is optional; when absent, callers must supply values for every table column in schema order. Multi-row VALUES is a single statement; each inner paren-group is one row. RETURNING, OR-conflict clauses, INSERT INTO ... SELECT, and DEFAULT VALUES are deferred.",
+      "doc": "Parsed INSERT statement. Covers VALUES rows, INSERT-from-SELECT, DEFAULT VALUES, OR-action conflict prefix, ON CONFLICT (UPSERT), and RETURNING. Exactly one of `default_values` / `from_select` / non-empty `rows` is set on a well-formed statement; the parser also admits `rows.is_empty() && from_select.is_none() && !default_values` only as an internal transient — error path.",
       "fields": {
-        "table":    "string",
-        "columns":  { "list": "string" },
-        "rows":     { "list": "InsertRow" }
+        "table":          "string",
+        "columns":        { "list": "string" },
+        "or_action":      { "optional": "OrAction" },
+        "default_values": "bool",
+        "rows":           { "list": "InsertRow" },
+        "from_select":    { "optional": "SelectStmt" },
+        "on_conflict":    { "optional": "ConflictClause" },
+        "returning":      { "list": "ResultColumn" }
       }
     },
 
     "InsertRow": {
       "kind": "record",
-      "doc": "One row's worth of inserted expressions. Length must either (a) match `InsertStmt.columns` when columns is non-empty, or (b) be any positive count when columns is empty — the compiler validates against the table schema. Parser does not check column/value count equality; it accepts what's syntactically valid.",
+      "doc": "One row's worth of inserted expressions. Used only for VALUES-form INSERT.",
       "fields": {
         "values": { "list": "Expr" }
       }
@@ -30,7 +89,7 @@
 
     "InsertParseOk": {
       "kind": "record",
-      "doc": "Successful parse output: the InsertStmt plus the position of the next token after the statement (the caller verifies it is `;` or Eof).",
+      "doc": "Successful parse output: the InsertStmt plus the position of the next token after the statement.",
       "fields": {
         "stmt": "InsertStmt",
         "next": "u32"
@@ -40,7 +99,7 @@
 
   "functions": {
     "parse_insert": {
-      "doc": "Parse an INSERT statement starting at `tokens[start]`. Delegates to `parse_expr` for every embedded value expression. Returns err(ParseError) with a `deferred: <construct>` message when encountering RETURNING, OR, SELECT-source, DEFAULT VALUES, or a trailing comma. On success, returns the statement and the token index immediately after the final `)`.",
+      "doc": "Parse an INSERT statement starting at `tokens[start]`. Admits VALUES (single+multi-row), INSERT-from-SELECT, DEFAULT VALUES, OR-action prefix, ON CONFLICT (... ) DO NOTHING / DO UPDATE, and RETURNING. Delegates to `parse_expr` for value/where exprs, and to `parse_select` for the SELECT body of INSERT-from-SELECT.",
       "params": [
         { "name": "tokens", "type": { "borrow": { "list": "Token" } } },
         { "name": "start",  "type": "u32" }

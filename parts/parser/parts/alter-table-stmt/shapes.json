@@ -1,0 +1,57 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/parser/parts/alter-table-stmt",
+
+  "imports": {
+    "Token":       "/parts/parser/parts/tokenizer",
+    "TokenKind":   "/parts/parser/parts/tokenizer",
+    "ParseError":  "/parts/parser/parts/expr",
+    "ColumnDef":   "/parts/parser/parts/create-table-stmt"
+  },
+
+  "types": {
+    "AlterOp": {
+      "kind": "variant",
+      "doc": "The four ALTER TABLE operations admitted by SQLite. RENAME TO renames the entire table; RENAME COLUMN renames one column. ADD COLUMN appends a new column with full ColumnDef syntax (constraints admitted). DROP COLUMN removes a column by name.",
+      "cases": {
+        "RenameTable":  { "doc": "`RENAME TO <new_name>`.",
+                           "fields": { "new_name": "string" } },
+        "RenameColumn": { "doc": "`RENAME [COLUMN] <old> TO <new>`. Both forms (with and without the COLUMN keyword) admitted.",
+                           "fields": { "old": "string", "new": "string" } },
+        "AddColumn":    { "doc": "`ADD [COLUMN] <col_def>`. Reuses the ColumnDef type from create-table-stmt.",
+                           "fields": { "def": "ColumnDef" } },
+        "DropColumn":   { "doc": "`DROP [COLUMN] <name>`.",
+                           "fields": { "name": "string" } }
+      }
+    },
+
+    "AlterTableStmt": {
+      "kind": "record",
+      "doc": "Parsed ALTER TABLE statement. Schema-qualified names deferred.",
+      "fields": {
+        "name": "string",
+        "op":   "AlterOp"
+      }
+    },
+
+    "AlterTableParseOk": {
+      "kind": "record",
+      "doc": "Successful parse output: the AlterTableStmt plus the index of the next un-consumed token.",
+      "fields": {
+        "stmt": "AlterTableStmt",
+        "next": "u32"
+      }
+    }
+  },
+
+  "functions": {
+    "parse_alter_table": {
+      "doc": "Parse an `ALTER TABLE` statement. Token at `start` must be `KwAlter`. Delegates to create-table-stmt's column-def sub-parser for the ADD COLUMN form (re-exposed via a private helper that this leaf imports from the same file via crate-internal path).",
+      "params": [
+        { "name": "tokens", "type": { "borrow": { "list": "Token" } } },
+        { "name": "start",  "type": "u32" }
+      ],
+      "returns": { "result": { "ok": "AlterTableParseOk", "err": "ParseError" } }
+    }
+  }
+}

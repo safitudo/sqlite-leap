@@ -1,0 +1,94 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/parser/parts/create-table-stmt",
+
+  "imports": {
+    "Token":      "/parts/parser/parts/tokenizer",
+    "TokenKind":  "/parts/parser/parts/tokenizer",
+    "Expr":       "/parts/parser/parts/expr",
+    "ParseError": "/parts/parser/parts/expr"
+  },
+
+  "types": {
+    "ColumnConstraint": {
+      "kind": "variant",
+      "doc": "Per-column constraint, attached after the optional type-name. The grammar admits multiple constraints in sequence; downstream compilers fold them into table metadata.",
+      "cases": {
+        "NotNull":    { "doc": "`NOT NULL`." },
+        "PrimaryKey": { "doc": "`PRIMARY KEY [ASC|DESC]`. `ascending = true` for ASC or omitted, false for DESC.",
+                         "fields": { "ascending": "bool" } },
+        "Unique":     { "doc": "`UNIQUE`." },
+        "Default":    { "doc": "`DEFAULT <expr>` — value supplied when row omits the column. Expr may be any literal or parenthesized expression admitted by parse_expr.",
+                         "fields": { "value": "Expr" } },
+        "Check":      { "doc": "`CHECK (<expr>)` — column-level check.",
+                         "fields": { "expr": "Expr" } },
+        "References": { "doc": "`REFERENCES <table> [(col [, col ...])]` — column-level FK shorthand. ON DELETE / ON UPDATE actions are deferred.",
+                         "fields": { "table": "string", "columns": { "list": "string" } } },
+        "Collate":    { "doc": "`COLLATE <name>` — collation override.",
+                         "fields": { "name": "string" } },
+        "Generated":  { "doc": "`[GENERATED ALWAYS] AS (<expr>) [STORED|VIRTUAL]`. `stored = true` for STORED, false for VIRTUAL or omitted (VIRTUAL is the default).",
+                         "fields": { "expr": "Expr", "stored": "bool" } }
+      }
+    },
+
+    "ColumnDef": {
+      "kind": "record",
+      "doc": "One column declaration in a CREATE TABLE column list. The type-name is optional (SQLite admits typeless columns); when present it is the raw token text concatenated with spaces (e.g. `VARCHAR`, `DOUBLE PRECISION`, or `INT`). Multi-token type names admit one space-separated `Ident` sequence; parameterized type names like `VARCHAR(255)` are deferred.",
+      "fields": {
+        "name":        "string",
+        "type_name":   { "option": "string" },
+        "constraints": { "list": "ColumnConstraint" }
+      }
+    },
+
+    "TableConstraint": {
+      "kind": "variant",
+      "doc": "Table-level constraint, written after the column list (still inside the column-list parens, separated by comma from the last column).",
+      "cases": {
+        "PrimaryKey": { "doc": "`PRIMARY KEY (col [, col ...])`.",
+                         "fields": { "columns": { "list": "string" } } },
+        "Unique":     { "doc": "`UNIQUE (col [, col ...])`.",
+                         "fields": { "columns": { "list": "string" } } },
+        "Check":      { "doc": "`CHECK (<expr>)` — table-level check.",
+                         "fields": { "expr": "Expr" } },
+        "ForeignKey": { "doc": "`FOREIGN KEY (col [, col ...]) REFERENCES <table> [(col [, col ...])]`. ON DELETE / ON UPDATE actions deferred.",
+                         "fields": { "columns":     { "list": "string" },
+                                     "ref_table":   "string",
+                                     "ref_columns": { "list": "string" } } }
+      }
+    },
+
+    "CreateTableStmt": {
+      "kind": "record",
+      "doc": "Parsed CREATE TABLE statement. Covers `CREATE TABLE [IF NOT EXISTS] <name> ( <col_def> [, <col_def>]* [, <table_constraint>]* ) [WITHOUT ROWID|STRICT [, WITHOUT ROWID|STRICT]]`. Schema-qualified names, temp tables, AS-SELECT form, and parameterized type names are deferred.",
+      "fields": {
+        "name":              "string",
+        "if_not_exists":     "bool",
+        "columns":           { "list": "ColumnDef" },
+        "table_constraints": { "list": "TableConstraint" },
+        "without_rowid":     "bool",
+        "strict":            "bool"
+      }
+    },
+
+    "CreateTableParseOk": {
+      "kind": "record",
+      "doc": "Successful parse output: the CreateTableStmt plus the index of the next un-consumed token (typically `;` or `Eof`).",
+      "fields": {
+        "stmt": "CreateTableStmt",
+        "next": "u32"
+      }
+    }
+  },
+
+  "functions": {
+    "parse_create_table": {
+      "doc": "Parse a `CREATE TABLE` statement. Token at `start` must be `KwCreate`. Delegates to parse_expr for `DEFAULT`, `CHECK`, and `GENERATED ALWAYS AS` expressions. Rejects deferred forms (`TEMP`, `AS SELECT`, schema-qualified names, parameterized type names, ON DELETE/UPDATE actions) with `deferred: <construct>` ParseError.",
+      "params": [
+        { "name": "tokens", "type": { "borrow": { "list": "Token" } } },
+        { "name": "start",  "type": "u32" }
+      ],
+      "returns": { "result": { "ok": "CreateTableParseOk", "err": "ParseError" } }
+    }
+  }
+}

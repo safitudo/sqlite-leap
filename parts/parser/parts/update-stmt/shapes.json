@@ -6,26 +6,41 @@
     "Token":      "/parts/parser/parts/tokenizer",
     "TokenKind":  "/parts/parser/parts/tokenizer",
     "Expr":       "/parts/parser/parts/expr",
-    "ParseError": "/parts/parser/parts/expr"
+    "ParseError": "/parts/parser/parts/expr",
+    "TableRef":   "/parts/parser/parts/select-stmt",
+    "ResultColumn": "/parts/parser/parts/insert-stmt",
+    "OrAction":   "/parts/parser/parts/insert-stmt"
   },
 
   "types": {
     "UpdateAssignment": {
       "kind": "record",
-      "doc": "One `col = expr` assignment inside a SET clause. Multiple assignments form a list. The column is referenced by unqualified name; the compiler resolves to a table column index.",
+      "doc": "One `col = expr` assignment inside a SET clause.",
       "fields": {
         "column": "string",
         "value":  "Expr"
       }
     },
 
+    "FromClauseStub": {
+      "kind": "record",
+      "doc": "Forward-declared stub for an UPDATE-FROM clause. The eventual richer FromClause (multi-table + JOINs) is being authored by a parallel agent in select-stmt; for now this leaf parses a single bare table name and stores it here. When select-stmt's FromClause stabilizes, replace this with the imported FromClause and regenerate.",
+      "fields": {
+        "table": "string",
+        "alias": { "optional": "string" }
+      }
+    },
+
     "UpdateStmt": {
       "kind": "record",
-      "doc": "Parsed UPDATE statement. Covers `UPDATE <table> SET col=expr[, col=expr]... [WHERE expr]`. OR-conflict, RETURNING, FROM-clause joins, schema-qualified tables, and CTEs are deferred.",
+      "doc": "Parsed UPDATE statement. Covers OR-action prefix, SET assignments, optional FROM, optional WHERE, and RETURNING.",
       "fields": {
+        "or_action":   { "optional": "OrAction" },
         "table":       "string",
         "assignments": { "list": "UpdateAssignment" },
-        "where_":      { "optional": "Expr" }
+        "from_clause": { "optional": "FromClauseStub" },
+        "where_":      { "optional": "Expr" },
+        "returning":   { "list": "ResultColumn" }
       }
     },
 
@@ -41,7 +56,7 @@
 
   "functions": {
     "parse_update": {
-      "doc": "Parse `UPDATE <table> SET <col>=<expr>[, ...] [WHERE <expr>]`. Delegates to parse_expr for every value expression (both in SET and WHERE). Rejects OR-conflict, RETURNING, FROM joins, and schema-qualified tables with `deferred: <construct>` messages.",
+      "doc": "Parse `[UPDATE OR <action>] UPDATE <table> SET <col>=<expr>[, ...] [FROM <table> [AS alias]] [WHERE <expr>] [RETURNING <result_columns>]`.",
       "params": [
         { "name": "tokens", "type": { "borrow": { "list": "Token" } } },
         { "name": "start",  "type": "u32" }

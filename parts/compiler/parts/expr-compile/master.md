@@ -34,6 +34,25 @@ Admitted AST nodes:
   `UnaryOpKind::NotNull`. Both opcodes already exist in
   `/parts/vdbe/parts/opcodes-expr/shapes.json::UnaryOpKind` and
   return Integer(1)/Integer(0), never Null.
+- `Expr::Cast { expr, type_name }` — recurse into expr; emit one
+  `OpcodeExpr::Cast { kind, src, dest_reg }` where `kind` is mapped
+  from `type_name` per §"CAST type-name mapping" below. Unknown
+  type_name → `CompileError { message: "deferred: CAST <name>" }`.
+- `Expr::Like { expr, pattern, escape, negated, kind }` — recurse
+  into expr, then pattern, then escape (if Some). Emit one
+  `OpcodeExpr::Like { hay, pat, esc, dest_reg }` for `kind = Like`,
+  or `OpcodeExpr::Glob { hay, pat, dest_reg }` for `kind = Glob`.
+  ESCAPE register is wired into `esc` (LIKE only). For NOT LIKE /
+  NOT GLOB (`negated = true`), append a
+  `UnaryOp { kind: Not, src: dest_reg, dest_reg: dest_reg + 1 }`
+  and report the negated `dest_reg`. NULL semantics are pinned by
+  the opcode (NULL in any input → NULL out); the appended Not
+  follows the standard `BinOpKind::Not` propagation rules.
+- `Expr::Collate { .. }` — STUB: returns
+  `CompileError { message: "deferred: COLLATE comparison" }`. The
+  AST node exists so a later semantic pass can wire it; expr-compile
+  itself does not yet route comparison opcodes through a collation
+  registry.
 - `Expr::Case { branches, else_ }` — emit branch-evaluation chain
   using `IfNot` + `Goto` control opcodes from
   `/parts/vdbe/parts/opcodes-control`. Result register is allocated
@@ -244,6 +263,51 @@ The emission agent must read
 VDBE-side case names. If any parser-side name is absent in the VDBE
 enum, STOP and surface the gap.
 
+## CAST type-name mapping
+
+`Expr::Cast.type_name` is uppercased ASCII surface text. Map to
+`CastKind`:
+
+| type_name (uppercased)                    | CastKind |
+|-------------------------------------------|----------|
+| `INTEGER` / `INT` / `TINYINT` / `SMALLINT` / `MEDIUMINT` / `BIGINT` / `INT2` / `INT8` / `NUMERIC` | `Integer` |
+| `REAL` / `DOUBLE` / `DOUBLE PRECISION` / `FLOAT` | `Real`    |
+| `TEXT` / `VARCHAR` / `CHARACTER` / `CHAR` / `CLOB` / `STRING` | `Text`    |
+
+Anything else → `CompileError { message: "deferred: CAST <type_name>" }`.
+The mapping is intentionally restrictive — multi-word forms like
+`DOUBLE PRECISION` arrive from the parser as a single Ident only when
+the tokenizer admits a single token; for now treat them via single
+ident only and defer multi-word forms.
+
+## LIKE / GLOB compilation
+
+For `Expr::Like { expr, pattern, escape, negated, kind }`:
+
+```
+(ec, er, en) = compile_expr(expr, reg_base)?
+(pc, pr, pn) = compile_expr(pattern, en)?
+esc_reg = None
+next    = pn
+if escape is Some(esc_expr):
+    (xc, xr, xn) = compile_expr(esc_expr, pn)?
+    code = ec ++ pc ++ xc
+    esc_reg = Some(xr)
+    next    = xn
+else:
+    code = ec ++ pc
+dest = next
+match kind:
+    Like: code += [Like { hay: er, pat: pr, esc: esc_reg, dest_reg: dest }]
+    Glob: code += [Glob { hay: er, pat: pr, dest_reg: dest }]   ; esc must be None
+final_dest = dest
+if negated:
+    not_dest = dest + 1
+    code += [UnaryOp { kind: Not, src: dest, dest_reg: not_dest }]
+    final_dest = not_dest
+return Ok(code, result_reg = final_dest, next_reg = final_dest + 1)
+```
+
 ## UnaryOp → UnaryOpKind mapping
 
 | Parser `UnaryOp` | VDBE `UnaryOpKind` |
@@ -295,7 +359,14 @@ produces `Expr::StrLit` only, so compile_expr never sees a blob here.
 9. **Null literal** — `Expr::Null` → `[LoadConst(r, Null)]`.
 10. **Deferred nodes** — `Expr::Col { name }` →
     `CompileError { message: "deferred: Col" }`. `Expr::Call` →
-    `CompileError { message: "deferred: Call" }`. No partial output.
+    `CompileError { message: "deferred: Call" }`.
+    `Expr::Collate { .. }` →
+    `CompileError { message: "deferred: COLLATE comparison" }`. No
+    partial output. (The standalone expr-compile target stub for Col
+    and Call is overridden by select/update/delete-compile, which
+    pass an enriched compiler context — see those parts. The Collate
+    stub is not yet overridden anywhere; collation wiring is a
+    follow-up part.)
 11. **Recursive descent, not iteration** — the compiler recurses into
     lhs, then rhs, then emits the parent opcode — a textbook
     post-order walk of the AST. This is the natural form for
@@ -332,6 +403,20 @@ produces `Expr::StrLit` only, so compile_expr never sees a blob here.
     emitted tail writes `LoadConst(result_reg, Null)`, not a
     Copy. This way result_reg always gets a definite value even
     when no branch matches.
+19. **CAST compilation** — `Expr::Cast { expr, type_name }` emits the
+    expr's code, then one `OpcodeExpr::Cast { kind, src, dest_reg }`
+    where `kind` comes from §"CAST type-name mapping". `dest_reg` is
+    the next free register after the inner expr. Unknown type_name →
+    CompileError(deferred). NULL input → NULL output (opcode-level).
+20. **LIKE / GLOB compilation** — `Expr::Like` emits expr code,
+    pattern code, optional escape code, then either
+    `OpcodeExpr::Like` (LIKE; carries optional esc Register) or
+    `OpcodeExpr::Glob` (GLOB; no esc field). For `negated = true`,
+    a trailing `UnaryOp { kind: Not }` opcode flips the result and
+    advances the dest register by one. ESCAPE register is only
+    legal with LIKE; the parser already rejects `GLOB ... ESCAPE`,
+    so the compiler can assume `kind = Glob` implies `escape = None`
+    (else internal-error CompileError).
 
 13. **Opcode composition** — the emitted `code` list is over the
     composed `Opcode` type declared in `/parts/vdbe/shapes.json`

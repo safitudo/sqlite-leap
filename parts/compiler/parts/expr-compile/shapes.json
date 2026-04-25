@@ -7,9 +7,11 @@
     "CaseBranch":  "/parts/parser/parts/expr",
     "BinaryOp":    "/parts/parser/parts/expr",
     "UnaryOp":     "/parts/parser/parts/expr",
+    "LikeKind":    "/parts/parser/parts/expr",
     "Register":    "/parts/core",
     "Value":       "/parts/core",
-    "Opcode":      "/parts/vdbe"
+    "Opcode":      "/parts/vdbe",
+    "CastKind":    "/parts/vdbe/parts/opcodes-expr"
   },
 
   "types": {

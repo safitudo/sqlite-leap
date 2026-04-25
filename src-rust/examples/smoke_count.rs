@@ -23,7 +23,7 @@ fn sink(state: &VdbeState<'_>, start: Register, _count: u32) {
 }
 
 fn main() {
-    let db = Database;
+    let db = leap_sqlite::storage::database_new();
     let opcodes = vec![
         Opcode::Agg  { op: OpcodeAgg::AggReset { acc_slot: 0, kind: AggFuncKind::CountStar } },
         Opcode::Agg  { op: OpcodeAgg::AggStep  { acc_slot: 0, kind: AggFuncKind::CountStar, arg_reg: Register(0), separator_reg: None } },

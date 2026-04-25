@@ -24,17 +24,40 @@ Admitted:
   `expr [AS alias]` — aliases don't affect codegen.
 - `WHERE` is evaluated per row; rows that don't pass are skipped.
 - `LIMIT`/`OFFSET` honored by a counter register + branch.
-- `DISTINCT` is deferred (needs de-dup set opcodes).
+- **Single-group aggregation**: queries with aggregate calls in the
+  projection list and EITHER no `GROUP BY` clause OR a `GROUP BY`
+  whose values collapse to a single group at compile time (only the
+  no-GROUP-BY form is exercised in the probe). Aggregate kinds:
+  `count_star`, `count` (1-arg), `count_distinct`, `sum`, `total`,
+  `avg`, `min`, `max`, `group_concat`. Lifecycle is
+  AggReset → per-row AggStep → AggFinal → ResultRow.
+- **HAVING in single-group mode**: the post-aggregation predicate is
+  evaluated against AggValue/AggFinal results before EmitRow. If
+  HAVING is false, no row is emitted.
+- `DISTINCT` (top-level SELECT DISTINCT) is deferred (needs de-dup
+  set opcodes).
 
 Deferred (CompileError `"deferred: <construct>"`):
-- JOINs, subqueries, aggregates, ORDER BY, GROUP BY, HAVING,
-  DISTINCT, compound SELECT, CTE, window functions.
+- **Multi-group aggregation** — `GROUP BY` with more than one
+  potential group. **SPEC GAP**: opcodes-agg / VdbeState provide
+  one accumulator per slot (no per-group keying); storage exposes
+  no ephemeral btree / hash table opcode; there is no `Sort` opcode
+  for sort-then-streaming-group. Multi-group requires one of:
+  (a) ephemeral-table opcode family (`OpenEphemeral`, hash insert
+  with key, iterate distinct keys), or (b) `Sort` opcode + group-break
+  detection. Either is a new opcode family + storage primitive.
+  Until a follow-up adds one, multi-group `GROUP BY` produces
+  CompileError `"deferred: multi-group GROUP BY (spec gap: needs
+  ephemeral-table or Sort opcode family)"`.
+- JOINs, subqueries, ORDER BY, top-level DISTINCT, compound SELECT,
+  CTE, window functions.
 
 ## Declared shapes (in `shapes.json`)
 
 - `ColumnSchema { name: string, index: u32 }`
 - `TableSchema { name: string, columns: list<ColumnSchema> }`
-- `CompileSelectOk { opcodes, num_registers, num_cursors, result_count }`
+- `CompileSelectOk { opcodes, num_registers, num_cursors,
+   num_aggregates, result_count }`
 - `compile_select(stmt, schema) -> result<CompileSelectOk, CompileError>`
   (imports `CompileError` from `/parts/compiler/parts/expr-compile`.)
 
@@ -86,6 +109,123 @@ END_LABEL:
 PC targets are resolved by a two-pass compile: emit with placeholder
 PCs and patch after the opcode list length is known, OR track labels
 and resolve in a second pass over the opcode list.
+
+### C. Single-group aggregation (`SELECT count(*) FROM t`, `SELECT sum(age) FROM t`, with optional HAVING but no GROUP BY)
+
+Detect aggregation mode by walking projection + HAVING + ORDER BY
+and collecting aggregate `Call` nodes. An aggregate call is one
+whose `name` (case-insensitive ASCII) is in the set
+`{count, count_star, count_distinct, sum, total, avg, min, max,
+  group_concat}`. The set of distinct aggregate-call instances
+(by reference identity in the AST walk) becomes the slot list:
+slot 0 → first encountered call, slot 1 → second, etc.
+`num_aggregates` = slot list length.
+
+Aggregate-kind mapping (compiler-internal):
+- `count_star`     → `AggFuncKind::CountStar`     (0 args)
+- `count`          → `AggFuncKind::Count`         (1 arg)
+- `count_distinct` → `AggFuncKind::CountDistinct` (1 arg)
+- `sum`            → `AggFuncKind::Sum`           (1 arg)
+- `total`          → `AggFuncKind::Total`         (1 arg)
+- `avg`            → `AggFuncKind::Avg`           (1 arg)
+- `min`            → `AggFuncKind::Min`           (1 arg)
+- `max`            → `AggFuncKind::Max`           (1 arg)
+- `group_concat`   → `AggFuncKind::GroupConcat`   (1 or 2 args; second
+                                                   arg is the separator)
+
+Argument-arity mismatch yields CompileError
+`"aggregate <name> expects <n> argument(s)"`.
+
+Opcode plan:
+
+```
+# Pre-loop: reset every aggregate slot.
+for slot, (kind, _arg_expr) in enumerate(agg_slots):
+    AggReset { acc_slot: slot, kind }
+
+OpenRead   { cursor: 0, table: schema.name }
+Rewind     { cursor: 0, jump_if_empty: AGG_FINALIZE }
+
+TOP:
+    # Materialize columns 0..ncol-1 as in B.
+    for col in schema.columns:
+        Column { cursor: 0, col_idx: col.index, dest_reg: col.index }
+
+    # WHERE filter (same as B).
+    (optionally) IfNot ... target: NEXT_LABEL
+
+    # Step every aggregate.
+    for slot, (kind, arg_expr) in enumerate(agg_slots):
+        if kind == CountStar:
+            AggStep { acc_slot: slot, kind, arg_reg: 0, separator_reg: None }
+            # arg_reg ignored by state for CountStar; pass 0 as placeholder.
+        else:
+            arg_reg = compile_expr_in_schema(arg_expr) into a fresh register
+            sep_reg = None
+            if kind == GroupConcat and len(call.args) == 2:
+                sep_reg = compile_expr_in_schema(call.args[1])
+            AggStep { acc_slot: slot, kind, arg_reg, separator_reg: sep_reg }
+
+NEXT_LABEL:
+    Next { cursor: 0, jump_if_more: TOP }
+
+AGG_FINALIZE:
+    # Finalize each slot into a fresh register; record the slot→reg map.
+    for slot, (kind, _) in enumerate(agg_slots):
+        AggFinal { acc_slot: slot, kind, dest_reg: agg_result_reg[slot] }
+
+    # HAVING (if present): compile HAVING with aggregate-call references
+    # rewritten to reads of agg_result_reg[slot].
+    if having is Some:
+        cond_reg = compile_having(having, agg_result_reg, schema)
+        IfNot { cond_reg, target: SKIP_EMIT }
+
+    # Projection: compile each projection item with aggregate-call refs
+    # rewritten to reads of agg_result_reg[slot]. Bare-column refs in a
+    # single-group aggregate query are an error (no row context); the
+    # compiler enforces "every non-aggregate projection expression must
+    # be a constant or an aggregate call" — see pin 14 below.
+    proj_start = next_free_register
+    for item in projection:
+        compile_proj_with_agg(item, agg_result_reg) into proj_start, +1, ...
+    ResultRow { start_reg: proj_start, count: proj_count }
+
+SKIP_EMIT:
+    Close  { cursor: 0 }
+    Halt
+```
+
+Notes:
+- **No-FROM aggregate** (e.g. `SELECT count(*)` with no FROM) is
+  rejected as `CompileError "aggregate without FROM is unsupported"`
+  for the probe. (Trivially handled by emitting one synthetic row,
+  but not exercised here.)
+- **Empty table**: Rewind jumps directly to AGG_FINALIZE; per
+  `aggregate_final` empty-group rules in `parts/vdbe/shapes.json`,
+  Count* → Integer(0), Sum/Avg/Min/Max → Null, Total → Real(0.0),
+  GroupConcat → Null. HAVING is still evaluated; if it filters the
+  single empty-group row out, no ResultRow is emitted.
+- **Aggregate-call rewriting in projection/HAVING**: walk the AST
+  once before emission. Each aggregate `Call` node is replaced with
+  a synthetic `Col` reference scheme that maps to the slot's
+  finalized register — implemented by a wrapper around
+  `compile_expr_in_schema` that intercepts `Call` nodes whose name
+  is in the aggregate set.
+
+### D. Multi-group GROUP BY — DEFERRED (spec gap)
+
+If `stmt.group_by` is non-empty, emit
+`CompileError "deferred: multi-group GROUP BY (spec gap: needs
+ephemeral-table or Sort opcode family)"`. See §Scope above.
+
+This branch is intentionally a hard-stop until the spec gap is
+closed. The needed primitive is one of:
+1. `OpenEphemeral { cursor }` + cursor methods that key by a
+   register tuple, with implicit accumulator-per-key storage.
+2. A `Sort { cursor }` opcode that sorts the table by the GROUP
+   BY key tuple, plus group-break detection in the scan loop.
+Both are sizable additions touching opcodes-scan, storage, and
+VdbeState. Out of scope for the day-1 push.
 
 ## Projection expansion
 
@@ -187,10 +327,39 @@ opcodes — no new VDBE instructions needed.
 9. **num_registers bounds check** — the emitted
    `num_registers` is >= the highest register index used by any
    opcode. Off-by-one is a pin.
-10. **Deferred constructs** — JOINs / GROUP BY / ORDER BY /
-    DISTINCT / subqueries each produce a CompileError with the
-    `"deferred: <construct>"` message. The compiler does not
-    silently accept-then-ignore.
+10. **Deferred constructs** — JOINs / multi-group GROUP BY /
+    ORDER BY / top-level DISTINCT / subqueries each produce a
+    CompileError with the `"deferred: <construct>"` message. The
+    compiler does not silently accept-then-ignore.
+10a. **Aggregate detection** — a query is in single-group aggregation
+     mode iff (a) at least one aggregate-named `Call` appears in
+     projection/HAVING/ORDER BY, OR (b) a non-empty `group_by` whose
+     value is a single compile-time-constant expression (probe
+     simplification: only the (a) branch is exercised). HAVING
+     without aggregates and without GROUP BY is `CompileError
+     "HAVING requires GROUP BY or aggregate"` (probe: simply require
+     aggregation mode active).
+10b. **Aggregate slot allocation** — distinct aggregate `Call` AST
+     nodes (by traversal order, deduplicated only by AST identity,
+     not by structural equality) each get one slot. Two textually
+     identical `count(*)` instances in the same query get TWO slots
+     (correct, simple — dedup is a later optimization).
+10c. **count_star arg arity** — `count_star` (from the `count(*)`
+     desugar) MUST have zero args. The compiler emits AggStep with
+     `arg_reg: 0` (placeholder; state ignores arg for CountStar) and
+     `separator_reg: None`.
+10d. **count_distinct arity** — `count_distinct` MUST have exactly
+     one arg. Anything else: CompileError.
+10e. **HAVING register binding** — HAVING is compiled AFTER all
+     AggFinal opcodes; aggregate `Call` refs in HAVING resolve to
+     reads of the already-finalized register. Non-aggregate column
+     refs in HAVING are NOT supported in single-group mode (no
+     current row context after finalization); CompileError
+     `"non-aggregate column in HAVING: <name>"`.
+10f. **Multi-group GROUP BY hard-stop** — if `group_by` is non-empty
+     AND aggregates are present (or HAVING is present), CompileError
+     with the exact text `"deferred: multi-group GROUP BY (spec gap:
+     needs ephemeral-table or Sort opcode family)"`.
 11. **Halt at end** — every produced opcode list terminates with
     `OpcodeCore::Halt`.
 12. **result_count accuracy** — `result_count` equals the number

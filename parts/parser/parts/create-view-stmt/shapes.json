@@ -1,0 +1,44 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/parser/parts/create-view-stmt",
+
+  "imports": {
+    "Token":       "/parts/parser/parts/tokenizer",
+    "TokenKind":   "/parts/parser/parts/tokenizer",
+    "ParseError":  "/parts/parser/parts/expr",
+    "SelectStmt":  "/parts/parser/parts/select-stmt"
+  },
+
+  "types": {
+    "CreateViewStmt": {
+      "kind": "record",
+      "doc": "Parsed CREATE VIEW statement. Covers `CREATE VIEW [IF NOT EXISTS] <name> [(<col_list>)] AS <select_stmt>`. The optional column-name list overrides the projection labels of the underlying SelectStmt. TEMP and schema-qualified names are deferred.",
+      "fields": {
+        "name":          "string",
+        "if_not_exists": "bool",
+        "columns":       { "list": "string" },
+        "select":        "SelectStmt"
+      }
+    },
+
+    "CreateViewParseOk": {
+      "kind": "record",
+      "doc": "Successful parse output: the CreateViewStmt plus the index of the next un-consumed token (typically `;` or `Eof`).",
+      "fields": {
+        "stmt": "CreateViewStmt",
+        "next": "u32"
+      }
+    }
+  },
+
+  "functions": {
+    "parse_create_view": {
+      "doc": "Parse a `CREATE VIEW` statement. Token at `start` must be `KwCreate`. Delegates to `parse_select` for the body. Rejects deferred forms (`TEMP`, schema-qualified names) with `deferred: <construct>`.",
+      "params": [
+        { "name": "tokens", "type": { "borrow": { "list": "Token" } } },
+        { "name": "start",  "type": "u32" }
+      ],
+      "returns": { "result": { "ok": "CreateViewParseOk", "err": "ParseError" } }
+    }
+  }
+}

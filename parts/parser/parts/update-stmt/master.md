@@ -8,90 +8,66 @@ emits:
 
 # UPDATE statement parser
 
-Parses `UPDATE <table> SET col=expr[, col=expr]... [WHERE <expr>]`.
-Completes the DML quartet (INSERT / SELECT / DELETE / UPDATE).
+Parses `[UPDATE OR <action>] UPDATE <table> SET col=expr[, ...]
+[FROM <other_table> [AS alias]] [WHERE <expr>] [RETURNING <result_columns>]`.
 
 ## Scope
 
 Admitted:
-- `UPDATE <ident> SET <ident> = <expr>`
-- Comma-separated assignments.
+- OR-action prefix: REPLACE / IGNORE / ABORT / FAIL / ROLLBACK.
+- `UPDATE <ident> SET <ident> = <expr>` (one or more assignments).
+- Optional FROM clause — single bare table (`FromClauseStub`) for the
+  scope-B push. Richer FROM (multi-table + JOINs) lands when select-stmt's
+  FromClause stabilizes; this leaf re-imports then.
 - Optional `WHERE <expr>`.
-- Each value/WHERE expr goes through `parse_expr`.
+- Optional `RETURNING <result_columns>`.
 
-Deferred (`deferred: <construct>`):
-- `UPDATE OR ...` (OR-conflict).
-- `UPDATE ... RETURNING`.
-- `UPDATE ... FROM` (SQL:2003 FROM-clause in UPDATE — SQLite extension).
+Deferred:
 - Schema-qualified table.
 - Alias on UPDATE target.
-- `UPDATE ... WITH ...` (CTE prefix).
-- `UPDATE ... SET (col1, col2) = (expr1, expr2)` (tuple-assign).
+- `WITH ... UPDATE ...` (CTE prefix).
+- Tuple-assign `(c1, c2) = (e1, e2)`.
 
-## Algorithm
+## Algorithm (sketch)
 
 ```
 parse_update(tokens, i):
-    expect tokens[i] == KwUpdate; i += 1
-    if tokens[i] == KwOr: ParseError "deferred: OR-conflict"
-    if tokens[i] != Ident: ParseError "expected table name after UPDATE"
-    table_name = tokens[i].text; i += 1
-    if tokens[i] == Dot: ParseError "deferred: schema-qualified table"
-    if tokens[i] == KwAs: ParseError "deferred: UPDATE alias"
-    if tokens[i] != KwSet: ParseError "expected SET"
-    i += 1
-    assignments = []
-    loop:
-        if tokens[i] != Ident: ParseError "expected column name in SET"
-        col_name = tokens[i].text; i += 1
-        if tokens[i] != Eq: ParseError "expected = after column name"
-        i += 1
-        value, i = parse_expr(tokens, i)
-        assignments.push({ column: col_name, value })
-        if tokens[i] == Comma: i += 1; continue
-        break
-    where_ = None
-    if tokens[i] == KwFrom: ParseError "deferred: UPDATE FROM"
-    if tokens[i] == KwWhere:
-        i += 1
-        expr, i = parse_expr(tokens, i)
-        where_ = Some(expr)
-    if tokens[i] == KwReturning: ParseError "deferred: RETURNING"
-    return Ok({ stmt: { table: table_name, assignments, where_ }, next: i })
+    expect KwUpdate; i += 1
+    or_action = parse_or_action_opt(tokens, i)
+    table = ident; i += 1
+    reject Dot/KwAs as before
+    expect KwSet
+    assignments = parse `col = expr [, ...]`
+    from_clause = parse_from_stub_opt(KwFrom -> ident [AS ident])
+    where_      = parse_where_opt
+    returning   = parse_returning_opt
+    return Ok
 ```
 
 ## Correctness pins
 
-1. **Single assignment** — `UPDATE t SET a = 1` parses to
-   `{ table: "t", assignments: [{column: "a", value: IntLit("1")}], where_: None }`.
-2. **Multiple assignments** — `UPDATE t SET a = 1, b = 2` parses to
-   two assignments in order.
-3. **With WHERE** — `UPDATE t SET a = 1 WHERE b = 2` attaches
-   `where_: Some(Binary(Eq, Col(b), IntLit(2)))`.
-4. **Expression RHS** — `UPDATE t SET a = b + 1` parses the RHS
-   through `parse_expr`, preserving precedence.
-5. **Missing SET** — `UPDATE t a = 1` is ParseError
-   (`"expected SET"`).
-6. **Missing column in SET** — `UPDATE t SET = 1` → ParseError
-   (`"expected column name in SET"`).
-7. **Missing `=`** — `UPDATE t SET a 1` → ParseError
-   (`"expected = after column name"`).
-8. **Deferred OR** — `UPDATE OR REPLACE t SET a = 1` →
-   `deferred: OR-conflict`.
-9. **Deferred FROM** — `UPDATE t SET a = 1 FROM x` →
-   `deferred: UPDATE FROM`.
-10. **Deferred RETURNING** — `UPDATE t SET a = 1 RETURNING a` →
-    `deferred: RETURNING`.
-11. **Expression errors propagate** — `UPDATE t SET a = 1 + ` is
-    an Expr parser error surfaced verbatim.
-12. **Owned strings** — `table` and each `assignment.column` are
-    owned copies.
-13. **Statement terminator** — `parse_update` stops BEFORE `;`/Eof.
-14. **No inline tests, no invented helpers**.
+1. Single assignment, no WHERE — same as before.
+2. Multiple assignments — same as before.
+3. With WHERE — same as before.
+4. Expression RHS — same as before.
+5. **OR-action** — `UPDATE OR REPLACE t SET a = 1` sets
+   `or_action == Some(Replace)`; same for IGNORE/ABORT/FAIL/ROLLBACK.
+6. **FROM clause** — `UPDATE t SET a = 5 FROM other WHERE t.id = other.id`
+   parses with `from_clause == Some({table: "other", alias: None})`.
+7. **FROM AS alias** — `... FROM other AS o ...` sets alias.
+8. **RETURNING** — `... RETURNING t.a` parses with returning.len() == 1
+   (Expr with col-ref).
+9. **RETURNING star** — `RETURNING *` parses to single `Star`.
+10. Missing SET, missing column, missing `=` — same errors as before.
+11. Expression errors propagate.
+12. Owned strings — table, assignment.column, alias, returning aliases.
+13. Statement terminator — parser stops BEFORE `;` / Eof.
+14. No inline tests, no invented helpers.
+15. **Reuse of OrAction / ResultColumn** — both imported from insert-stmt
+    so the wire shape is identical across DML.
 
 ## Regeneration envelope
 
-- Line budget: **~150-220 lines** of Rust / **~260-420 lines** of C.
-- No dependencies beyond std.
-- Public items: `UpdateAssignment`, `UpdateStmt`, `UpdateParseOk`,
-  `parse_update`.
+- Line budget: ~300-450 lines of Rust / ~500-800 lines of C.
+- Public items: `UpdateAssignment`, `FromClauseStub`, `UpdateStmt`,
+  `UpdateParseOk`, `parse_update`.

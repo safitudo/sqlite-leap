@@ -23,13 +23,14 @@ Admitted clauses (in grammatical order):
 - `FROM` clause: single named table with optional alias (`t`, `t t2`,
   `t AS t2`).
 - `WHERE` expr.
+- `GROUP BY` expr [, expr]* — comma-separated list of grouping expressions.
+- `HAVING` expr — predicate evaluated post-aggregation.
 - `ORDER BY` expr [ASC|DESC] comma-separated.
 - `LIMIT` expr [`OFFSET` expr].
 
 Deferred (flag ParseError with `"deferred: <construct>"` if seen;
 resolve in follow-up leaves):
 - JOINs (INNER / LEFT / RIGHT / FULL / CROSS / NATURAL / USING / ON).
-- `GROUP BY`, `HAVING`.
 - Subqueries in FROM (derived tables).
 - `WITH` (CTE).
 - Compound SELECT (UNION / INTERSECT / EXCEPT).
@@ -58,11 +59,31 @@ parse_select(tokens, i):
     projection, i = parse_projection_list(tokens, i)
     from,       i = parse_from_opt(tokens, i)
     where_,     i = parse_where_opt(tokens, i)
+    group_by,   i = parse_group_by_opt(tokens, i)
+    having,     i = parse_having_opt(tokens, i)
     order_by,   i = parse_order_by_opt(tokens, i)
     limit, offset, i = parse_limit_opt(tokens, i)
 
-    return Ok({ distinct, projection, from, where_, order_by, limit,
-                offset }, next: i)
+    return Ok({ distinct, projection, from, where_, group_by, having,
+                order_by, limit, offset }, next: i)
+
+parse_group_by_opt(tokens, i):
+    if tokens[i] != KwGroup: return [], i
+    i += 1
+    expect tokens[i] == KwBy; i += 1
+    items = []
+    loop:
+        expr, i = parse_expr(tokens, i)
+        items.push(expr)
+        if tokens[i] == Comma: i += 1; continue
+        break
+    return items, i
+
+parse_having_opt(tokens, i):
+    if tokens[i] != KwHaving: return None, i
+    i += 1
+    expr, i = parse_expr(tokens, i)
+    return Some(expr), i
 
 parse_projection_list(tokens, i):
     items = []
@@ -165,6 +186,17 @@ This is pin #9 below.
    token.
 6. **WHERE accepts any Expr** — delegates to `parse_expr`. Expression
    errors propagate as-is (token_index, line, column preserved).
+6a. **GROUP BY** — appears AFTER WHERE, BEFORE HAVING/ORDER BY/LIMIT.
+    Comma-separated list of expressions; at least one required after
+    `GROUP BY`. Empty list (omitted clause) is the default. Expression
+    errors propagate from `parse_expr`. Bare-column GROUP BY (`GROUP
+    BY name`) is a `Col` Expr; integer-literal positional GROUP BY
+    (`GROUP BY 1`) parses as an `IntLit` and is resolved by the
+    compiler to a projection-position reference.
+6b. **HAVING** — appears AFTER GROUP BY, BEFORE ORDER BY. Single
+    expression; absent if not written. Expression errors propagate.
+    Semantic rule (compiler): HAVING references must be aggregates,
+    constants, or grouping expressions — enforced downstream.
 7. **ORDER BY** — comma-separated list, ASC/DESC each optional per
    item, default ASC. Positional ORDER BY (`ORDER BY 1`) falls through
    because `1` is a valid `IntLit` expression — this is correct

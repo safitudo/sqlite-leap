@@ -1,0 +1,55 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/parser/parts/create-index-stmt",
+
+  "imports": {
+    "Token":      "/parts/parser/parts/tokenizer",
+    "TokenKind":  "/parts/parser/parts/tokenizer",
+    "Expr":       "/parts/parser/parts/expr",
+    "ParseError": "/parts/parser/parts/expr"
+  },
+
+  "types": {
+    "IndexedColumn": {
+      "kind": "record",
+      "doc": "One entry in a CREATE INDEX column list. `desc = true` for DESC; ASC and the absent qualifier both mean ascending. Expression-valued indexed columns (`(a + b)`) are deferred — only bare column names admitted here.",
+      "fields": {
+        "name": "string",
+        "desc": "bool"
+      }
+    },
+
+    "CreateIndexStmt": {
+      "kind": "record",
+      "doc": "Parsed CREATE INDEX statement. Covers `CREATE [UNIQUE] INDEX [IF NOT EXISTS] <name> ON <table> (<col> [ASC|DESC] [, ...]) [WHERE <expr>]`. Schema-qualified names and indexed-expression columns are deferred. The optional WHERE clause is the partial-index predicate.",
+      "fields": {
+        "name":          "string",
+        "table":         "string",
+        "unique":        "bool",
+        "if_not_exists": "bool",
+        "columns":       { "list": "IndexedColumn" },
+        "where_":        { "option": "Expr" }
+      }
+    },
+
+    "CreateIndexParseOk": {
+      "kind": "record",
+      "doc": "Successful parse output: the CreateIndexStmt plus the index of the next un-consumed token (typically `;` or `Eof`).",
+      "fields": {
+        "stmt": "CreateIndexStmt",
+        "next": "u32"
+      }
+    }
+  },
+
+  "functions": {
+    "parse_create_index": {
+      "doc": "Parse a `CREATE INDEX` (optionally UNIQUE) statement. Token at `start` must be `KwCreate`. Delegates to parse_expr for the optional partial-index WHERE predicate. Rejects deferred forms (schema-qualified names, indexed expressions, COLLATE in column list) with `deferred: <construct>`.",
+      "params": [
+        { "name": "tokens", "type": { "borrow": { "list": "Token" } } },
+        { "name": "start",  "type": "u32" }
+      ],
+      "returns": { "result": { "ok": "CreateIndexParseOk", "err": "ParseError" } }
+    }
+  }
+}

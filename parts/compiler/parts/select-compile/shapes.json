@@ -11,6 +11,7 @@
     "Register":       "/parts/core",
     "Value":          "/parts/core",
     "Opcode":         "/parts/vdbe",
+    "AggFuncKind":    "/parts/vdbe",
     "CompileError":   "/parts/compiler/parts/expr-compile"
   },
 
@@ -35,12 +36,13 @@
 
     "CompileSelectOk": {
       "kind": "record",
-      "doc": "Compiled SELECT: the opcode list (ready to wrap in a Program), the count of registers needed, and the count of cursors needed. The caller allocates these via VdbeState.new.",
+      "doc": "Compiled SELECT: the opcode list (ready to wrap in a Program), the count of registers needed, the count of cursors needed, and the count of aggregate accumulator slots needed. Multi-group GROUP BY is deferred (see master.md §Scope). For non-aggregating queries, num_aggregates = 0. For single-group aggregation (aggregate calls present, no GROUP BY or single-group GROUP BY), num_aggregates equals the count of distinct (kind, arg-expr) aggregate-call instances in the query.",
       "fields": {
-        "opcodes":       { "list": "Opcode" },
-        "num_registers": "u32",
-        "num_cursors":   "u32",
-        "result_count":  "u32"
+        "opcodes":        { "list": "Opcode" },
+        "num_registers":  "u32",
+        "num_cursors":    "u32",
+        "num_aggregates": "u32",
+        "result_count":   "u32"
       }
     }
   },

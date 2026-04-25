@@ -1,0 +1,52 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/parser/parts/drop-stmt",
+
+  "imports": {
+    "Token":      "/parts/parser/parts/tokenizer",
+    "TokenKind":  "/parts/parser/parts/tokenizer",
+    "ParseError": "/parts/parser/parts/expr"
+  },
+
+  "types": {
+    "DropKind": {
+      "kind": "variant",
+      "doc": "Which schema object the DROP statement targets.",
+      "cases": {
+        "Table": { "doc": "`DROP TABLE`." },
+        "Index": { "doc": "`DROP INDEX`." },
+        "View":  { "doc": "`DROP VIEW`." }
+      }
+    },
+
+    "DropStmt": {
+      "kind": "record",
+      "doc": "Parsed DROP statement. Covers `DROP {TABLE|INDEX|VIEW} [IF EXISTS] <name>`. Schema-qualified names and `DROP TRIGGER` are deferred.",
+      "fields": {
+        "kind":      "DropKind",
+        "if_exists": "bool",
+        "name":      "string"
+      }
+    },
+
+    "DropParseOk": {
+      "kind": "record",
+      "doc": "Successful parse output: the DropStmt plus the index of the next un-consumed token.",
+      "fields": {
+        "stmt": "DropStmt",
+        "next": "u32"
+      }
+    }
+  },
+
+  "functions": {
+    "parse_drop": {
+      "doc": "Parse a `DROP {TABLE|INDEX|VIEW}` statement. Token at `start` must be `KwDrop`. Rejects schema-qualified names and unsupported object kinds (TRIGGER) with `deferred: <construct>`.",
+      "params": [
+        { "name": "tokens", "type": { "borrow": { "list": "Token" } } },
+        { "name": "start",  "type": "u32" }
+      ],
+      "returns": { "result": { "ok": "DropParseOk", "err": "ParseError" } }
+    }
+  }
+}

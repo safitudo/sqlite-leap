@@ -42,12 +42,14 @@
 
     "SelectStmt": {
       "kind": "record",
-      "doc": "Parsed SELECT statement (single, non-compound). Compound SELECTs (UNION/INTERSECT/EXCEPT), CTEs, GROUP BY, and HAVING are deferred to a follow-up leaf. The probe covers: DISTINCT flag, projection list, FROM (single table), WHERE, ORDER BY, LIMIT/OFFSET. All `option<Expr>` are present iff the clause was written.",
+      "doc": "Parsed SELECT statement (single, non-compound). Compound SELECTs (UNION/INTERSECT/EXCEPT), CTEs, and window functions are deferred to follow-up leaves. The probe covers: DISTINCT flag, projection list, FROM (single table), WHERE, GROUP BY, HAVING, ORDER BY, LIMIT/OFFSET. All `option<Expr>` are present iff the clause was written. group_by is empty iff the clause was omitted.",
       "fields": {
         "distinct":   "bool",
         "projection": { "list": "ProjectionItem" },
         "from":       { "option": "TableRef" },
         "where_":     { "option": "Expr" },
+        "group_by":   { "list": "Expr" },
+        "having":     { "option": "Expr" },
         "order_by":   { "list": "OrderByItem" },
         "limit":      { "option": "Expr" },
         "offset":     { "option": "Expr" }
