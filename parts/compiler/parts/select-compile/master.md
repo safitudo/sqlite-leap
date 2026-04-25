@@ -56,7 +56,37 @@ Admitted (see §"Compound SELECT" below):
   raises `CompileError "view cycle detected: <name>"` for
   self-referential or transitively recursive views.
 
-Deferred (CompileError `"deferred: <construct>"`):
+α22 admitted:
+- **RANK / DENSE_RANK window functions** via the existing window
+  state's `prev_order` tracker plus a new `WindowSetOrderKey { slot,
+  key_idx, src_reg }` opcode emitted before each `WindowStep` for
+  rank-style kinds with non-empty ORDER BY.
+- **Mixed compound SELECT** (any combination of UNION / UNION ALL /
+  INTERSECT / EXCEPT in one statement) via left-associative folding.
+  Each core materializes into its own buffer slot; the compiler walks
+  the tail list left-to-right and emits one set-op opcode per
+  operator (`BufferUnion` for UNION/UNION ALL, `BufferIntersect`,
+  `BufferExcept`) between the running accumulator slot and the next
+  core slot, into a fresh accumulator slot. The final fold writes
+  into slot 0. Homogeneous-shape compounds keep the α20 fast paths
+  (single BufferIntersect/BufferExcept call, or concat-then-sort).
+
+Still deferred (CompileError `"deferred: <construct>"`):
+- **Derived table as JOIN source** (e.g. `t JOIN (SELECT ...) x ON ...`).
+  Implementation requires extending the multi-source JOIN scan path
+  (`emit_inner_sources`) to dispatch on per-source `Real` vs
+  `Buffered` shape, materializing inner SELECTs into fresh buffer
+  slots before the outer scan, and synthesizing schemas for the
+  buffered sources. The single-table buffered path (α19) already
+  has the runtime primitives; the work is in extending the JOIN
+  emission to honor them. Lifting derived-table-in-JOIN to a
+  synthetic CTE binding is a feasible AST-rewrite simplification but
+  still requires the JOIN scan to consult buffered sources for
+  CTE-named cursors.
+- **Recursive CTE** (`WITH RECURSIVE foo AS ...`) — base + recursive
+  case, fixpoint loop. Parser-level deferred. Real implementation
+  needs a buffer-fixpoint primitive (loop until no rows added) plus
+  scoped re-resolution of `foo` inside the recursive case.
 - **Multi-group aggregation** — `GROUP BY` with more than one
   potential group. **SPEC GAP**: opcodes-agg / VdbeState provide
   one accumulator per slot (no per-group keying); storage exposes

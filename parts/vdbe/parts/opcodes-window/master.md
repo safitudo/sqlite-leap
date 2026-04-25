@@ -51,6 +51,18 @@ where the aggregate takes no argument, e.g. `COUNT(*) OVER (...)`,
 where the compiler may emit `None` and state's aggregate
 implementation accepts it as a CountStar increment).
 
+### `WindowSetOrderKey { slot, key_idx, src_reg }`
+
+Call `state.window_set_order_key(slot, key_idx, src_reg)`.
+`Continue`. Copies `regs[src_reg]` into the session's stored
+order-key tuple at index `key_idx`. The compiler emits one
+`WindowSetOrderKey` per ORDER BY key BEFORE each `WindowStep`
+for kinds that consume the order-key tuple for tie detection
+(currently `Rank`, `DenseRank`). For `RowNumber` and aggregate
+windows, no `WindowSetOrderKey` is required; the order keys
+already drive the buffer sort and the kind itself ignores
+ties.
+
 ### `WindowValue { slot, dest_reg }`
 
 1. `v = state.window_value(slot)` — owned `Value`.

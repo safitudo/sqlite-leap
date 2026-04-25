@@ -29,6 +29,14 @@
           },
           "doc": "Feed the current row into the window session. For rank-style kinds (RowNumber/Rank/DenseRank), arg_reg is None. For Aggregate(_), arg_reg names the register whose value feeds the inner aggregate step. None arg for an Aggregate window is allowed (compiler emits on no-argument aggregates like COUNT(*) OVER (...)); state treats it as standard NULL-skip input."
         },
+        "WindowSetOrderKey": {
+          "fields": {
+            "slot":    "u32",
+            "key_idx": "u32",
+            "src_reg": "Register"
+          },
+          "doc": "Copy regs[src_reg] into the session's stored order-key tuple at index key_idx. Emitted once per order-key BEFORE WindowStep for kinds that need tie detection (Rank, DenseRank). Aggregate window kinds with ORDER BY also use this to populate session.order if needed for future frame logic; for v2 only Rank/DenseRank consume it."
+        },
         "WindowValue": {
           "fields": { "slot": "u32", "dest_reg": "Register" },
           "doc": "Read the current window-function value into regs[dest_reg]. RowNumber/Rank/DenseRank → Integer. Aggregate(kind) → the aggregate's current value under kind (same shape rules as AggValue)."
