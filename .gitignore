@@ -47,3 +47,4 @@ tests/sqllogictest/.fetched/
 # evidence for the corpus-pass claims in DASHBOARD.md.
 
 .claude/
+bin/
