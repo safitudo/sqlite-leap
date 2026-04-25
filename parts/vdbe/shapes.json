@@ -48,6 +48,12 @@
         "Aggregate": { "fields": { "kind": "AggFuncKind" } }
       }
     },
+    "RowBuffer": {
+      "kind": "alias",
+      "of": { "list": { "list": "Value" } },
+      "doc": "Internal type for VdbeState's buffer slots: a homogeneous list of rows where each row is a list<Value> of the slot's declared num_cols width. Owned by VdbeState; the buffer_* methods are the only legal access path. Targets pick the idiomatic representation (Vec<Vec<Value>> in Rust, slice-of-slices in Go, etc.); the alias exists to make the shape's intent legible to per-target mappings."
+    },
+
     "RowSink": {
       "kind": "alias",
       "of": {
@@ -260,6 +266,17 @@
         "doc": "Feed the current row into the window session at slot. State reads regs[arg_reg] internally when Some (avoids &Value + &mut self conflict in strict-borrow targets). For RowNumber: increment counter (arg_reg ignored, expected None). For Rank/DenseRank: compare current ORDER BY tuple against previous; increment counter with per-kind tie rules (arg_reg ignored). For Aggregate(k): forward regs[arg_reg] to the inner aggregate step under kind k; arg_reg = None is treated as NULL (standard skip rule applies for all kinds except CountStar). Partition boundary detection is driven externally: the compiler emits a window_close + window_open pair across partitions."
       },
       {
+        "name": "window_set_order_key",
+        "receiver": "mut",
+        "params": [
+          { "name": "slot",    "type": "u32" },
+          { "name": "key_idx", "type": "u32" },
+          { "name": "src_reg", "type": "Register" }
+        ],
+        "returns": "unit",
+        "doc": "Copy regs[src_reg] into the session's stored order-key tuple at index key_idx. State reads the register internally (avoids &Value + &mut self conflict in strict-borrow targets, identical to aggregate_step's index-intake discipline). Emitted by the compiler once per ORDER BY key BEFORE each WindowStep for kinds that consume the order-key tuple for tie detection (Rank, DenseRank). RowNumber and aggregate windows do not require this call. key_idx must be < n_order_keys passed to window_open."
+      },
+      {
         "name": "window_value",
         "receiver": "borrow",
         "params": [{ "name": "slot", "type": "u32" }],
@@ -346,6 +363,37 @@
         "params": [{ "name": "slot", "type": "u32" }],
         "returns": "bool",
         "doc": "Advance the read cursor by one row. Returns true if another row is now positioned, false if past end. Mirrors cursor_next's jump-on-HAS-NEXT convention at the opcode layer."
+      },
+      {
+        "name": "buffer_intersect",
+        "receiver": "mut",
+        "params": [
+          { "name": "dest", "type": "u32" },
+          { "name": "srcs", "type": { "list": "u32" } }
+        ],
+        "returns": "unit",
+        "doc": "α20 compound-SELECT INTERSECT support. srcs is non-empty; every source slot must already hold per-core output rows. Open dest with num_cols taken from srcs[0], iterate rows of srcs[0] keeping only those present in every other source under the canonical total order (compare_values per column), then sort dest + collapse adjacent duplicates so the result is deterministic. Source slots are not mutated. Panics if srcs is empty."
+      },
+      {
+        "name": "buffer_except",
+        "receiver": "mut",
+        "params": [
+          { "name": "dest", "type": "u32" },
+          { "name": "srcs", "type": { "list": "u32" } }
+        ],
+        "returns": "unit",
+        "doc": "α20 compound-SELECT EXCEPT support. As buffer_intersect but a row of srcs[0] qualifies iff it is absent from every other source. Result is sorted + dedup'd. Source slots are not mutated."
+      },
+      {
+        "name": "buffer_union",
+        "receiver": "mut",
+        "params": [
+          { "name": "dest",  "type": "u32" },
+          { "name": "srcs",  "type": { "list": "u32" } },
+          { "name": "dedup", "type": "bool" }
+        ],
+        "returns": "unit",
+        "doc": "α20 compound-SELECT UNION / UNION ALL support. Open dest with num_cols taken from srcs[0], append every row from every source in srcs order. If dedup=true, sort dest + collapse adjacent duplicates (UNION); if dedup=false leave the appended order as-is (UNION ALL). Source slots are not mutated."
       }
     ]
   },

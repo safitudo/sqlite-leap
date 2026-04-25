@@ -10,19 +10,30 @@
   "types": {
     "Database": {
       "kind": "record",
-      "doc": "In-memory table catalog. Holds a map of table-name -> list of rows, where each row is a fixed-arity list of Value. Tables are inserted by the caller via `database_install_table` before the VDBE runs; the VDBE only reads. Behavioral test harness only — the persistent btree-backed Database is a separate part.",
+      "doc": "In-memory table catalog. Holds a list of named tables and (v6) a parallel views registry. Tables and views are inserted by the caller via `database_install_table` / `database_install_view` before the VDBE runs; the VDBE reads + writes tables, but only reads views (views are compile-time-resolved). Behavioral test harness only — the persistent btree-backed Database is a separate part.",
       "fields": {
-        "tables": { "list": "MemTable" }
+        "tables": { "list": "MemTable" },
+        "views":  { "list": "ViewEntry" }
       }
     },
 
     "MemTable": {
       "kind": "record",
-      "doc": "One named table: its name, optional column-name list (for UPDATE name→index resolution), and its rows in insertion order. Column arity is whatever the caller stored — the VDBE resolves columns by index supplied by the Column opcode. If column_names is empty, UPDATE by name will fail with SchemaMissing; INSERT/SELECT/DELETE do not consult column_names.",
+      "doc": "One named table: its name, optional column-name list (for UPDATE name→index resolution), the rows in insertion order, and a parallel rowids vector (v5). Column arity is whatever the caller stored — the VDBE resolves columns by index supplied by the Column opcode. If column_names is empty, UPDATE by name will fail with SchemaMissing; INSERT/SELECT/DELETE do not consult column_names. rowids[i] is the SQLite-style 1-based rowid of rows[i]; cursor_insert_row appends rows[i].len()+1 by default but accepts an explicit-rowid path when column_names contains a 'rowid' entry.",
       "fields": {
         "name":         "string",
         "column_names": { "list": "string" },
-        "rows":         { "list": { "list": "Value" } }
+        "rows":         { "list": { "list": "Value" } },
+        "rowids":       { "list": "i64" }
+      }
+    },
+
+    "ViewEntry": {
+      "kind": "record",
+      "doc": "v6 view registry entry. Stores the view name plus the original SELECT text; the compiler re-tokenizes + re-parses on each reference (views are resolved as synthetic derived-table sources, never mutate the tables array). Cycle detection lives in the compiler.",
+      "fields": {
+        "name":       "string",
+        "select_sql": "string"
       }
     },
 
@@ -125,6 +136,44 @@
         { "name": "cursor", "type": { "borrow_mut": "CursorHandle" } }
       ],
       "returns": { "result": { "ok": "unit", "err": "RuntimeCondition" } }
+    },
+
+    "cursor_seek_rowid": {
+      "doc": "v5: position the cursor at the row whose rowid equals the given i64. Returns Ok(true) if a row with that rowid exists (cursor.is_valid = true, row_index points at the matching row); Ok(false) if no row matches (cursor becomes not-valid). Probe-grade linear scan over MemTable.rowids — no index. Targets that have not yet emitted v5 may continue to return err(IoError) from the deferred-stub body until regenerated.",
+      "params": [
+        { "name": "cursor", "type": { "borrow_mut": "CursorHandle" } },
+        { "name": "db",     "type": { "borrow": "Database" } },
+        { "name": "rowid",  "type": "i64" }
+      ],
+      "returns": { "result": { "ok": "bool", "err": "RuntimeCondition" } }
+    },
+
+    "database_install_view": {
+      "doc": "v6: install or replace a view by name. select_sql is the original SELECT text; the compiler re-parses it at each reference. ASCII-case-insensitive replace-on-conflict (last-write-wins). Name collisions with installed tables are caller-policed; storage does not check.",
+      "params": [
+        { "name": "db",         "type": { "borrow_mut": "Database" } },
+        { "name": "name",       "type": "string" },
+        { "name": "select_sql", "type": "string" }
+      ],
+      "returns": "unit"
+    },
+
+    "database_drop_view": {
+      "doc": "v6: drop a view by name (ASCII-case-insensitive). Returns true if a matching view was removed, false if no view by that name existed (caller chooses whether missing-view DROP is silent or an error).",
+      "params": [
+        { "name": "db",   "type": { "borrow_mut": "Database" } },
+        { "name": "name", "type": "string" }
+      ],
+      "returns": "bool"
+    },
+
+    "database_lookup_view": {
+      "doc": "v6: read-only fetch of a view entry by name (ASCII-case-insensitive). Returns Some(entry) if installed, None otherwise.",
+      "params": [
+        { "name": "db",   "type": { "borrow": "Database" } },
+        { "name": "name", "type": "string" }
+      ],
+      "returns": { "option": { "borrow": "ViewEntry" } }
     },
 
     "cursor_update_row": {

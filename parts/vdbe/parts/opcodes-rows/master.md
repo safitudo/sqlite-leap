@@ -162,6 +162,21 @@ Compound-SELECT set-op. As `BufferIntersect` but a row qualifies iff
 it is present in `src_slots[0]` and absent from every other source.
 Result is likewise sorted + dedup'd. `Continue`.
 
+### `BufferUnion { dest_slot, src_slots, dedup }` (α20)
+
+Compound-SELECT set-op. `src_slots` is a non-empty list; every source
+must already hold the per-core output rows. The opcode:
+
+1. Opens `dest_slot` with `num_cols` taken from `src_slots[0]`.
+2. Appends every row of every source in `src_slots` order into
+   `dest_slot`.
+3. If `dedup == true`, sort `dest_slot` and collapse adjacent
+   duplicates (UNION semantics); if `dedup == false`, leave the
+   appended sequence as-is (UNION ALL semantics).
+4. `Continue`.
+
+Source slots are not mutated.
+
 ## Invariants
 
 - `cursor` is in `[0, state.num_cursors)` and points to an open

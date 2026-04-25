@@ -89,6 +89,28 @@
         "BufferNext": {
           "fields": { "buffer_slot": "u32", "body_pc": "PC" },
           "doc": "Advance the buffer's read cursor by one row. If another row exists: Jump(body_pc) (re-enter loop body). Else: Continue (past-end fall-through). Mirrors the Next opcode's jump-on-has-next convention."
+        },
+        "BufferIntersect": {
+          "fields": {
+            "dest_slot": "u32",
+            "src_slots": { "list": "u32" }
+          },
+          "doc": "α20 compound-SELECT set-op. src_slots is a non-empty list of row-buffer slot indices; every source must already hold the per-core output rows. Open dest_slot with num_cols taken from src_slots[0], iterate rows of src_slots[0], qualify a row iff it is present in every other source slot under the canonical total order, then sort dest and collapse adjacent duplicates. Source slots are not mutated. Continue."
+        },
+        "BufferExcept": {
+          "fields": {
+            "dest_slot": "u32",
+            "src_slots": { "list": "u32" }
+          },
+          "doc": "α20 compound-SELECT set-op. As BufferIntersect but a row qualifies iff it is present in src_slots[0] and absent from every other source. Result is sorted + dedup'd. Source slots are not mutated. Continue."
+        },
+        "BufferUnion": {
+          "fields": {
+            "dest_slot": "u32",
+            "src_slots": { "list": "u32" },
+            "dedup":     "bool"
+          },
+          "doc": "α20 compound-SELECT set-op. src_slots is a non-empty list; every source must already hold the per-core output rows. Open dest_slot with num_cols taken from src_slots[0], append every row from every source in order, then if dedup=true sort + collapse adjacent duplicates (UNION); if dedup=false leave the appended order as-is (UNION ALL). Source slots are not mutated. Continue."
         }
       }
     }
