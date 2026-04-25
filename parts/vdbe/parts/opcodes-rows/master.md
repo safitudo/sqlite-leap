@@ -74,6 +74,72 @@ Call `storage.cursor_delete_row(cursor)`. On `Ok(())` → `Continue`.
 `Err(cond)` → `Halt(Error(cond))`. The cursor is left positioned so
 the next `Next` returns the row that followed the deleted one.
 
+### Row buffer ops (ORDER BY / DISTINCT support)
+
+Row buffers are an in-memory list-of-rows resource managed by
+`VdbeState` and addressed by `buffer_slot: u32`. Each slot stores
+homogeneous rows (every row has the same `num_cols`) plus an internal
+read cursor used by `BufferRewind` / `BufferRead` / `BufferNext`.
+
+State exposes the following methods (declared in `parts/vdbe/shapes.json`
+under `VdbeState`):
+
+- `state.buffer_open(slot, num_cols)` — open or reset the slot to an
+  empty buffer of the given width.
+- `state.buffer_append(slot, &[Value])` — push one row.
+- `state.buffer_sort(slot, key_indices, key_desc)` — in-place sort.
+- `state.buffer_dedup(slot)` — collapse adjacent duplicates.
+- `state.buffer_rewind(slot) -> bool` — `true` if the buffer has at
+  least one row (cursor at row 0); `false` if empty.
+- `state.buffer_read(slot, dest_first_reg, num_cols)` — copy the
+  current row into the register window.
+- `state.buffer_next(slot) -> bool` — advance; `true` if another row
+  is now positioned; `false` if past end.
+
+### `BufferOpen { buffer_slot, num_cols }`
+
+`state.buffer_open(buffer_slot, num_cols)`. `Continue`. Idempotent —
+a re-open clears any prior content.
+
+### `BufferAppend { buffer_slot, first_reg, num_cols }`
+
+Read `regs[first_reg .. first_reg + num_cols]`, snapshot each value,
+hand the row vector to `state.buffer_append(buffer_slot, &snapshot)`.
+`Continue`. Borrow-ordering note: take owned snapshots before any
+state mutation, identical to the `InsertRow` discipline (pin #6).
+
+### `BufferSort { buffer_slot, key_indices, key_desc }`
+
+`state.buffer_sort(buffer_slot, key_indices, key_desc)`. The SQLite
+canonical total order applies (rank: Null=0, Integer/Real=1,
+Text=2, Blob=3; within ranks numeric / memcmp). Stable sort
+preserves equal-key insertion order. `Continue`.
+
+### `BufferDedup { buffer_slot }`
+
+`state.buffer_dedup(buffer_slot)` collapses adjacent rows that compare
+equal under the total order. Caller (the SELECT compiler) sorts before
+dedup when a full-buffer dedup is required. `Continue`.
+
+### `BufferRewind { buffer_slot, end_pc }`
+
+`state.buffer_rewind(buffer_slot)` returns `true` for non-empty (cursor
+at row 0 → `Continue`) or `false` for empty (`Jump(end_pc)`). Mirrors
+table `Rewind`'s "jump on EMPTY" convention.
+
+### `BufferRead { buffer_slot, dest_first_reg, num_cols }`
+
+Copy the current row's values via `state.buffer_read(buffer_slot,
+dest_first_reg, num_cols)` — each cell is set with `set_register`,
+clones owned. `Continue`. Pre: `BufferRewind` succeeded and `BufferNext`
+has not yet returned past-end.
+
+### `BufferNext { buffer_slot, body_pc }`
+
+`state.buffer_next(buffer_slot)` advances; `true` → `Jump(body_pc)`;
+`false` → `Continue` (past-end). Matches table `Next`'s jump-on-HAS-NEXT
+convention.
+
 ## Invariants
 
 - `cursor` is in `[0, state.num_cursors)` and points to an open

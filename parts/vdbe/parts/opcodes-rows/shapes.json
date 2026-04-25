@@ -57,6 +57,38 @@
         "DeleteRow": {
           "fields": { "cursor": "CursorId" },
           "doc": "Delete the current row via storage.cursor_delete_row. Cursor is left positioned so the next Next call returns the row that followed the deleted row. Err(CursorNotWritable) -> Halt(Error)."
+        },
+        "BufferOpen": {
+          "fields": { "buffer_slot": "u32", "num_cols": "u32" },
+          "doc": "Initialize an in-memory row buffer at the given slot. Each row is num_cols wide. Idempotent: opening an already-open slot resets it to empty. Used by ORDER BY / DISTINCT compile paths to materialize, sort, and replay rows."
+        },
+        "BufferAppend": {
+          "fields": { "buffer_slot": "u32", "first_reg": "Register", "num_cols": "u32" },
+          "doc": "Append one row to buffer[buffer_slot] consisting of regs[first_reg .. first_reg + num_cols] (cloned by value). Buffer slot must be open. num_cols must equal the slot's declared width."
+        },
+        "BufferSort": {
+          "fields": {
+            "buffer_slot": "u32",
+            "key_indices": { "list": "u32" },
+            "key_desc":    { "list": "bool" }
+          },
+          "doc": "Sort buffer[buffer_slot] in-place by the listed column indices. Comparison is SQLite-canonical total order: NULL < (INTEGER|REAL by numeric value) < TEXT (memcmp) < BLOB (memcmp). For each key i: ascending unless key_desc[i] is true. key_indices.len() must equal key_desc.len(). NULLS placement: NULLS FIRST for ASC, NULLS LAST for DESC (the SQLite default; documented choice — NULLS FIRST/LAST modifiers are deferred)."
+        },
+        "BufferDedup": {
+          "fields": { "buffer_slot": "u32" },
+          "doc": "Collapse adjacent duplicate rows in buffer[buffer_slot] using full-row equality under the same total order as BufferSort. Caller is responsible for ordering the buffer first if global (not just adjacent) deduplication is required — the SELECT-compile DISTINCT lowering always sorts before dedup."
+        },
+        "BufferRewind": {
+          "fields": { "buffer_slot": "u32", "end_pc": "PC" },
+          "doc": "Reset the buffer's read cursor to row 0. If the buffer is empty: Jump(end_pc). Else: Continue (cursor positioned at row 0 of the buffer)."
+        },
+        "BufferRead": {
+          "fields": { "buffer_slot": "u32", "dest_first_reg": "Register", "num_cols": "u32" },
+          "doc": "Copy the leading num_cols cells of the current buffered row into regs[dest_first_reg .. dest_first_reg + num_cols]. The cursor must be positioned (BufferRewind first). num_cols MAY be less than the slot's declared width — the trailing cells (e.g. sort keys not part of the projection) are simply not replayed. num_cols MUST NOT exceed the slot's declared width. Continue."
+        },
+        "BufferNext": {
+          "fields": { "buffer_slot": "u32", "body_pc": "PC" },
+          "doc": "Advance the buffer's read cursor by one row. If another row exists: Jump(body_pc) (re-enter loop body). Else: Continue (past-end fall-through). Mirrors the Next opcode's jump-on-has-next convention."
         }
       }
     }

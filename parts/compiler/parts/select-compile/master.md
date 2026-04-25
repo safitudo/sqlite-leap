@@ -34,8 +34,11 @@ Admitted:
 - **HAVING in single-group mode**: the post-aggregation predicate is
   evaluated against AggValue/AggFinal results before EmitRow. If
   HAVING is false, no row is emitted.
-- `DISTINCT` (top-level SELECT DISTINCT) is deferred (needs de-dup
-  set opcodes).
+- `DISTINCT` (top-level SELECT DISTINCT) — admitted via the buffer-
+  sort-dedup-replay pattern (see §"DISTINCT and ORDER BY" below).
+- `ORDER BY` (single-table compile path only) — admitted via the
+  buffer-sort-replay pattern. ORDER BY across the JOIN compile
+  path remains deferred.
 
 Deferred (CompileError `"deferred: <construct>"`):
 - **Multi-group aggregation** — `GROUP BY` with more than one
@@ -49,8 +52,10 @@ Deferred (CompileError `"deferred: <construct>"`):
   Until a follow-up adds one, multi-group `GROUP BY` produces
   CompileError `"deferred: multi-group GROUP BY (spec gap: needs
   ephemeral-table or Sort opcode family)"`.
-- subqueries, ORDER BY, top-level DISTINCT, compound SELECT,
-  CTE, window functions.
+- subqueries, ORDER BY across JOINs, compound SELECT,
+  CTE, window functions, ORDER BY with NULLS FIRST/LAST modifiers
+  (the parser does not currently surface them; default SQLite
+  placement is used).
 
 JOIN support is admitted in this part — see §JOINs below.
 
@@ -397,6 +402,74 @@ This keeps `compile_expr`'s scope clean — it's still the "Col-less
 expression compiler" — and concentrates the schema-dependent logic
 here in `compile_select`.
 
+## DISTINCT and ORDER BY (single-table path)
+
+When `stmt.distinct` is true OR `stmt.order_by` is non-empty AND the
+compile path is the single-table form (form B above), the emitter
+routes rows through an in-memory row buffer instead of streaming them
+straight to the result sink. The pattern (with one buffer slot,
+slot 0):
+
+```
+# Pre-loop (in addition to the existing scan setup):
+BufferOpen { buffer_slot: 0, num_cols: <projection arity + sort-key arity> }
+
+# Inside the scan loop, after WHERE passes and projection has been
+# packed into the projection register window — instead of emitting
+# ResultRow:
+#   1. Compile each ORDER BY key expression into registers contiguous
+#      with (just past) the projection block.
+#   2. BufferAppend { buffer_slot: 0, first_reg: proj_reg_base,
+#                     num_cols: proj_count + n_keys }
+#   (LIMIT/OFFSET, if also present, applies AFTER sort/dedup; the
+#    in-loop LIMIT bookkeeping is suppressed under buffering. For the
+#    probe scope, LIMIT/OFFSET combined with DISTINCT/ORDER BY is
+#    deferred — fold that in once buffered LIMIT lands.)
+
+# After the scan loop closes (i.e. at END_LABEL, before Halt):
+if has_order_by: BufferSort { buffer_slot: 0, key_indices: [...], key_desc: [...] }
+if has_distinct:
+    if not has_order_by:
+        BufferSort { buffer_slot: 0, key_indices: [0..proj_count), key_desc: [false; ...] }
+    BufferDedup { buffer_slot: 0 }
+
+BufferRewind { buffer_slot: 0, end_pc: HALT_LABEL }
+REPLAY_TOP:
+    BufferRead { buffer_slot: 0, dest_first_reg: <replay register>,
+                 num_cols: proj_count }
+    ResultRow  { start_reg: <replay register>, count: proj_count }
+    BufferNext { buffer_slot: 0, body_pc: REPLAY_TOP }
+HALT_LABEL:
+    Close ...; Halt.
+```
+
+Notes:
+- The buffer width is `proj_count + n_order_keys` so each row carries
+  the values needed both for replay (the projection block) and for
+  sort comparison (the trailing key block). `BufferRead` reads only
+  the projection prefix back into registers for `ResultRow`.
+- ORDER BY key expressions are compiled against the original schema
+  (not against the projection), so keys may reference any column —
+  including columns not in the projection (e.g. `SELECT a FROM t
+  ORDER BY b`).
+- DISTINCT WITHOUT ORDER BY: sort by every projection column (ASC),
+  then dedup. Output ordering becomes the sort order. This is
+  documented and accepted; a real planner would use a hash set when
+  observable order isn't required, but for the spec-clean version we
+  pay the sort cost.
+- DISTINCT WITH ORDER BY: sort on ORDER BY keys → dedup adjacent
+  on the projection prefix would not collapse semantic duplicates
+  (since equal-projection rows may differ on ORDER BY keys). To keep
+  semantics correct without a second sort, we sort on
+  `(projection-cols ASC ..., order-by-keys-with-original-direction)`,
+  dedup adjacent on the full row (which is correct because the
+  projection prefix is the leading sort key), then a stable second
+  sort on just the original ORDER BY keys gives the requested order.
+  Implementation simplification (probe): reject `DISTINCT + ORDER BY`
+  if any ORDER BY key is not also a projection column; otherwise
+  sort by the ORDER BY keys + projection-tail, dedup, done. Any
+  refinement is a planner concern.
+
 ## LIMIT / OFFSET codegen
 
 ```
@@ -444,10 +517,12 @@ opcodes — no new VDBE instructions needed.
 9. **num_registers bounds check** — the emitted
    `num_registers` is >= the highest register index used by any
    opcode. Off-by-one is a pin.
-10. **Deferred constructs** — multi-group GROUP BY /
-    ORDER BY / top-level DISTINCT / subqueries each produce a
-    CompileError with the `"deferred: <construct>"` message. The
-    compiler does not silently accept-then-ignore.
+10. **Deferred constructs** — multi-group GROUP BY / subqueries /
+    ORDER BY across JOIN sources / DISTINCT across JOIN sources
+    each produce a CompileError with the `"deferred: <construct>"`
+    message. The compiler does not silently accept-then-ignore.
+    (ORDER BY and DISTINCT in the single-table path are admitted
+    via §"DISTINCT and ORDER BY".)
 10g. **JOIN nested-loop semantics** — `SELECT a, b FROM t, u` (CROSS)
      emits exactly `|t| * |u|` rows — every left-row paired with every
      right-row, in left-major order.
@@ -509,6 +584,34 @@ opcodes — no new VDBE instructions needed.
 12. **result_count accuracy** — `result_count` equals the number
     of columns in a single ResultRow (the projection arity AFTER
     Star expansion).
+12a. **ORDER BY single-table semantics** — `SELECT a FROM t ORDER BY a`
+     emits rows in ascending order of column `a` under SQLite total
+     order. `ORDER BY a DESC` reverses; multi-key ORDER BY uses
+     left-to-right key precedence. Sort is stable; equal-key rows
+     retain insertion (i.e. table-scan) order.
+12b. **ORDER BY non-column expressions** — `SELECT a FROM t ORDER BY
+     a*2` is admitted; the key expression is compiled against the
+     original schema each row and stored in the sort-key portion of
+     the buffer row.
+12c. **DISTINCT single-table semantics** — `SELECT DISTINCT a FROM t`
+     emits one row per unique value of `a` under the SQLite total
+     order. Output ordering is sort-order (a documented side effect
+     of the buffer-sort-dedup-replay lowering).
+12d. **DISTINCT + ORDER BY** — both are admitted in the single-table
+     path; the buffer is sorted by a composite key
+     `(order-keys, projection-tail)`, deduped adjacent, then replayed.
+     ORDER BY keys MAY reference projection columns directly; if
+     they reference non-projection columns the request is rejected
+     with `"deferred: DISTINCT + ORDER BY referencing non-projected
+     column"`.
+12e. **ORDER BY across JOIN / DISTINCT across JOIN** — both produce
+     `CompileError "deferred: ORDER BY across JOIN sources"` /
+     `"deferred: DISTINCT across JOIN sources"`. The buffer pattern
+     ports cleanly but is out of scope for this wave.
+12f. **LIMIT/OFFSET combined with DISTINCT or ORDER BY** —
+     `CompileError "deferred: LIMIT/OFFSET with DISTINCT or ORDER
+     BY"`. The buffer pattern can absorb LIMIT (truncate after
+     sort/dedup) — left for a follow-up.
 13. **No inline tests, no invented opcodes** — the emission only
     uses opcodes already declared by the VDBE shape; no custom
     helpers leak. `compile_expr` calls go through the imported

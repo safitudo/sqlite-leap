@@ -282,6 +282,70 @@
         "params": [{ "name": "slot", "type": "u32" }],
         "returns": "unit",
         "doc": "Free the window session at slot. Releases any inner aggregate accumulator and key storage. Idempotent — closing an already-closed slot is a no-op."
+      },
+      {
+        "name": "buffer_open",
+        "receiver": "mut",
+        "params": [
+          { "name": "slot",     "type": "u32" },
+          { "name": "num_cols", "type": "u32" }
+        ],
+        "returns": "unit",
+        "doc": "Open or reset the in-memory row buffer at slot to an empty buffer of the given width. Idempotent. Backing storage is grown on demand — no pre-allocation pass at VdbeState construction. Used by ORDER BY / DISTINCT compile paths."
+      },
+      {
+        "name": "buffer_append",
+        "receiver": "mut",
+        "params": [
+          { "name": "slot",      "type": "u32" },
+          { "name": "first_reg", "type": "Register" },
+          { "name": "num_cols",  "type": "u32" }
+        ],
+        "returns": "unit",
+        "doc": "Append one row to the buffer at slot. State reads regs[first_reg .. first_reg + num_cols] internally and snapshots each value (avoids &Value + &mut self conflict in strict-borrow targets, identical to aggregate_step's index-intake discipline). num_cols must equal the slot's declared width."
+      },
+      {
+        "name": "buffer_sort",
+        "receiver": "mut",
+        "params": [
+          { "name": "slot",        "type": "u32" },
+          { "name": "key_indices", "type": { "list": "u32" } },
+          { "name": "key_desc",    "type": { "list": "bool" } }
+        ],
+        "returns": "unit",
+        "doc": "Sort the buffer at slot in-place by the listed column indices. Uses the SQLite canonical total order: rank Null=0 < (Integer|Real numeric)=1 < Text (memcmp)=2 < Blob (memcmp)=3. For each key i: ascending unless key_desc[i] is true. NULLS placement follows the SQLite default (NULLS FIRST under ASC, NULLS LAST under DESC); explicit NULLS FIRST/LAST modifiers are deferred. Stable: equal-key rows retain insertion order. key_indices.len() must equal key_desc.len()."
+      },
+      {
+        "name": "buffer_dedup",
+        "receiver": "mut",
+        "params": [{ "name": "slot", "type": "u32" }],
+        "returns": "unit",
+        "doc": "Collapse adjacent duplicate rows under the same total order as buffer_sort. Caller is responsible for ordering the buffer first if non-adjacent dedup is required."
+      },
+      {
+        "name": "buffer_rewind",
+        "receiver": "mut",
+        "params": [{ "name": "slot", "type": "u32" }],
+        "returns": "bool",
+        "doc": "Reset the read cursor to row 0. Returns true if the buffer is non-empty (cursor positioned), false if empty."
+      },
+      {
+        "name": "buffer_read",
+        "receiver": "borrow",
+        "params": [
+          { "name": "slot",           "type": "u32" },
+          { "name": "dest_first_reg", "type": "Register" },
+          { "name": "num_cols",       "type": "u32" }
+        ],
+        "returns": "unit",
+        "doc": "Copy the current row's leading num_cols values into regs[dest_first_reg .. dest_first_reg + num_cols]. num_cols MAY be less than the slot's declared width — trailing cells (e.g. sort keys) are not replayed. The cursor must be positioned (buffer_rewind first, no past-end buffer_next since). receiver=borrow on this method is a contract simplification: the implementation may internally take &mut self to call set_register; targets emit accordingly. (Spec note: for strict-borrow targets the emission may shadow this as a &mut self method while preserving the documented semantics.)"
+      },
+      {
+        "name": "buffer_next",
+        "receiver": "mut",
+        "params": [{ "name": "slot", "type": "u32" }],
+        "returns": "bool",
+        "doc": "Advance the read cursor by one row. Returns true if another row is now positioned, false if past end. Mirrors cursor_next's jump-on-HAS-NEXT convention at the opcode layer."
       }
     ]
   },
