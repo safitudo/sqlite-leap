@@ -731,18 +731,61 @@ the materialized buffer.
   SQL NULL-semantics case (no match but buffer contains NULL → result
   is NULL) is simplified to `0` — documented probe deviation.
 
-### Deferred forms (clean-stop)
+### Derived table and CTE (α19)
 
-- **Derived-table FROM** (`FROM (SELECT ...) AS x`): the outer scan
-  loop's primary source is assumed to be a real table cursor. Using a
-  buffer-backed virtual cursor requires either a new opcode family
-  (buffer-as-cursor) or refactoring `compile_single_table` to accept
-  a `Source` trait with two implementations. Clean-stops with
-  `"deferred: derived-table subquery in FROM"`.
-- **Non-recursive CTE** (`WITH x AS (SELECT ...) SELECT ...`): same
-  blocker as derived-table — the CTE's materialized result needs to
-  feed the outer loop as if it were a named table. Clean-stops with
-  `"deferred: WITH (CTE) materialization"`.
+Derived-table FROM (`FROM (SELECT ...) AS x`) and non-recursive CTE
+(`WITH x AS (SELECT ...) SELECT ... FROM x`) execute via the same
+**buffer-backed virtual cursor** primitive. The single-table compile
+path accepts two source kinds:
+
+- **Real**: a named table, opened with `OpenRead` / scanned with
+  `Rewind` + `Column`* + `Next` / closed with `Close`.
+- **Buffered**: a materialized row buffer (populated before the outer
+  loop runs), scanned with `BufferRewind` (empty → jump to END) +
+  `BufferRead` (into the scratch-register block for the synthetic
+  schema's columns) + `BufferNext` (jump to TOP). No `OpenRead` /
+  `Close` is emitted for a Buffered source; it contributes zero to
+  `num_cursors`.
+
+Derived-table FROM lowering:
+1. Materialize the inner SELECT into a fresh buffer slot (reusing the
+   same `materialize_inner_select` helper that scalar / EXISTS / IN
+   subqueries use). The projection arity of the inner SELECT becomes
+   the buffer's `num_cols`.
+2. Synthesize a schema for the outer to resolve columns against:
+   one `ColumnSchema` per inner projection item, named by the
+   projection alias if present, else by the projection expression's
+   name if it is a bare `Col`, else `col0`, `col1`, ... The synthetic
+   schema's `name` is the derived-table alias (if any), else the
+   empty string. `t.col` against the derived table resolves iff `t`
+   matches the alias (case-insensitive).
+3. Dispatch to the buffered single-table compile path.
+
+Non-recursive CTE lowering:
+1. In SQL scope order (top to bottom in `WITH`), for each
+   `CteBinding`: materialize its SELECT into a fresh buffer slot,
+   synthesize a schema (column names: the explicit `columns` list on
+   the binding if present, else projection-alias fallback rules as
+   for derived tables). Register the binding as
+   `{name_lowercase → (buffer_slot, schema)}` in a thread-local CTE
+   registry that is visible to subsequent CTE-body compiles and to
+   the outer SELECT's compile.
+2. The outer SELECT's `FROM` resolution consults the CTE registry
+   before the real-table schema: if the FROM name matches a
+   registered CTE, dispatch to the buffered single-table path with
+   that CTE's `(buffer_slot, schema)`. Otherwise fall through to the
+   real-table path.
+3. Later CTEs may reference earlier ones; the sequential registration
+   order guarantees an earlier CTE's buffer slot is live when a later
+   CTE compiles and in turn when the outer SELECT compiles.
+4. `WITH RECURSIVE` is a parse-time clean-stop (α15 rule).
+
+Deferred forms (clean-stop):
+
+- **Derived table as JOIN source** (e.g. `t JOIN (SELECT ...) x ON ...`):
+  the JOIN compile path opens one `OpenRead` cursor per source and
+  does not yet accept buffered sources. Clean-stops with
+  `"deferred: derived table as JOIN source"`.
 - **Correlated subqueries**: an inner `Col` reference to an outer-
   scope column would need re-evaluation per outer row (rebuild buffer
   every iteration). Currently the prelude runs ONCE before the outer
@@ -817,6 +860,28 @@ iteration jumps and would otherwise produce infinite loops.
     exactly once, before the outer OpenRead. Any inner reference to a
     row-scoped column of the outer would be stale — this is the
     correlated-subquery case, deferred.
+28. **Buffered FROM source omits cursor opcodes** — when the outer
+    SELECT's FROM is a derived table or a CTE name, NO `OpenRead` and
+    NO `Close` may appear for that source. The scan uses
+    `BufferRewind(slot, end_pc=END)` in place of `Rewind`, one
+    `BufferRead(slot, dest_first_reg=0, num_cols=ncol)` in place of
+    the per-column `Column` pre-fetch loop, and
+    `BufferNext(slot, body_pc=TOP)` in place of `Next`. The source
+    contributes 0 to `num_cursors`. (Buffer slots used by derived-
+    table / CTE materialization are allocated from slot 1 upward,
+    matching the subquery convention; slot 0 remains reserved for the
+    outer DISTINCT / ORDER BY buffer.)
+29. **rebase_pc vs rebase_pcs duality** — the compiler has two PC
+    rebase helpers with overlapping scope: `rebase_pc` (single opcode,
+    used by `splice_compiled` when inlining self-relative expression
+    code into the emitter) and `rebase_pcs` (slice, used when
+    prepending a prelude block to an already-resolved program). Both
+    must cover the same set of PC-bearing opcodes; any PC-bearing
+    opcode added to the shape MUST appear in both. α19 does not add
+    new PC-bearing opcodes — the buffered source reuses
+    `BufferRewind` / `BufferNext` which both helpers already rebase.
+    Ongoing maintenance hazard; a spec follow-up should unify these
+    into a single `walk_pcs(&mut Opcode, f)` primitive.
 
 ## Regeneration envelope
 
