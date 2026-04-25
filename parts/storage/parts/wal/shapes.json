@@ -1,0 +1,195 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/storage/parts/wal",
+
+  "imports": {
+  },
+
+  "constants": {
+    "WAL_MAGIC_LE":     { "type": "u32", "value": 931071618 },
+    "WAL_MAGIC_BE":     { "type": "u32", "value": 931071619 },
+    "WAL_FORMAT_VERSION": { "type": "u32", "value": 3007000 },
+    "WAL_HEADER_SIZE":  { "type": "u32", "value": 32 },
+    "WAL_FRAME_HEADER_SIZE": { "type": "u32", "value": 24 }
+  },
+
+  "types": {
+    "WalError": {
+      "kind": "record",
+      "doc": "Single failure channel for WAL operations. Targets map to idiomatic error types; the `message` field is human-readable for tests and logs.",
+      "fields": {
+        "message": "string"
+      }
+    },
+
+    "WalHeader": {
+      "kind": "record",
+      "doc": "32-byte WAL file header (mainline-compatible). magic_number selects checksum endianness: 0x377F0682 = little-endian u32 reads, 0x377F0683 = big-endian. file_format_version is fixed at 3007000. page_size mirrors the database's page_size; mismatch is a corruption signal. checkpoint_sequence increments on every checkpoint. salt_1/salt_2 are random 32-bit values that roll on every checkpoint, used to invalidate frames written before the most recent checkpoint. checksum_1/checksum_2 are the Fibonacci-style cumulative checksum over bytes 0..24 with initial state (0, 0) — they ALSO seed the running checksum used to validate frames.",
+      "fields": {
+        "magic_number":         "u32",
+        "file_format_version":  "u32",
+        "page_size":            "u32",
+        "checkpoint_sequence":  "u32",
+        "salt_1":               "u32",
+        "salt_2":               "u32",
+        "checksum_1":           "u32",
+        "checksum_2":           "u32"
+      }
+    },
+
+    "WalFrameHeader": {
+      "kind": "record",
+      "doc": "24-byte per-frame header (mainline-compatible). page_number is 1-based. db_size_after_commit is the COMMIT MARKER: nonzero only on the last frame of a transaction, giving the database size in pages after the transaction commits; zero on every interior frame. salt_1/salt_2 mirror the WAL header's current salts at write time; mismatch on read means the frame predates the last checkpoint and is dead. checksum_1/checksum_2 are the cumulative running checksum through this frame, starting from the WAL header's checksum and consuming each frame's (page_number, db_size_after_commit, page_image) bytes in order.",
+      "fields": {
+        "page_number":             "u32",
+        "db_size_after_commit":    "u32",
+        "salt_1":                  "u32",
+        "salt_2":                  "u32",
+        "checksum_1":              "u32",
+        "checksum_2":              "u32"
+      }
+    },
+
+    "WalFrame": {
+      "kind": "record",
+      "doc": "One WAL frame: header + full page image. The page image is exactly page_size bytes; targets MUST NOT pad or truncate.",
+      "fields": {
+        "header":     "WalFrameHeader",
+        "page_image": { "list": "u8" }
+      }
+    },
+
+    "WalState": {
+      "kind": "record",
+      "doc": "In-memory state for a WAL session. page_size and salts are copies of the WAL header for fast reference. mx_frame is the frame number of the latest committed frame visible at this point in time; readers snapshot it at session open. wal_index maps page_number to the latest frame_number in [1, mx_frame] that wrote that page (latest-write-wins); used for O(1) page lookup. checkpoint_sequence mirrors the header for sanity checks.",
+      "fields": {
+        "page_size":           "u32",
+        "salt_1":              "u32",
+        "salt_2":              "u32",
+        "checkpoint_sequence": "u32",
+        "mx_frame":            "u32",
+        "wal_index":           { "list": "WalIndexEntry" }
+      }
+    },
+
+    "WalIndexEntry": {
+      "kind": "record",
+      "doc": "Entry in the in-process wal_index. (page_number, frame_number) — frame_number is 1-based, latest-write-wins per page.",
+      "fields": {
+        "page_number":  "u32",
+        "frame_number": "u32"
+      }
+    },
+
+    "WalCommitInfo": {
+      "kind": "record",
+      "doc": "Returned by wal_commit. frames_written is how many frames this transaction appended; new_mx_frame is the post-commit mx_frame value (caller may discard, since WalState is mutated in place); db_size_after_commit echoes the value baked into the commit frame.",
+      "fields": {
+        "frames_written":        "u32",
+        "new_mx_frame":          "u32",
+        "db_size_after_commit":  "u32"
+      }
+    }
+  },
+
+  "functions": {
+    "wal_open": {
+      "doc": "Open or create the WAL file at `{db_path}-wal`. If the file is shorter than 32 bytes, write a fresh header with random salts, checkpoint_sequence = 0, and the supplied page_size; return WalState with mx_frame = 0. Otherwise decode the header, validate its checksum, then scan frames forward — validating salts and the cumulative checksum — and set mx_frame to the largest frame number with db_size_after_commit != 0 among the prefix of valid frames. Build wal_index from frames 1..=mx_frame (latest-write-wins). Returns err(WalError) if the on-disk header is corrupt and cannot be reset, or if the page_size argument disagrees with an existing valid header.",
+      "params": [
+        { "name": "db_path",   "type": "string" },
+        { "name": "page_size", "type": "u32"    }
+      ],
+      "returns": { "result": { "ok": "WalState", "err": "WalError" } }
+    },
+
+    "wal_append_frame": {
+      "doc": "Append a frame to the in-progress transaction. Buffers (or eagerly writes — target choice) the frame at offset 32 + ((mx_frame + pending_count) * (24 + page_size)). The frame's salt fields copy state.salt_1/salt_2; checksum_1/checksum_2 extend the cumulative checksum from the prior frame's running state. db_size_after_commit is set to 0 (interior frame). The page image MUST be exactly state.page_size bytes; otherwise err(WalError).",
+      "params": [
+        { "name": "state",       "type": { "borrow_mut": "WalState" } },
+        { "name": "page_number", "type": "u32" },
+        { "name": "page_image",  "type": { "borrow": { "list": "u8" } } }
+      ],
+      "returns": { "result": { "ok": "unit", "err": "WalError" } }
+    },
+
+    "wal_commit": {
+      "doc": "Finalize the in-progress transaction. Rewrites the LAST pending frame's db_size_after_commit field to new_db_size and recomputes its checksum_1/checksum_2 with the new value baked in. Flushes all pending frames to the WAL file (single contiguous write at offset 32 + mx_frame * (24 + page_size)). fsyncs the WAL file. Updates state.mx_frame and state.wal_index. Returns WalCommitInfo. Returns err(WalError) if no frames are pending OR if I/O fails — on I/O failure the WAL file may be partially written, but recovery on next open will reject the partial transaction (no commit frame visible past the previous mx_frame).",
+      "params": [
+        { "name": "state",       "type": { "borrow_mut": "WalState" } },
+        { "name": "db_path",     "type": "string" },
+        { "name": "new_db_size", "type": "u32" }
+      ],
+      "returns": { "result": { "ok": "WalCommitInfo", "err": "WalError" } }
+    },
+
+    "wal_rollback": {
+      "doc": "Discard the in-progress transaction. Drops any buffered pending frames; if any pending frames already reached the WAL file, they will be invalidated naturally because no commit frame follows them and they fall past mx_frame. Idempotent if no transaction is in progress.",
+      "params": [
+        { "name": "state", "type": { "borrow_mut": "WalState" } }
+      ],
+      "returns": "unit"
+    },
+
+    "wal_read_page": {
+      "doc": "Look up a page in the WAL by page_number. Returns Some(page_image) if wal_index contains the page (i.e. the latest frame for it within [1, mx_frame] exists in the live region), None otherwise — the caller falls back to the main database file. The returned image is exactly page_size bytes.",
+      "params": [
+        { "name": "state",       "type": { "borrow": "WalState" } },
+        { "name": "db_path",     "type": "string" },
+        { "name": "page_number", "type": "u32" }
+      ],
+      "returns": { "result": { "ok": { "option": { "list": "u8" } }, "err": "WalError" } }
+    },
+
+    "wal_checkpoint": {
+      "doc": "Fold all committed frames in [1, mx_frame] into the main database file at db_path, then reset the WAL header in place (bump checkpoint_sequence, roll salts to fresh random values, recompute header checksum). Sets state.mx_frame = 0 and clears wal_index. Does NOT truncate the WAL file (PASSIVE checkpoint semantics — old frames become invalid via salt mismatch, will be overwritten by next writer). Returns err(WalError) if I/O fails partway; the database file may be partially updated but the WAL header is rewritten LAST so a crash mid-checkpoint leaves the WAL still authoritative for unflushed frames.",
+      "params": [
+        { "name": "state",   "type": { "borrow_mut": "WalState" } },
+        { "name": "db_path", "type": "string" }
+      ],
+      "returns": { "result": { "ok": "unit", "err": "WalError" } }
+    },
+
+    "wal_checksum_step": {
+      "doc": "One step of the Fibonacci-style cumulative checksum. (s0', s1') = ((s0 + x0 + s1) mod 2^32, (s1 + x1 + s0') mod 2^32). Pure function; targets MAY inline this. Exposed in the shape surface so cross-target equivalence tests can call it directly with known vectors.",
+      "params": [
+        { "name": "s0", "type": "u32" },
+        { "name": "s1", "type": "u32" },
+        { "name": "x0", "type": "u32" },
+        { "name": "x1", "type": "u32" }
+      ],
+      "returns": { "tuple": ["u32", "u32"] }
+    },
+
+    "wal_encode_header": {
+      "doc": "Encode a WalHeader struct into the canonical 32 big-endian bytes. checksum_1/checksum_2 in the input header MUST already be valid (computed by the caller via wal_checksum_step over bytes 0..24); this function does not recompute. Used both for fresh-WAL creation and for checkpoint salt-roll.",
+      "params": [
+        { "name": "header", "type": { "borrow": "WalHeader" } }
+      ],
+      "returns": { "list": "u8" }
+    },
+
+    "wal_decode_header": {
+      "doc": "Decode 32 bytes into a WalHeader and validate its checksum. Returns err(WalError) on checksum mismatch, on unknown magic, or on file_format_version != 3007000. Does NOT validate page_size against any external value; the caller does that.",
+      "params": [
+        { "name": "bytes", "type": { "borrow": { "list": "u8" } } }
+      ],
+      "returns": { "result": { "ok": "WalHeader", "err": "WalError" } }
+    },
+
+    "wal_encode_frame_header": {
+      "doc": "Encode a WalFrameHeader into the canonical 24 big-endian bytes. checksum fields in the input MUST already be valid; this function does not recompute.",
+      "params": [
+        { "name": "header", "type": { "borrow": "WalFrameHeader" } }
+      ],
+      "returns": { "list": "u8" }
+    },
+
+    "wal_decode_frame_header": {
+      "doc": "Decode 24 bytes into a WalFrameHeader. Does NOT validate the cumulative checksum — that's the caller's job (the caller has the running state). Does NOT validate salts. Returns the raw header for the caller to validate against context.",
+      "params": [
+        { "name": "bytes", "type": { "borrow": { "list": "u8" } } }
+      ],
+      "returns": { "result": { "ok": "WalFrameHeader", "err": "WalError" } }
+    }
+  }
+}

@@ -177,6 +177,35 @@ must already hold the per-core output rows. The opcode:
 
 Source slots are not mutated.
 
+### `BufferRecursiveStep { next_slot, work_slot, final_slot, dedup, max_iters_reg, end_pc }` (α27)
+
+Recursive-CTE iteration housekeeping. The compiler emits this opcode at
+the END of each fixpoint iteration, AFTER the recursive-step body has
+written its newly-derived rows into `next_slot`. The opcode atomically:
+
+1. Decrements `regs[max_iters_reg]` by one. If the decremented value
+   is `< 0`, Halt with `Error(RecursiveCteLimit)` (recursion cap
+   exceeded; protects against runaway / non-terminating cycles).
+2. If `dedup == true`, drop every row of `next_slot` that compares
+   equal to any row already present in `final_slot` under the
+   canonical total order; then sort + adjacent-dedup the surviving
+   rows of `next_slot`. (UNION semantics — suppresses cycles.) If
+   `dedup == false` (UNION ALL), no row is dropped.
+3. If after step 2 `next_slot` is empty: Jump(end_pc). The fixpoint
+   has been reached.
+4. Otherwise: append every row of `next_slot` into `final_slot`;
+   replace `work_slot`'s rows with `next_slot`'s rows (work_slot
+   becomes the seed for the next iteration's recursive-step scan);
+   clear `next_slot`. Continue.
+
+`work_slot`, `next_slot`, and `final_slot` must all be open with the
+same `num_cols`. The compiler emits `BufferOpen` for each before the
+loop begins. The opcode never opens or closes buffer slots itself.
+
+The opcode is the SOLE primitive needed for recursive-CTE termination
+and accumulation; the rest of the loop body is built from existing
+`Buffer*` primitives plus a `Goto` back to the loop top.
+
 ## Invariants
 
 - `cursor` is in `[0, state.num_cursors)` and points to an open

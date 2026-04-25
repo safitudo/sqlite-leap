@@ -1,163 +1,469 @@
 ---
 name: storage/wal
 kind: leaf
+shapes: ./shapes.json
 inherits:
-  - /spec/memory-discipline.spec.md
-  - /spec/durability.spec.md
-  - /parts/io-backend/master.md
   - /parts/storage/parts/file-format/master.md
-  - /parts/storage/parts/pager/master.md
-emits:
-  c: { path: src-c/storage/wal.c, headers: [src-c/storage/wal.h] }
-  rust: { path: src-rust/src/storage/wal.rs }
+  - /parts/storage/parts/fileformat-read/master.md
+  - /parts/storage/parts/fileformat-write/master.md
 ---
 
 # Part: storage/wal
 
-Write-ahead log. Absorbs v1 `spec/wal.spec.md` including Phase 3d
-(atomic-rename), Phase 4a (multi-frame reader), and Phase 4b
-(per-commit append-on-write). This is one of the three sub-parts
-most likely to be scrutinized by critics, because WAL correctness
-is where LEAP's discipline most visibly meets storage reality.
+Write-ahead log compatible with the **mainline SQLite WAL on-disk
+format** (sqlite.org/fileformat2.html §"The Write-Ahead Log
+Format"). The proof of compatibility is bidirectional: a database
+written by leap-WAL must be replayable by mainline `sqlite3`, and a
+WAL produced by mainline must be replayable by leap-WAL. WAL frames
+are part of the on-disk contract — getting them right is required
+for the "Done" criterion.
 
-## Public interface
+This is the foundational design pass. **No target code is emitted
+from this part yet.** The deliverable is the language-neutral spec
+(this file) plus the shape declarations (`shapes.json`). Targets
+will be added in a subsequent wave once the spec is stable.
+
+## Why a WAL
+
+Rollback-mode (the path implemented in `fileformat-write`) writes
+the entire file to a temp path and renames over the original. That
+is correct but pays `O(file_size)` per commit. The WAL writes only
+modified pages, appended sequentially, with `fsync` once per
+commit. This is the path benchmark lane 4 (INSERT throughput)
+depends on.
+
+A WAL also unlocks readers and writers running concurrently:
+readers lock down a frame index (the "mxFrame at read-snapshot")
+and consult the WAL up to that frame, falling back to the main
+database file for pages older than any in the WAL. Writers append
+without disturbing readers.
+
+## File layout (mainline-compatible)
+
+A WAL is a single file with the path `{db_path}-wal`. It begins
+with a 32-byte **WAL header**, followed by zero or more
+**frames**. Each frame is `(24 + page_size)` bytes — a 24-byte
+frame header followed by one full page image.
 
 ```
-struct Wal {
-    mode:        WalMode,       // Phase3dAtomicRename | Phase4bAppendOnWrite
-    frames:      Vec<WalFrame>, // in-memory frame batch (Phase 4b only)
-    fd:          Option<Fd>,    // WAL file descriptor (file-backed only)
-    path:        Option<Path>,  // WAL file path
-}
-
-fn wal_begin_session(db: &Database, mode: WalMode) -> Wal
-fn wal_append_frames(wal: &mut Wal, dirty_pages: &[PageId], images: &[Page]) -> Result<()>
-fn wal_commit(wal: &mut Wal) -> Result<()>
-fn wal_checkpoint(wal: &mut Wal, db: &mut Database) -> Result<()>
-fn wal_recover(db: &mut Database, wal_path: &Path) -> Result<()>
-fn wal_discard(wal: &mut Wal) -> Result<()>  // uncommitted tail
+[WAL header     32 bytes]
+[Frame 1 header 24 bytes][Frame 1 page  page_size bytes]
+[Frame 2 header 24 bytes][Frame 2 page  page_size bytes]
+...
 ```
 
-## Mode selection
+WAL files grow in 24+page_size increments. They never shrink
+mid-execution; checkpoint truncates them only at well-defined
+boundaries (or the file is reset in place — see §Checkpoint).
 
-- **`Phase3dAtomicRename`** — default for in-memory DBs and the v1
-  simple path. On `commit`: write the entire current page image
-  to a new file, fsync, rename over the main file. No WAL file on
-  disk after commit. Simplest durability story; correct but does
-  not scale to many-small-commits workloads.
-- **`Phase4bAppendOnWrite`** — active when `LEAP_WAL_APPEND=1` AND
-  the database is disk-backed. On `commit`: append a frame batch
-  of dirty pages to the WAL file; fsync; leave the WAL in place.
-  `checkpoint` folds the WAL into the main file.
+### WAL header (32 bytes, big-endian)
 
-Mode is set at `Wal::begin_session` time, derived from the Database's
-settings. A single Database holds exactly one mode for the lifetime
-of its handle.
+| Offset | Width | Field                  | Notes                                  |
+|--------|-------|------------------------|----------------------------------------|
+| 0      | 4     | magic_number           | `0x377F0682` or `0x377F0683`           |
+| 4      | 4     | file_format_version    | `3007000` (3.7.0+)                     |
+| 8      | 4     | page_size              | Same value as the database's page_size |
+| 12     | 4     | checkpoint_sequence    | Monotonic counter, +1 per checkpoint   |
+| 16     | 4     | salt_1                 | Random; rolls every checkpoint         |
+| 20     | 4     | salt_2                 | Random; rolls every checkpoint         |
+| 24     | 4     | checksum_1             | Cumulative checksum over bytes 0..24   |
+| 28     | 4     | checksum_2             | Cumulative checksum over bytes 0..24   |
 
-## Phase 4b — session activation contract
+The two magic numbers select endianness for **frame checksums**:
 
-A session is "Phase 4b-active" iff:
+- `0x377F0682` → checksum reads page bytes as **little-endian** u32.
+- `0x377F0683` → checksum reads page bytes as **big-endian** u32.
 
-1. The Database was opened on a disk-backed path (not `:memory:`).
-2. The `LEAP_WAL_APPEND=1` environment variable was set at open
-   time (or equivalent PRAGMA).
-3. The runner/harness selected this mode via the
-   `LEAP_WAL_APPEND` knob.
+Leap-WAL emits `0x377F0683` (big-endian) for parity with the rest
+of the file format. The reader accepts either.
 
-Activation is checked once at session start; mode cannot change
-mid-session.
+### Frame header (24 bytes, big-endian)
 
-## Phase 4b — write-side protocol
+| Offset | Width | Field                  | Notes                                  |
+|--------|-------|------------------------|----------------------------------------|
+| 0      | 4     | page_number            | 1-based page number being written      |
+| 4      | 4     | db_size_after_commit   | Nonzero on commit frame; 0 otherwise   |
+| 8      | 4     | salt_1                 | Copy of WAL header salt_1              |
+| 12     | 4     | salt_2                 | Copy of WAL header salt_2              |
+| 16     | 4     | checksum_1             | Running checksum-1 through this frame  |
+| 20     | 4     | checksum_2             | Running checksum-2 through this frame  |
 
-On transaction commit:
+`db_size_after_commit` is the **commit marker**. When nonzero, this
+frame is the last frame of a transaction and the value gives the
+new database size in pages. When zero, the frame is interior to a
+transaction and any reader that stops here must NOT apply the
+partial transaction.
 
-1. Query the pager's dirty-page set (snapshot-diff v1, see
-   `parts/storage/parts/pager/master.md` § "Pager dirty-set").
-2. For each dirty page, construct a `WalFrame` containing:
-   - Page number (4 bytes)
-   - Page image (`page_size` bytes)
-   - Frame checksum (8 bytes, fnv-1a over page image + page number)
-3. Append the frames to the in-memory batch.
-4. Append a `WalCommitMarker` frame with:
-   - Marker magic (`0x434F4D4D` = "COMM")
-   - Commit sequence number (monotonic)
-   - Batch checksum (checksum of all frame checksums in this batch)
-5. Flush the in-memory batch to the WAL file (`io_backend::write`).
-6. `io_backend::fsync` the WAL file.
-7. Clear the dirty-page set.
+## Checksum (Fibonacci-style)
 
-Commit returns only after step 6 completes successfully.
+Mainline SQLite uses a non-cryptographic running checksum based on
+Fibonacci accumulation. Each input is consumed as a pair of u32
+words (`x0`, `x1`).
 
-## Phase 4b — recovery on open
+```
+checksum_step(s0, s1, x0, x1):
+    s0 = (s0 + x0 + s1) mod 2^32
+    s1 = (s1 + x1 + s0) mod 2^32
+    return (s0, s1)
+```
 
-When opening a database and a WAL file exists alongside:
+Initial state for the WAL header checksum (over bytes 0..24):
+`s0 = s1 = 0`. The result is written into bytes 24..32.
 
-1. Scan the WAL from start to end.
-2. Validate each frame's checksum; stop at first invalid
-   (uncommitted tail).
-3. Partition frames into batches by `WalCommitMarker` boundaries.
-4. For each complete batch (batch checksum valid): replay
-   page-images into the in-memory page cache.
-5. Discard any partial trailing batch past the last valid
-   `WalCommitMarker` — that represents a mid-commit crash and must
-   not be applied.
-6. Database is now at a consistent post-recovery state. Checkpoint
-   may run next (or be deferred).
+Initial state for **frame N**'s checksum: the (s0, s1) value left
+behind by the WAL header (for frame 1) or by frame N-1 (for N>1).
+The frame's checksum input is the 8 bytes of `(page_number,
+db_size_after_commit)` followed by the page image, all read as
+u32 words in the endianness selected by the WAL magic.
 
-Multi-commit recovery (Phase 4a + Phase 4b): the reader must
-correctly identify every `WalCommitMarker` and apply only full
-batches, never partial. The 6/6 Phase 4b fixture
-(`tests/cross-build/phase4b.json`) validates this on both targets.
+A frame is **valid** iff:
 
-## Checkpoint
+1. Its `salt_1`/`salt_2` match the WAL header's current salts.
+2. The cumulative checksum recomputed from the WAL header through
+   this frame matches the frame header's `checksum_1`/`checksum_2`.
 
-Checkpoint is the operation that folds the WAL into the main DB
-file and truncates the WAL:
+Any invalid frame ends the live region of the WAL — every frame
+after it (including itself) is treated as not present. Mainline
+truncates on next checkpoint; leap-WAL matches.
 
-1. Acquire exclusive writer lock.
-2. For each committed batch in the WAL, apply its page images to
-   the main DB file (overwriting in place).
-3. `fsync` the main DB file.
-4. Truncate the WAL file to zero length.
-5. Release lock.
+## Reader protocol
 
-Checkpoint may run at close, at a threshold (WAL size exceeds N
-frames), or manually via `PRAGMA wal_checkpoint`.
+Readers establish a **read-snapshot** at session start and use it
+for the duration of their session. The snapshot is defined by:
 
-## Uncommitted tail discard
+- `mx_frame` — the frame number of the most recent commit frame
+  visible to this reader. Frames > mx_frame are not consulted.
+- A **wal-index** mapping `page_number → frame_number` for every
+  frame in `[1, mx_frame]`. When a page appears in multiple
+  frames, the LATEST frame wins.
 
-If a write session fails mid-transaction (rollback, crash), the
-in-memory frame batch is discarded before it reaches the WAL file.
-`wal_discard` is the explicit API. A crash with partial writes
-already on disk is handled by the recovery-time checksum validation.
+```
+wal_open(db_path) -> WalState:
+    open or create {db_path}-wal
+    if file is shorter than 32 bytes:
+        # fresh or truncated WAL
+        write a new WAL header with random salts; checkpoint_sequence = 0
+        return WalState { mx_frame: 0, page_size, salts, ... }
+    decode WAL header
+    require checksum_1/checksum_2 valid
+    scan frames forward, validating salts and running checksum
+    record the frame_number of the most recent VALID commit frame
+        (db_size_after_commit != 0) as mx_frame
+    build wal_index: for f in 1..=mx_frame:
+        wal_index[frame_page_number[f]] = f   # last write wins
+    return WalState { mx_frame, wal_index, salts, ... }
 
-## Fixture cases
+wal_read_page(state, page_number) -> Option<PageImage>:
+    if state.wal_index has page_number, return frame's page image
+    else return None  # caller falls back to main db file
+```
 
-`tests/cross-build/phase4b.json` (v1 fixture, absorbed here as
-this sub-part's primary test set):
+Readers do not modify the WAL file. Two readers may run
+concurrently with one writer: each reader's snapshot is a frozen
+`(mx_frame, wal_index)` pair captured at open time; new commits
+appended after that don't change what the reader sees.
 
-1. **phase3d-fallback** — in-memory DB + no env var → atomic-rename
-   mode; file-based assertions skipped.
-2. **single-commit-frame-emission** — WAL file exists after commit;
-   contains N frames + 1 commit marker.
-3. **multi-commit-recovery** — 3 commits, close, reopen; recovery
-   applies all 3 batches.
-4. **bulk-insert-dirty-set** — 10k inserts in one transaction;
-   dirty-set tracks correct pages; one batch emitted.
-5. **uncommitted-tail-discard** — partial trailing batch past last
-   valid commit marker is discarded on reopen.
-6. **empty-session-no-wal** — session with zero writes → no WAL
-   file created.
+## Writer protocol
+
+A writer batches dirty pages into **frames**, appending them to
+the WAL file. Within a transaction, frames are appended one at a
+time as pages are dirtied. The transaction COMMIT is signaled by
+setting `db_size_after_commit` to a nonzero value on the **last
+frame of the transaction** and `fsync`ing the WAL file.
+
+```
+wal_begin_write(state) -> Writer:
+    require no other writer holds the writer lock
+    return a Writer bound to state, with frames_pending = []
+
+wal_append_frame(writer, page_number, page_image):
+    # builds the frame header but does NOT write to disk yet;
+    # buffered append. (Targets MAY flush to OS buffers eagerly;
+    # the durability boundary is wal_commit's fsync.)
+    frame_no = state.mx_frame + len(writer.frames_pending) + 1
+    cumulative checksum extended from prior frame's running state
+    frame_header.salt_1 = state.salt_1
+    frame_header.salt_2 = state.salt_2
+    frame_header.db_size_after_commit = 0
+    frame_header.checksum_1, checksum_2 = updated cumulative
+    writer.frames_pending.append((frame_header, page_image))
+
+wal_commit(writer, new_db_size):
+    require writer.frames_pending is not empty
+    last = writer.frames_pending[-1]
+    rewrite last.frame_header.db_size_after_commit = new_db_size
+    recompute last.frame_header.checksum_1/checksum_2 with the new
+        db_size_after_commit baked in
+    write all pending frames to the WAL file at offset
+        32 + (state.mx_frame * (24 + page_size))
+    fsync WAL file
+    state.mx_frame += len(writer.frames_pending)
+    update state.wal_index for each frame appended
+    writer.frames_pending = []
+    release writer lock
+
+wal_rollback(writer):
+    discard writer.frames_pending without writing
+    release writer lock
+    # frames not written to disk == frames that don't exist
+```
+
+A crash mid-transaction (process killed between `wal_append_frame`
+calls but before `wal_commit`) leaves the WAL file in one of two
+states: (a) the partial frames never reached disk → no recovery
+needed; (b) some partial frames did reach disk but the commit
+frame (with `db_size_after_commit != 0`) didn't → on next open,
+the cumulative checksum still validates each frame, but no commit
+boundary follows them, so they are excluded from `mx_frame` and
+are overwritten by the next writer. Either way: no torn
+transaction is visible.
+
+## Checkpoint protocol
+
+Checkpoint folds committed WAL frames into the main database file
+and resets the WAL.
+
+```
+wal_checkpoint(state, db_file):
+    acquire exclusive lock (no readers or writers)
+    for f in 1..=state.mx_frame:
+        if f is the LATEST frame for its page_number in wal_index:
+            read frame f's page image from WAL
+            write that page image to db_file at
+                (page_number - 1) * page_size
+    fsync db_file
+
+    # Reset WAL in place: bump checkpoint_sequence, roll salts,
+    # rewrite WAL header. Frames past the new header become
+    # implicitly invalid because their salts no longer match.
+    state.checkpoint_sequence += 1
+    state.salt_1 = random_u32()
+    state.salt_2 = random_u32()
+    rewrite WAL header at offset 0 with the new fields and
+        recomputed checksum_1/checksum_2
+    state.mx_frame = 0
+    state.wal_index = empty
+    release lock
+```
+
+We do not truncate the WAL file at checkpoint. Mainline doesn't
+either — it overwrites in place — because truncating contends
+with readers holding stale snapshots. The salt-roll invalidates
+old frames implicitly: any reader that opens after the
+checkpoint sees the new salts in the header, and validation of
+old frames fails (salt mismatch), so they vanish from the live
+region. The next writer overwrites them.
+
+A "FULL" checkpoint variant additionally truncates the file to
+32 bytes once every reader has released its snapshot; "PASSIVE"
+and "RESTART" variants do not. v1 leap-WAL emits PASSIVE only;
+the file grows to its high-water mark over the database
+lifetime, which matches mainline's default behaviour.
+
+## Recovery on open
+
+When opening a database with an existing WAL file:
+
+1. If the WAL file is shorter than 32 bytes, treat as fresh.
+2. Decode the WAL header. If the header checksum is invalid,
+   reset (start fresh, salts randomized).
+3. Initialize cumulative checksum state from the WAL header's
+   `(checksum_1, checksum_2)`.
+4. Scan frames forward. For each frame:
+   a. Verify `salt_1`/`salt_2` match the WAL header.
+   b. Recompute cumulative checksum; verify
+      `checksum_1`/`checksum_2` match.
+   c. If either check fails, stop scanning.
+5. Among the frames that passed both checks, find the largest
+   `frame_number F` with `db_size_after_commit != 0`. Set
+   `mx_frame = F`. (If no such frame exists, `mx_frame = 0`.)
+6. Build `wal_index` from frames `1..=mx_frame`.
+
+Frames after `mx_frame` (validated or not) are dead: they
+represent in-progress transactions that didn't commit, and they
+will be overwritten by the next writer. Recovery does not erase
+them; it just doesn't consult them.
+
+## Concurrency model (v1: single-writer, multi-reader)
+
+- One writer at a time, gated by an exclusive writer lock on the
+  WAL.
+- Any number of readers concurrent with the writer; each reader
+  snapshots `(mx_frame, wal_index)` at session start.
+- Checkpoint requires no readers AND no writer. v1 chooses
+  PASSIVE-only semantics: checkpoint runs to the highest frame
+  that no reader is holding; with v1's "snapshot at open"
+  policy, this means checkpoint waits for all open readers to
+  close.
+
+The lock implementation is target-specific (POSIX `fcntl`, byte
+ranges on Windows, in-process mutex for `:memory:`). The spec
+says only "exclusive" or "shared"; targets map.
+
+## Salt discipline
+
+Salts roll on every checkpoint. Frames written before checkpoint
+N have `(salt_1, salt_2)` from before; frames written after have
+new salts. A reader validating frames compares each frame's salt
+against the **current WAL header salts**. Any mismatch ends the
+live region.
+
+Salts are 32-bit random values. Generation is target-specific
+(targets must use a cryptographically-acceptable RNG; predictable
+salts allow a malicious file to forge frame checksums). Mainline
+uses `sqlite3_randomness`; leap-WAL targets use platform-native
+secure RNGs.
+
+## Page size invariant
+
+The WAL header's `page_size` MUST equal the database header's
+`page_size`. Mismatch is a corruption condition; recovery treats
+the WAL as fresh and resets it.
+
+If the database's page size changes (only possible via VACUUM
+into a new file, which is a separate operation), the WAL must
+have been checkpointed and reset first.
+
+## Mainline interop
+
+A WAL written by leap is replayable by mainline iff:
+
+1. Magic number is one of the two valid values.
+2. `file_format_version == 3007000`.
+3. Page size matches the database.
+4. Salts and checksums validate frame-by-frame.
+5. At least one commit frame exists OR the WAL is empty past the
+   header.
+
+Mainline-written WAL is replayable by leap iff the same
+conditions hold. The fixture `tests/fixtures/wal-mainline/` (to
+be added) will hold a WAL file produced by mainline `sqlite3`
+running an INSERT in WAL mode; the leap reader must replay it
+and produce the expected post-state.
+
+## Correctness pins
+
+**W1. Frame size is exactly `24 + page_size`.** No padding, no
+alignment, no per-frame metadata beyond the 24-byte header.
+
+**W2. Commit marker is `db_size_after_commit != 0` on the LAST
+frame of the transaction.** All earlier frames in the
+transaction MUST have `db_size_after_commit == 0`. Setting it on
+an interior frame would let recovery treat a partial transaction
+as committed.
+
+**W3. Cumulative checksum starts from the WAL header's
+checksum.** Frame 1's input checksum state is `(header.checksum_1,
+header.checksum_2)`. Frame N>1 starts from frame N-1's running
+state. The header's own checksum is computed over bytes 0..24
+with initial state `(0, 0)`.
+
+**W4. Checksum endianness is selected by magic.** `0x377F0682`
+→ little-endian u32 reads of page bytes; `0x377F0683` →
+big-endian. Leap emits big-endian. Readers accept either.
+
+**W5. Salt-on-frame must match WAL-header salt.** Validation step
+1; mismatch invalidates the frame and ends the live region.
+
+**W6. Frames past `mx_frame` are inert.** Recovery never applies
+them; readers never consult them; the next writer overwrites
+them at offset `32 + (mx_frame * (24 + page_size))`.
+
+**W7. Latest-write-wins in wal_index.** When a page appears in
+multiple frames within `[1, mx_frame]`, the highest-numbered
+frame is authoritative for reads and for checkpoint.
+
+**W8. Checkpoint resets salts.** After checkpoint,
+`(salt_1, salt_2)` are fresh random values, `checkpoint_sequence`
++= 1, `mx_frame = 0`. The WAL file's bytes past offset 32 are not
+zeroed; they become invalid by salt mismatch.
+
+**W9. fsync once per commit.** `wal_commit` calls fsync on the
+WAL file exactly once, after writing all pending frames including
+the commit frame. No fsync is required for non-commit frame
+appends within a transaction.
+
+**W10. Atomic commit boundary.** A reader opening the database
+after a crash sees either all frames of a transaction (commit
+frame reached disk) or none (commit frame did not reach disk).
+There is no torn-transaction state. The proof: the commit frame
+is the LAST frame of the transaction, and `mx_frame` is defined
+as the latest frame with `db_size_after_commit != 0`; if that
+frame is missing, all earlier frames of the transaction are past
+`mx_frame` and inert.
+
+**W11. Mainline-readable.** A WAL produced by leap-WAL must be
+recoverable by mainline `sqlite3` opening the database. Tested
+by writing N rows via leap, then running `sqlite3 db "SELECT
+COUNT(*)..."` and verifying the count.
+
+**W12. Mainline-writable.** A WAL produced by mainline opening a
+leap-written database (or vice versa) must be recoverable by
+leap-WAL. Tested with a fixture WAL captured from mainline.
+
+**W13. Page size invariant.** WAL header `page_size` ==
+database header `page_size`. Mismatch → reset WAL.
+
+**W14. No invented helpers.** Per §Generation scope. Targets
+emit only what `shapes.json` declares plus what this spec
+explicitly requires.
 
 ## Phase pins
 
-- **Phase 4** — WAL baseline (Phase 3d atomic-rename).
-- **Phase 4a** — multi-frame WAL reader.
-- **Phase 4b** — per-commit append-on-write.
+- **Phase W0** — spec only (this part). `shapes.json` declares
+  the type+function surface. NO target code emitted yet.
+- **Phase W1** — single-target prototype (Rust). Implements
+  `wal_open`, `wal_append_frame`, `wal_commit`, `wal_read_page`,
+  `wal_checkpoint`. Roundtrip with mainline on a 1-row commit.
+- **Phase W2** — second target (C) for parity. Same shape
+  surface, byte-identical WAL output on the W1 fixture.
+- **Phase W3** — multi-page commits + multi-commit recovery
+  fixtures.
+- **Phase W4** — checkpoint + salt-roll fixtures; verify a
+  post-checkpoint WAL file is interpreted as empty by both leap
+  and mainline.
+- **Phase W5** — concurrency: shared-lock readers vs exclusive
+  writer; one writer + N readers stress test.
+- **Phase W6** — async I/O backend integration (io_uring on
+  Linux, kqueue on macOS/BSD); benchmark lane 4 numbers.
 
 ## Regeneration envelope
 
-- Target leaf size: 800–1200 lines per target.
-- Spec < 400 lines.
-- Test ownership: 6 fixture cases above; cross-build equivalence
-  primary.
+- Spec line budget: ~300 lines (this file).
+- shapes.json: ~100 lines.
+- Target line budget (Phase W1+): ~600–900 lines per target. The
+  encode/decode of frames + checksum + header is structurally
+  similar to fileformat-write; expect comparable size.
+- No external deps beyond stdlib + the io-backend part.
+- Standalone runner per target for fixture-based smoke; library
+  module for production callers.
+
+## Open questions (for follow-up phases)
+
+1. **wal-index file (`-shm`).** Mainline maintains a separate
+   shared-memory file `{db_path}-shm` with a hash table for fast
+   page→frame lookup. v1 leap-WAL builds wal_index in process
+   memory at session open. Phase W5 must decide whether to add
+   `-shm` for cross-process visibility (required for full
+   mainline interop in concurrent multi-process scenarios) or
+   stick with per-process index (simpler, fine for single-process
+   use, breaks if mainline and leap have the same database open
+   simultaneously across processes).
+
+2. **WAL-index endianness.** If we add `-shm`, mainline's format
+   is host-endian (not big-endian). Cross-platform readers of the
+   same database file would have to handle that. Defer to W5.
+
+3. **Truncating checkpoint vs in-place reset.** v1 picks in-place
+   reset (mainline's PASSIVE default). If benchmark lane 4 shows
+   the WAL file growing unboundedly under sustained write load,
+   add a TRUNCATE checkpoint variant in W4.
+
+4. **Read-snapshot lifetime.** v1 readers snapshot at open and
+   hold for the session. Mainline allows readers to advance
+   their snapshot at statement boundaries. Defer; v1 simplicity
+   buys us isolation, mainline parity buys us throughput.
+
+5. **Shared-memory locking primitives.** Mainline uses
+   POSIX-advisory + Windows byte-range. If we add `-shm`, we'll
+   need a target-neutral lock vocabulary. Punt to W5.

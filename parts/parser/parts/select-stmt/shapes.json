@@ -53,11 +53,12 @@
 
     "CteBinding": {
       "kind": "record",
-      "doc": "α15: one binding in a WITH clause: `name [(col_list)] AS (SELECT ...)`. `columns` is present iff the source spelled the explicit column-list form. `WITH RECURSIVE` is parse-time deferred.",
+      "doc": "α15: one binding in a WITH clause: `name [(col_list)] AS (SELECT ...)`. `columns` is present iff the source spelled the explicit column-list form. α27 (Rust pilot): `recursive` is true iff the source spelled `WITH RECURSIVE`; the recursive flag applies to every binding in the same WITH clause (per SQL spec); each binding's `select` then MUST be a compound SELECT whose top-level operator is UNION or UNION ALL — the first core is the anchor (base case), the rest are recursive steps that may reference `name` as a relation. Non-recursive bindings carry `recursive=false` and the legacy semantics (single materialization, scope-visible to later bindings and the outer SELECT).",
       "fields": {
         "name": "string",
         "columns": { "option": { "list": "string" } },
-        "select": "SelectStmt"
+        "select": "SelectStmt",
+        "recursive": "bool"
       }
     },
 

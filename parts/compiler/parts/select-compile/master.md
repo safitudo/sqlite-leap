@@ -83,10 +83,38 @@ Still deferred (CompileError `"deferred: <construct>"`):
   synthetic CTE binding is a feasible AST-rewrite simplification but
   still requires the JOIN scan to consult buffered sources for
   CTE-named cursors.
-- **Recursive CTE** (`WITH RECURSIVE foo AS ...`) — base + recursive
-  case, fixpoint loop. Parser-level deferred. Real implementation
-  needs a buffer-fixpoint primitive (loop until no rows added) plus
-  scoped re-resolution of `foo` inside the recursive case.
+- **Recursive CTE** (`WITH RECURSIVE foo AS ...`) — admitted on the
+  Rust target (α27 pilot) via the `BufferRecursiveStep` opcode (see
+  parts/vdbe/parts/opcodes-rows). Each recursive binding's body MUST
+  be a UNION or UNION ALL compound: the first core is the **anchor**
+  (base case, no self-reference), the remaining tail cores are the
+  **recursive steps** (may reference `foo` as a relation; resolved as
+  a buffered source pointing at the per-iteration `work` slot).
+  Lowering: allocate three buffer slots — `final_slot` (the result
+  visible to the outer SELECT and to later CTE bodies), `work_slot`
+  (the rows scanned by the next iteration's recursive step), and
+  `next_slot` (where the recursive step writes its outputs). The
+  prelude (a) materializes anchor rows into `final_slot` and seeds
+  `work_slot` with the same rows; (b) emits `LoadConst max_iters_reg
+  ← Integer(1000)` (the recursion cap); (c) at LOOP_TOP, emits the
+  recursive step body — its self-reference to `foo` reads from
+  `work_slot`, its output is rewritten to BufferAppend into
+  `next_slot`; (d) emits `BufferRecursiveStep { next_slot, work_slot,
+  final_slot, dedup, max_iters_reg, end_pc }` — this opcode does the
+  decrement + cycle-suppress dedup (for UNION) + termination test +
+  rotate-work-from-next; (e) emits `Goto LOOP_TOP`. After END:
+  if dedup is required (UNION, not UNION ALL), the outer driver MAY
+  emit a final `BufferSort` + `BufferDedup` on `final_slot` for
+  deterministic output ordering — but per-iteration dedup-against-
+  final already enforces set semantics. Outer SELECT compiles with
+  `foo` registered as a buffered source pointing at `final_slot`.
+  Validation rules: anchor MUST NOT reference `foo` (compile-time
+  check via a CompileError `"recursive CTE <name>: anchor cannot
+  reference <name>"`); the binding's `select` MUST be a non-empty
+  UNION/UNION ALL compound (else `"recursive CTE <name>: body must
+  be a UNION or UNION ALL compound"`); INTERSECT/EXCEPT compounds
+  in a recursive binding are CompileError `"recursive CTE <name>:
+  only UNION/UNION ALL allowed"`.
 - **Multi-group aggregation** — `GROUP BY` with more than one
   potential group. **SPEC GAP**: opcodes-agg / VdbeState provide
   one accumulator per slot (no per-group keying); storage exposes

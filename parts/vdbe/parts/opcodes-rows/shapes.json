@@ -111,6 +111,17 @@
             "dedup":     "bool"
           },
           "doc": "α20 compound-SELECT set-op. src_slots is a non-empty list; every source must already hold the per-core output rows. Open dest_slot with num_cols taken from src_slots[0], append every row from every source in order, then if dedup=true sort + collapse adjacent duplicates (UNION); if dedup=false leave the appended order as-is (UNION ALL). Source slots are not mutated. Continue."
+        },
+        "BufferRecursiveStep": {
+          "fields": {
+            "next_slot":      "u32",
+            "work_slot":      "u32",
+            "final_slot":     "u32",
+            "dedup":          "bool",
+            "max_iters_reg":  "Register",
+            "end_pc":         "PC"
+          },
+          "doc": "α27 (recursive-CTE iteration housekeeping). Run AFTER the recursive-step body has emitted its new rows into `next_slot`. Behavior, in order: (1) decrement `regs[max_iters_reg]` by one; if the decremented value is < 0 the recursive CTE has exceeded its iteration cap and the opcode Halts with Error(RecursiveCteLimit). (2) If `dedup` is true, dedup `next_slot` against `final_slot` under the canonical total-order — i.e. drop every row of next_slot that compares equal to any row already present in final_slot, then sort+adjacent-dedup the surviving rows (suppresses cycles for UNION-mode recursive CTEs). For `dedup=false` (UNION ALL), no row is removed from next_slot. (3) If after dedup `next_slot` is empty, Jump(end_pc) — the fixpoint is reached. (4) Otherwise: append every row of next_slot into final_slot, replace work_slot's contents with next_slot's rows (the next iteration's seed), clear next_slot, and Continue. work_slot/next_slot/final_slot must all already be open with matching num_cols. Continue (with side-effect transfer) or Halt(Error(RecursiveCteLimit)) on cap overflow."
         }
       }
     }

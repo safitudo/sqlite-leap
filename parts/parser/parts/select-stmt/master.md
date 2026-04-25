@@ -49,7 +49,11 @@ resolve in follow-up leaves):
   with a clean `"deferred: RIGHT JOIN"` / `"deferred: FULL JOIN"` /
   `"deferred: NATURAL JOIN"` message).
 - Subqueries in FROM (derived tables).
-- `WITH` (CTE).
+- `WITH` (CTE), including `WITH RECURSIVE` (α27 Rust pilot:
+  the `RECURSIVE` keyword is admitted; every binding in the WITH
+  clause carries the `recursive` flag, and the compiler is
+  responsible for validating that each recursive binding's body is
+  a UNION/UNION ALL compound with an anchor + recursive step).
 - Window functions (`OVER`).
 - Bare-ident implicit alias (`SELECT expr alias` without AS).
 
