@@ -6,6 +6,7 @@ emits:
   go:     { path: src-go/storage/fileformat.go }
   c:      { path: src-c/storage/fileformat_lib.c }
   zig:    { path: src-zig/storage_fileformat.zig }
+  python: { path: src-python/leap_sqlite/storage_fileformat.py }
 ---
 
 # File-format write — library API (close-time atomic flush)
