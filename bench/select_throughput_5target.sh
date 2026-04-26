@@ -1,18 +1,25 @@
 #!/usr/bin/env bash
-# Lane 3 — In-memory SELECT throughput, 5-target.
+# Lane 3 — In-memory SELECT throughput, 5-target. Two-column edition.
 #
-# Each engine runs a fixture with:
-#   * CREATE TABLE t (id, name)
-#   * 1000 INSERT rows
-#   * 100 identical SELECT id FROM t WHERE id > 500
+# Each engine runs TWO fixtures back-to-back:
 #
-# Wallclock is divided by the number of SELECTs to give queries/sec.
-# This includes a small share of CREATE/INSERT setup, so the published
-# number is "amortised SELECT-loop throughput" — biased slightly low
-# vs. pure inner-loop throughput, identically across targets.
+#   1) AMORTIZED  (select_throughput.{test,sql}): CREATE + 1000 INSERTs +
+#      100 × `SELECT id FROM t WHERE id > 500`. Wallclock / 100 = q/s.
+#      Honest about full pipeline cost (process startup + INSERT setup
+#      + parse + 100 SELECTs amortized).
 #
-# Resolution: time.perf_counter() (sub-ms) — /usr/bin/time -lp's 10ms
-# resolution is too coarse for sub-100ms runs.
+#   2) PURE-LOOP  (select_throughput_pure.{test,sql}): CREATE + 1000
+#      INSERTs + 10000 × `SELECT id FROM t WHERE id = 750`. Wallclock /
+#      10000 = q/s. The 10:1 SELECT:INSERT ratio (vs 0.1:1 in (1))
+#      makes the inner SELECT loop dominant; setup is ~5-10% of total.
+#      Predicate is selective (returns 1 row) so render cost is minimal
+#      and we measure scan-and-filter throughput on the engine side.
+#
+# Both numbers go in the report. Pure-loop is the publication-grade
+# "engine SELECT throughput" claim; amortized is the "full pipeline"
+# claim.
+#
+# Resolution: time.perf_counter() (sub-ms).
 #
 # Usage: bench/select_throughput_5target.sh [N_samples]   (default 5)
 set -euo pipefail
@@ -21,17 +28,26 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 N="${1:-5}"
-FIXTURE="$REPO_ROOT/bench/fixtures/select_throughput.test"
-SQLFILE="$REPO_ROOT/bench/fixtures/select_throughput.sql"
+
+FIX_AMORT="$REPO_ROOT/bench/fixtures/select_throughput.test"
+SQL_AMORT="$REPO_ROOT/bench/fixtures/select_throughput.sql"
+FIX_PURE="$REPO_ROOT/bench/fixtures/select_throughput_pure.test"
+SQL_PURE="$REPO_ROOT/bench/fixtures/select_throughput_pure.sql"
+
 OUT_DIR="$REPO_ROOT/bench/results/select_throughput_5target"
 mkdir -p "$OUT_DIR"
 
-N_QUERIES="$(grep -c '^query I nosort$' "$FIXTURE")"
-N_INSERTS="$(grep -c '^INSERT INTO ' "$FIXTURE")"
+NQ_AMORT="$(grep -c '^query I nosort$' "$FIX_AMORT")"
+NI_AMORT="$(grep -c '^INSERT INTO ' "$FIX_AMORT")"
+NQ_PURE="$(grep -c '^query I nosort$' "$FIX_PURE")"
+NI_PURE="$(grep -c '^INSERT INTO ' "$FIX_PURE")"
 
 ensure_go_slt
 
-echo ">>> Lane 3 select throughput; queries=$N_QUERIES, rows=$N_INSERTS, samples=$N" >&2
+echo ">>> Lane 3 select throughput (two-column)" >&2
+echo "    amortized: queries=$NQ_AMORT, rows=$NI_AMORT" >&2
+echo "    pure-loop: queries=$NQ_PURE, rows=$NI_PURE" >&2
+echo "    samples=$N" >&2
 
 runner_py='
 import subprocess, sys, time, statistics
@@ -58,26 +74,33 @@ for _ in range(n):
 print(f"{statistics.median(xs):.3f}")
 '
 
-ML_MS="$(python3 -c "$runner_py" "$N" stdin "$SQLFILE" /usr/bin/sqlite3 ":memory:")"
+# --- AMORTIZED measurements -----------------------------------------------
+echo ">>> sampling mainline (amortized)..." >&2
+ML_MS_AMORT="$(python3 -c "$runner_py" "$N" stdin "$SQL_AMORT" /usr/bin/sqlite3 ":memory:")"
+echo ">>> sampling mainline (pure-loop)..." >&2
+ML_MS_PURE="$(python3 -c "$runner_py" "$N" stdin "$SQL_PURE" /usr/bin/sqlite3 ":memory:")"
 
 declare -a NAMES=(c rust zig go python)
-declare -a MS=()
+declare -a MS_AMORT=()
+declare -a MS_PURE=()
 for t in "${NAMES[@]}"; do
     case "$t" in
-      c)      cmdline=("$C_SLT" "$FIXTURE") ;;
-      rust)   cmdline=("$RUST_SLT" "$FIXTURE") ;;
-      zig)    cmdline=("$ZIG_SLT" "$FIXTURE") ;;
-      go)     cmdline=("$GO_SLT_BIN" "$FIXTURE") ;;
-      python) cmdline=(python3 "$PY_DRIVER" "$FIXTURE") ;;
+      c)      cmdline=("$C_SLT") ;;
+      rust)   cmdline=("$RUST_SLT") ;;
+      zig)    cmdline=("$ZIG_SLT") ;;
+      go)     cmdline=("$GO_SLT_BIN") ;;
+      python) cmdline=(python3 "$PY_DRIVER") ;;
     esac
-    echo ">>> sampling $t..." >&2
-    MS+=("$(python3 -c "$runner_py" "$N" exec "$FIXTURE" "${cmdline[@]}")")
+    echo ">>> sampling $t (amortized)..." >&2
+    MS_AMORT+=("$(python3 -c "$runner_py" "$N" exec "$FIX_AMORT" "${cmdline[@]}" "$FIX_AMORT")")
+    echo ">>> sampling $t (pure-loop)..." >&2
+    MS_PURE+=("$(python3 -c "$runner_py" "$N" exec "$FIX_PURE" "${cmdline[@]}" "$FIX_PURE")")
 done
 
 qps_of_ms() {
-    local ms="$1"
+    local ms="$1" nq="$2"
     if [[ "$ms" == "NA" ]]; then echo "NA"; return; fi
-    python3 -c "import sys; ms=float(sys.argv[1]); n=int(sys.argv[2]); print(f'{1000.0*n/ms:.0f}' if ms>0 else 'NA')" "$ms" "$N_QUERIES"
+    python3 -c "import sys; ms=float(sys.argv[1]); n=int(sys.argv[2]); print(f'{1000.0*n/ms:.0f}' if ms>0 else 'NA')" "$ms" "$nq"
 }
 
 ratio_ms() {
@@ -91,39 +114,67 @@ REPORT="$OUT_DIR/REPORT.md"
     echo
     echo "Generated $(date -u +'%Y-%m-%dT%H:%M:%SZ') on $(uname -sm)."
     echo
-    echo "Each engine runs the same fixture: \`CREATE TABLE\` + ${N_INSERTS}"
-    echo "\`INSERT\`s + ${N_QUERIES} repeated \`SELECT id FROM t WHERE id > 500\`."
-    echo "Wallclock divided by ${N_QUERIES} gives amortised queries/sec."
+    echo "Each engine is sampled on **two** fixtures, $N samples each, median reported."
+    echo "Resolution: \`time.perf_counter()\`."
     echo
-    echo "Median of $N samples per target. Resolution: \`time.perf_counter()\`."
+    echo "## Fixtures"
     echo
-    echo "| target | wallclock (ms) | queries/sec | vs mainline | notes |"
-    echo "|---|---:|---:|---:|---|"
+    echo "| fixture | rows | SELECTs | predicate | what it measures |"
+    echo "|---|---:|---:|---|---|"
+    echo "| amortized | $NI_AMORT | $NQ_AMORT | \`id > 500\` (500 rows) | full pipeline (startup + INSERT setup amortized over $NQ_AMORT SELECTs) |"
+    echo "| pure-loop | $NI_PURE | $NQ_PURE | \`id = 750\` (1 row) | engine inner-loop (setup is ~5-10% of total at 10:1 SELECT:INSERT) |"
+    echo
+    echo "## Amortized (full pipeline)"
+    echo
+    echo "Wallclock divided by ${NQ_AMORT} SELECTs."
+    echo
+    echo "| target | wallclock (ms) | queries/sec | vs mainline |"
+    echo "|---|---:|---:|---:|"
     for i in "${!NAMES[@]}"; do
         t="${NAMES[$i]}"
-        m="${MS[$i]}"
-        qps="$(qps_of_ms "$m")"
-        ratio="$(ratio_ms "$ML_MS" "$m")"
-        echo "| $t | $m | $qps | $ratio | slt_runner($t) |"
+        m="${MS_AMORT[$i]}"
+        qps="$(qps_of_ms "$m" "$NQ_AMORT")"
+        ratio="$(ratio_ms "$ML_MS_AMORT" "$m")"
+        echo "| $t | $m | $qps | $ratio |"
     done
-    ML_QPS="$(qps_of_ms "$ML_MS")"
-    echo "| sqlite3 (mainline) | $ML_MS | $ML_QPS | 1.00x | system \`$(/usr/bin/sqlite3 -version 2>/dev/null | awk '{print $1}')\` |"
+    ML_QPS_AMORT="$(qps_of_ms "$ML_MS_AMORT" "$NQ_AMORT")"
+    echo "| sqlite3 (mainline) | $ML_MS_AMORT | $ML_QPS_AMORT | 1.00x |"
+    echo
+    echo "## Pure-loop (engine inner-loop)"
+    echo
+    echo "Wallclock divided by ${NQ_PURE} SELECTs. Setup amortizes to ~5-10%."
+    echo
+    echo "| target | wallclock (ms) | queries/sec | vs mainline |"
+    echo "|---|---:|---:|---:|"
+    for i in "${!NAMES[@]}"; do
+        t="${NAMES[$i]}"
+        m="${MS_PURE[$i]}"
+        qps="$(qps_of_ms "$m" "$NQ_PURE")"
+        ratio="$(ratio_ms "$ML_MS_PURE" "$m")"
+        echo "| $t | $m | $qps | $ratio |"
+    done
+    ML_QPS_PURE="$(qps_of_ms "$ML_MS_PURE" "$NQ_PURE")"
+    echo "| sqlite3 (mainline) | $ML_MS_PURE | $ML_QPS_PURE | 1.00x |"
     echo
     echo "Ratio convention: mainline-wallclock / leap-wallclock. >1.0x means"
     echo "leap is **faster**."
     echo
     echo "## Caveats"
-    echo "- The throughput number is amortised: it includes the table setup"
-    echo "  cost (CREATE + ${N_INSERTS} INSERTs) divided across ${N_QUERIES}"
-    echo "  SELECTs. Pure inner-loop SELECT throughput is higher."
+    echo
+    echo "- The amortized number shares a fraction of the table-setup cost"
+    echo "  ($NI_AMORT INSERTs / $NQ_AMORT SELECTs = 10x setup overhead)."
+    echo "  The pure-loop number flips the ratio (1:10) and uses a lean"
+    echo "  predicate so render cost is negligible — closer to true engine"
+    echo "  SELECT throughput."
+    echo "- The two predicates differ. Amortized returns 500 rows per query;"
+    echo "  pure-loop returns 1 row. Both perform a full table scan over"
+    echo "  $NI_PURE rows (no index)."
     echo "- The mainline number reflects the \`sqlite3\` CLI parsing the .sql"
     echo "  script — its line-by-line statement loop is not zero-cost either."
-    echo "- The Zig run is anomalously slow on this workload (high syscall"
-    echo "  time); a target-side allocator hot spot is the most likely cause."
-    echo "  Reported as-measured."
     echo "- macOS arm64 only."
     echo
-    echo "Fixtures: \`bench/fixtures/select_throughput.{test,sql}\`."
+    echo "Fixtures: \`bench/fixtures/select_throughput.{test,sql}\` and"
+    echo "\`bench/fixtures/select_throughput_pure.{test,sql}\`."
 } > "$REPORT"
 
 cat "$REPORT"
