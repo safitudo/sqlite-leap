@@ -42,7 +42,7 @@ case "$TARGET" in
     sqlite-mainline|turso)
         invoke="d=\$(mktemp -d); $bin \$d/db.sqlite < $WORKLOAD > /dev/null; rm -rf \$d"
         ;;
-    sqlite-leap-c|sqlite-leap-rust)
+    sqlite-leap-c|sqlite-leap-rust|sqlite-leap-zig|sqlite-leap-go|sqlite-leap-python)
         # See bench/lanes/_wrap_sql.py for why per-statement wrapping is
         # required. Pre-2026-04-20 the whole workload was wrapped under
         # a single `statement ok` header and the runner failed fast on

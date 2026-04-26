@@ -40,8 +40,11 @@ binary_for_target() {
     local target="$1"
     local path=""
     case "$target" in
-        sqlite-leap-c)    path="$REPO_ROOT/src-c/bin/sqllogictest" ;;
-        sqlite-leap-rust) path="$REPO_ROOT/src-rust/target/release/sqllogictest" ;;
+        sqlite-leap-c)    path="$REPO_ROOT/src-c/build/slt_runner" ;;
+        sqlite-leap-rust) path="$REPO_ROOT/src-rust/target/release/examples/slt_runner" ;;
+        sqlite-leap-zig)  path="$REPO_ROOT/src-zig/zig-out/bin/slt_runner" ;;
+        sqlite-leap-go)   path="$REPO_ROOT/src-go/bin/slt_runner" ;;
+        sqlite-leap-python) path="$REPO_ROOT/src-python/slt_runner.py" ;;
         sqlite-mainline)  path="$BENCH_ROOT/baselines/bin/sqlite-mainline" ;;
         turso)            path="$BENCH_ROOT/baselines/bin/turso" ;;
         # Library-variant adapter: links against `turso_core` directly, no
