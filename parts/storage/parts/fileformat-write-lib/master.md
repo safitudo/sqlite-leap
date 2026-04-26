@@ -3,6 +3,8 @@ name: fileformat-write-lib
 kind: inner
 emits:
   rust:   { path: src-rust/storage_fileformat.rs }
+  go:     { path: src-go/storage/fileformat.go }
+  c:      { path: src-c/storage/fileformat_lib.c }
 ---
 
 # File-format write — library API (close-time atomic flush)
@@ -108,9 +110,16 @@ End-to-end validation lives at the runner level for v1:
   `PRAGMA integrity_check` → `ok`, sample SELECTs round-trip
   payload bytes.
 
-Both validated 2026-04-26 on Rust target. C / Zig / Go / Python ports
-are deferred to a multi-target promotion pass; the API surface above
-is target-agnostic, so each generator can lift the same algorithm.
+Both validated 2026-04-26 on Rust target. Go landed 2026-04-26 from
+the same algorithm: 100k-row workload writes a mainline-readable file
+in ~0.3s (333k inserts/s), `PRAGMA integrity_check ok`, payload bytes
+round-trip on `SELECT id, payload FROM t LIMIT 3`. C landed 2026-04-26
+as `src-c/storage/fileformat_lib.c`: 100k-row Lane-4 workload writes
+in ~1.36s (73,736 inserts/s), `xxd` shows `SQLite format 3\0` magic,
+`SELECT count(*) FROM t` returns 100000, `PRAGMA integrity_check`
+returns `ok`. Zig / Python ports are deferred to a multi-target
+promotion pass; the API surface above is target-agnostic, so each
+generator can lift the same algorithm.
 
 ## Regen-debt note
 
