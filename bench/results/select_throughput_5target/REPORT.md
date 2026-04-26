@@ -1,6 +1,6 @@
 # Lane 3 — 5-target in-memory SELECT throughput
 
-Generated 2026-04-25T09:08:30Z on Darwin arm64.
+Generated 2026-04-26T18:09:58Z on Darwin arm64.
 
 Each engine runs the same fixture: `CREATE TABLE` + 1000
 `INSERT`s + 100 repeated `SELECT id FROM t WHERE id > 500`.
@@ -10,12 +10,12 @@ Median of 5 samples per target. Resolution: `time.perf_counter()`.
 
 | target | wallclock (ms) | queries/sec | vs mainline | notes |
 |---|---:|---:|---:|---|
-| c | 33.786 | 2960 | 0.36x | slt_runner(c) |
-| rust | 16.519 | 6054 | 0.74x | slt_runner(rust) |
-| zig | 13091.182 | 8 | 0.00x | slt_runner(zig) |
-| go | 26.265 | 3807 | 0.46x | slt_runner(go) |
-| python | 1426.507 | 70 | 0.01x | slt_runner(python) |
-| sqlite3 (mainline) | 12.209 | 8191 | 1.00x | system `3.51.0` |
+| c | 36.860 | 2713 | 0.34x | slt_runner(c) |
+| rust | 20.833 | 4800 | 0.60x | slt_runner(rust) |
+| zig | 17.454 | 5729 | 0.72x | slt_runner(zig) |
+| go | 28.150 | 3552 | 0.45x | slt_runner(go) |
+| python | 1506.872 | 66 | 0.01x | slt_runner(python) |
+| sqlite3 (mainline) | 12.588 | 7944 | 1.00x | system `3.51.0` |
 
 Ratio convention: mainline-wallclock / leap-wallclock. >1.0x means
 leap is **faster**.
