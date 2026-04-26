@@ -1,0 +1,12 @@
+{
+  "target": "sqlite_mainline",
+  "pass": 1655199,
+  "fail": 19,
+  "defer": 0,
+  "skip": 134851,
+  "total": 1790069,
+  "incl_skip_rate": 92.46565355860584,
+  "excl_skip_rate": 99.99885211494801,
+  "timeouts": [],
+  "crashes": []
+}
