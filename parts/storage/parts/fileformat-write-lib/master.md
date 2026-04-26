@@ -5,6 +5,7 @@ emits:
   rust:   { path: src-rust/storage_fileformat.rs }
   go:     { path: src-go/storage/fileformat.go }
   c:      { path: src-c/storage/fileformat_lib.c }
+  zig:    { path: src-zig/storage_fileformat.zig }
 ---
 
 # File-format write — library API (close-time atomic flush)
