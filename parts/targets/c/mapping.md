@@ -17,6 +17,14 @@ semantics) and applies these rules.
 **Target C dialect:** C11 (tested on clang 15 / Apple clang on macOS, gcc 11+ on Linux).
 **Build assumptions:** `-std=c11 -Wall -Wno-unused-parameter`. No C++ dialect features.
 
+**Release flags (required for bench / publication binaries):** generators
+MUST emit build scripts that respect a `CFLAGS` env var with default
+`-O3 -DNDEBUG`. Unoptimized C builds run ~2× slower on Lane 3 (SELECT) and
+~6× slower on Lane 4 (INSERT) than optimized; the Rust target is benched
+with `--release`, so a `-O0` C build is an apples-to-oranges comparison.
+Smoke scripts may build at `-O0 -g` for debuggability — that is a per-
+script choice, not a default. Canonical reference: `src-c/build_slt_runner.sh`.
+
 Stdlib headers + POSIX APIs this mapping relies on. If the target
 dropped a header we lean on, re-emission beats a hand-patch.
 
