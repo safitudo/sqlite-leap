@@ -25,6 +25,13 @@ with `--release`, so a `-O0` C build is an apples-to-oranges comparison.
 Smoke scripts may build at `-O0 -g` for debuggability — that is a per-
 script choice, not a default. Canonical reference: `src-c/build_slt_runner.sh`.
 
+**Linker flags (required):** `-lm` MUST appear in the final link line.
+The C engine uses `pow`, `floor`, `fmod` (in `vdbe/opcodes_expr.c` for SQL
+`pow()` / int-div / mod). macOS auto-resolves these from the dynamic
+linker; Linux gcc requires `-lm` explicitly. Without it, the Linux build
+fails with `undefined reference to 'pow'`. Verified 2026-04-26 on
+Ubuntu 22.04 / gcc 11.4.0. Canonical reference: `src-c/build_slt_runner.sh`.
+
 Stdlib headers + POSIX APIs this mapping relies on. If the target
 dropped a header we lean on, re-emission beats a hand-patch.
 

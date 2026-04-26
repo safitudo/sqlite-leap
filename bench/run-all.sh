@@ -18,7 +18,7 @@ if [[ ! -s "$OUT" ]]; then
     echo "lane,target,value,units,timestamp" > "$OUT"
 fi
 
-TARGETS=(sqlite-leap-c sqlite-leap-rust sqlite-mainline turso)
+TARGETS=(sqlite-leap-c sqlite-leap-rust sqlite-leap-zig sqlite-leap-go sqlite-leap-python sqlite-mainline)
 LANES=(
     lanes/01-cold-start/run.sh
     lanes/02-parse-speed/run.sh
