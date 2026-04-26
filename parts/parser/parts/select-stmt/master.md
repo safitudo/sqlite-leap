@@ -140,9 +140,32 @@ parse_from_opt(tokens, i):
     return Some(left), i
 
 parse_table_atom(tokens, i):
-    # Subquery / parenthesized table-ref:
+    # Subquery / parenthesized table-ref / parenthesized join-clause.
+    # Per SQLite grammar, `( table-or-subquery )` and `( join-clause )`
+    # are both valid table sources. We recursively parse a table source
+    # (atom + zero-or-more join-suffixes) inside the parens. If the
+    # parenthesised group reduces to a single named/sub atom, return
+    # that atom (so an outer `AS alias` may attach); otherwise return
+    # the join tree as-is (alias on a join group is not modeled).
     if tokens[i] == LParen:
-        return Err("deferred: parenthesized table-ref / subquery in FROM")
+        if tokens[i+1] == KwSelect:
+            # `( SELECT ... ) [AS alias]` — derived table, existing path.
+            ok = parse_select(tokens, i+1)
+            expect RParen; i = ok.next + 1
+            alias = parse_optional_alias(tokens, i)   # AS ident or bare ident
+            return Subquery { select: ok.stmt, alias }, i
+        # `( table-or-subquery [join-suffix...] )`
+        i += 1
+        inner, i = parse_table_atom(tokens, i)
+        loop:
+            kind, on, using, right_or_none, i_or_break = try_parse_join_suffix(tokens, i, inner)
+            if right_or_none is None: break
+            inner = Joined { left: inner, right: right_or_none, kind, on, using }
+            i = i_or_break
+        expect RParen; i += 1
+        # If a named-atom inside got no alias, an outer AS may still
+        # attach for the simple case; otherwise pass the inner through.
+        return inner, i
     if tokens[i] != Ident: error("expected table name after FROM")
     name = tokens[i].text; i += 1
     alias = None
@@ -282,10 +305,19 @@ This is pin #9 below.
     `"CROSS JOIN cannot have ON/USING"`. ON and USING are mutually
     exclusive at one join — if both are written, the second is a
     ParseError `"ON and USING are mutually exclusive"`.
-5b. **JOIN deferred forms** — `RIGHT JOIN`, `FULL JOIN`, `NATURAL JOIN`,
-    parenthesized table-refs, and FROM-clause subqueries all produce
-    ParseErrors with a `"deferred: <form>"` message at the first
-    unexpected token. (Bare-ident alias `t t2` remains deferred too.)
+5b. **JOIN deferred forms** — `RIGHT JOIN`, `FULL JOIN`, `NATURAL JOIN`
+    produce ParseErrors with a `"deferred: <form>"` message at the
+    first unexpected token. (Bare-ident alias `t t2` remains deferred
+    too.)
+5d. **Parenthesized FROM source** — `FROM ( table-or-subquery )` and
+    `FROM ( join-clause )` are accepted: parser recursively parses an
+    atom + zero-or-more join-suffixes inside the parens, then expects
+    `)`. `FROM ( SELECT ... ) [AS alias]` continues to bind as a
+    derived table (existing path, pin α15). For non-SELECT
+    parenthesised groups, the inner table-or-join tree is returned as
+    the FROM source; an outer `AS alias` after the closing `)` is not
+    accepted in v2 (alias on a join group is rare and remains
+    deferred).
 6. **WHERE accepts any Expr** — delegates to `parse_expr`. Expression
    errors propagate as-is (token_index, line, column preserved).
 6a. **GROUP BY** — appears AFTER WHERE, BEFORE HAVING/ORDER BY/LIMIT.

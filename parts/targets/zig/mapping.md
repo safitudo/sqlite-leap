@@ -391,6 +391,63 @@ const core = @import("../core.zig");
 // Types, constants, methods, functions in that order.
 ```
 
+## Subquery dispatch ctx (Pin α17-zig-nested-in)
+
+Spec source: `parts/compiler/parts/select-compile/master.md` §"Subqueries
+and materialization (α17)" — pin 27 + L985-996 ("schema resolution for
+inner SELECTs").
+
+Rust threads the schema registry via a thread-local consulted from the
+single-schema entry `compile_select`. Zig has no thread-local equivalent;
+the registry is parameter-passed as `sub_schemas`. Concretely:
+
+- `compileSelectWithDb` / `compileSelectWithSchemas` install
+  `sub_schemas`; `compileSingleTableFull` reads it and allocates a
+  `SubCtx` when present.
+- `materializeInnerSelect` recursively compiles the inner SELECT. The
+  inner compile MUST also see `sub_schemas` — otherwise nested
+  IN/EXISTS/scalar subqueries inside the inner WHERE/projection defer
+  with "deferred: IN subquery" / "deferred: scalar subquery" /
+  "deferred: EXISTS subquery", because the inner's `sub_ctx_active` is
+  false.
+
+Rule: route the inner compile through `compileSingleTableSub(alloc,
+inner, schema, ctx.schemas)` whenever the inner is a simple single-
+table SELECT (no compound / no GROUP BY / no HAVING / no aggregate or
+window in projection). For richer shapes, fall back to
+`compileSelect(alloc, inner, schema)` — the aggregate path is currently
+sub-ctx-unaware; broadening it is a follow-up. Discriminator must
+inspect `inner.compound`, `inner.group_by`, `inner.having`, and walk
+each projection expr for `aggKindFor` / `exprContainsWindow`.
+
+## Multi-schema entry delegates to single-schema entry (Pin α23a)
+
+Spec source: `parts/compiler/parts/select-compile/master.md` and
+`parts/compiler/parts/aggregates/master.md`.
+
+`compileSelectMulti` (multi-table dispatch) and `compileSelectWithSchemas`
+(subquery-aware dispatch) MUST NOT short-circuit on AST shape (GROUP BY,
+HAVING, compound, aggregate, window) and reject with DEFER. The full
+feature dispatch lives in `compileSelect` (single-schema entry):
+window-mode fork, aggregate fork, GROUP BY / HAVING, compound. When the
+incoming SELECT's FROM is `.named` and resolves against the schema
+registry, the multi-table / subquery-aware entry MUST delegate to
+`compileSelect(alloc, stmt, schema)` rather than emit a DEFER.
+
+Rationale: short-circuit guards at the public entry mask working
+single-schema infrastructure. This regression pattern recurred at least
+4 times in the v2 corpus push (Pin 84 compound; Pin α17 subquery; α22
+compound mixed-fold; α23a GROUP BY / HAVING). Each time the working
+implementation existed; the public entry simply refused to invoke it.
+
+Rule: at every public `compileSelect*` entry, before any DEFER on
+GROUP BY / HAVING / compound / aggregate / window, check whether the
+FROM is `.named` and the schema is resolvable. If yes, forward to
+`compileSelect`. Keep DEFER strictly for shapes that genuinely lack
+single-schema implementations (`.joined` with GROUP BY, `.subquery` in
+FROM, etc.) — and for those, emit a DEFER message that names the
+specific shape, not a generic "deferred: GROUP BY".
+
 ## Tests
 
 Zig has first-class `test` blocks. Generator emits inline tests at

@@ -424,6 +424,33 @@ produces `Expr::StrLit` only, so compile_expr never sees a blob here.
     families). The agent reads the composed `Opcode` surface to know
     which constructors wrap `LoadConst` and `BinOp`.
 
+21. **Schema-aware compilers must enumerate every Expr variant
+    explicitly** — overlay compilers (`compile_expr_in_schema`,
+    `compile_expr_in_multi_schema`, the no-FROM aggregate compiler,
+    correlated/subquery overlays) provide schema context that
+    single-source `compile_expr` lacks. Any silent fall-through to
+    `compile_expr` for a *compound* variant (Cast, Like, Case, Call,
+    IsNull, Unary, Binary) loses that context: a `Col` ref nested
+    inside the compound subexpression then defers with "deferred:
+    Col" even though the Col was resolvable in the enclosing schema.
+
+    Therefore every overlay must enumerate every Expr variant whose
+    children may themselves contain a `Col` reference — and recurse
+    through the *overlay* (not the bare `compile_expr`) on each
+    sub-expression. Only literal-leaf variants (IntLit, RealLit,
+    StrLit, Null) and variants the overlay deliberately defers
+    (Subquery, Exists, InSubquery, WindowCall) may delegate to the
+    bare `compile_expr` or return a labeled defer.
+
+    Surfaced 2026-04-26 (Go target): `compile_expr_in_multi_schema`
+    fell through to `compile_expr` for `Expr::Cast` and `Expr::Like`,
+    which then recursed into single-source `compile_expr` for the
+    inner `Col`, raising "deferred: Col" on perfectly valid
+    multi-source expressions. The same hazard applies to every
+    target whose multi-source overlay uses a `default ⇒
+    compile_expr` arm. Spec-mandated remedy: enumerate every
+    compound variant explicitly in every overlay.
+
 ## Regeneration envelope
 
 - Line budget: **~150-250 lines** of Rust.

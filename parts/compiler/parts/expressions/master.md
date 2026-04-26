@@ -119,6 +119,40 @@ current `compile_expression` emits the subquery placeholder and
 resolves during the outer-compile pass (see `parts/compiler/master.md`
 § "Phase 6n sentinel").
 
+**Pin: NULL-IN (3-valued logic).** The lowered IN-subquery program
+must produce SQL 3VL semantics in this priority order:
+
+1. **Empty-RHS rule (R-52275-55503).** If the materialized rhs buffer
+   is empty, the result is `false` (`NOT IN` → `true`), regardless
+   of the lhs — *even when the lhs is `NULL`*. The empty-RHS check
+   takes precedence over the NULL rule.
+2. **Match rule.** Otherwise, if any rhs row equals lhs under
+   affinity equality, the result is `true` (`NOT IN` → `false`).
+3. **NULL rule.** Otherwise, if the lhs is `NULL`, OR any rhs row
+   was `NULL`, the result is `NULL`.
+4. **No-match rule.** Otherwise the result is `false` (`NOT IN` →
+   `true`).
+
+Concrete lowering (single-column rhs buffer, `dest` register):
+
+- Initialize `dest := false` (negated → `true`), `null_seen := 0`.
+- `BufferRewind buf, end_pc=empty_pc` (jump-on-empty selects rule 1).
+- Loop body: `BufferRead`; if either lhs or the read scan-register is
+  `NULL`, jump to `mark_null_pc` (sets `null_seen := 1`, falls through
+  to the loop's `BufferNext`); otherwise `BinOp::Eq lhs, scan` → if
+  truthy jump to `match_pc` (sets `dest := true` for IN / `false` for
+  NOT IN, jumps to end).
+- `empty_pc`: if `null_seen` is truthy, set `dest := NULL`; else fall
+  through (dest already holds the no-match baseline). Jump to end.
+
+Compilers MUST NOT short-circuit on lhs-NULL before the rewind: the
+empty-RHS rule depends on detecting an empty buffer first. The
+parser-level desugar of inline `IN (v1, ..., vk)` to an OR-chain of
+`Eq` already produces correct 3VL via `cmp_r` (NULL-in/NULL-out) +
+`logical_or` (3-valued); the explicit lowering above is required only
+for the subquery form because the buffer-scan loop owns the
+empty/null bookkeeping.
+
 ### EXISTS
 
 `Exists(select)` → delegate to `parts/subqueries/`.

@@ -444,6 +444,30 @@ The emission is intended to pass `mypy --strict` and `pyright`:
 - `@dataclass(frozen=True, slots=True)` is the default; relax only
   when the neutral spec explicitly allows mutation of a field.
 
+## Multi-schema entry delegates (Pin α23a-py)
+
+Spec source: `parts/compiler/parts/select-compile/master.md` and
+`parts/runtime/parts/slt-runner/master.md`.
+
+Mirror of Pin 84 (C) and Pin α23a (Zig). The Python SLT driver
+(`tests/sqllogictest/5target_harness/driver_python.py`) MUST always
+build `extras_list = catalog \ primary` and pass it (plus
+`catalog.db`) to `compile_select_with_db`, regardless of the AST
+shape of `stmt.from_`. AST-shape gating ("only thread extras when
+`from_` is `TableRefJoined`") drops every multi-table reference
+that is rewritten through a CTE / view / subquery prepare pass and
+re-emerges as a flat `TableRefNamed` later in compilation.
+
+Symptom when this pin is violated: `compile: unknown table in JOIN:
+tabN` blooms across the corpus (10k+ records on the v21 sample) and
+the bare single-schema `compile_select` entry rejects every JOIN
+whose right-hand source is not the heuristically-picked primary.
+
+Rule: the public driver entry passes the full schemas list
+unconditionally. The compiler's own `_pick_schemas` /
+`_resolve_joined_schemas` are responsible for narrowing per-shape.
+Do not hoist that responsibility into the driver.
+
 ## File skeleton
 
 ```python

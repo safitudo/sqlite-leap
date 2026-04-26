@@ -57,6 +57,12 @@ fn parse_expression_list(tokens) -> Result<Vec<Expression<'src>>, ParseError>
   type params in CAST.
 - **Phase 6az** — NOT BETWEEN desugar.
 - **Phase 6bc** — empty `IN ()`.
+- **Phase 6bd** — `expr IN table-name` (bare-table form). Per SQLite
+  grammar, IN may be followed directly by a table-name (no parens),
+  which is semantically equivalent to `expr IN (SELECT * FROM table-name)`.
+  Parser desugars at parse time: builds an `InSubquery` node whose
+  inner SELECT is `SELECT * FROM table-name`. `NOT IN table-name`
+  follows the same path with `negated=true`.
 
 ## Regeneration envelope
 

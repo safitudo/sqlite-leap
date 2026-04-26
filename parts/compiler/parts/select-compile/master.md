@@ -71,6 +71,51 @@ Admitted (see §"Compound SELECT" below):
   into slot 0. Homogeneous-shape compounds keep the α20 fast paths
   (single BufferIntersect/BufferExcept call, or concat-then-sort).
 
+α23-c-bufslot admitted (compound under WITH composition, regen-safe):
+- **Compound SELECT under non-empty WITH clauses** when neither the head
+  nor any tail core references a CTE / view / derived FROM source (i.e.
+  every compound core's FROM resolves to a real Named table). Recipe:
+  (1) materialize each CTE binding into the BufCtx slot allocator,
+  reserving slots `[0..ctx.next_slot)`. (2) Compile the compound program
+  via the single-schema compound compiler — its emitted slot layout
+  starts at 0 and grows upward as `[0..max_compound_slot]`, slot 0 being
+  the final accumulator. (3) Apply a uniform buffer-slot offset to every
+  buffer-bearing opcode in the compound program (`BufferOpen`, `Append`,
+  `Sort`, `Dedup`, `Rewind`, `Read`, `Next`, set-op `dest_slot` /
+  `src_slots`, recursive-step `next/work/final_slot`) by `ctx.next_slot`,
+  rebasing the compound's natural slot 0 above the CTE slots so they
+  cannot collide. (4) Bump `ctx.next_slot` past the compound's shifted
+  slot range. (5) Stack the CTE preludes above the compound program with
+  the existing register/cursor offset + PC rebase machinery.
+
+α23-c-bufslot-cores admitted (compound cores referencing buffered sources, regen-safe):
+- **Compound SELECT where any core's FROM names a CTE or view.** Each
+  core compiles via the buffered-dispatch path (the same path that handles
+  single-SELECT-with-CTE/view): real-table cores fall through to the
+  single-table compiler; CTE-named cores resolve to the pre-materialized
+  buffer slot via `cteLookup`; view-named cores inline-materialize the
+  view's stored SELECT into a fresh buffer slot per core (the
+  per-core materialization opcodes are spliced into that core's buffer
+  drain via the existing `appendCoreIntoSlot` rewriter). The compound
+  assembler MUST be parameterized by a `slot_base: u32` so its own
+  introduced slots (final accumulator + per-core slots + intermediate
+  fold accumulators) are emitted at `[slot_base, slot_base + 2N+1)`,
+  not at `[0, 2N+1)`. The buffered entry passes `slot_base = ctx.next_slot`
+  and pre-bumps `ctx.next_slot` by `2 * n_cores + 1` so further compose
+  steps see fresh territory. The single-schema entry passes
+  `slot_base = 0` (cores allocate no slots, assembler owns 0..N
+  exclusively, post-shift handled by the outer α23-c-bufslot path).
+  This eliminates the prior post-assembly `shiftBufferSlots` collision:
+  if cores reference ctx-allocated slots (e.g. CTE in slot 1) and the
+  assembler also emits literal slot-1 references, a uniform shift over
+  the assembled program would corrupt the cores' buffered-source refs.
+  Parameterizing `slot_base` keeps the two address ranges disjoint by
+  construction.
+- Cases that still trip the deeper compose path stay deferred under
+  more specific tags: `"deferred: compound SELECT with derived-table FROM"`,
+  `"deferred: compound SELECT core has derived FROM"`,
+  `"deferred: compound SELECT with JOIN outer"`.
+
 Still deferred (CompileError `"deferred: <construct>"`):
 - **Derived table as JOIN source** (e.g. `t JOIN (SELECT ...) x ON ...`).
   Implementation requires extending the multi-source JOIN scan path
@@ -150,10 +195,21 @@ Two forms:
 
 ```
 for each projection item (must not be Star/TableStar — flag deferred):
-    compile_expr(item.expr) into reg_N..
+    compile_expr_with_subctx(item.expr) into reg_N..
 ResultRow { start_reg, count }
 Halt
 ```
+
+The no-FROM emitter routes each projection expression through the
+**SubCtx-aware** expression compiler when a schema registry is
+installed, so a top-level scalar / EXISTS / IN subquery in the
+projection (e.g. `SELECT 1 IN (SELECT … FROM t)`) materializes into
+the prelude exactly as in the single-table path. SubCtx prelude is
+prepended before the projection block; every absolute PC in the
+projection body is shifted by the prelude length. `num_cursors` is
+the SubCtx's `next_cursor` (0 when no subquery materialized). Inner
+subqueries run with a generous outer register offset so they do not
+collide with the no-FROM projection's packed result registers.
 
 ### B. Single-table SELECT (`SELECT ... FROM t [WHERE ...] [LIMIT ...]`)
 
@@ -196,8 +252,10 @@ and resolve in a second pass over the opcode list.
 Detect aggregation mode by walking projection + HAVING + ORDER BY
 and collecting aggregate `Call` nodes. An aggregate call is one
 whose `name` (case-insensitive ASCII) is in the set
-`{count, count_star, count_distinct, sum, total, avg, min, max,
-  group_concat}`. The set of distinct aggregate-call instances
+`{count, count_star, count_distinct, sum, sum_distinct, total,
+  total_distinct, avg, avg_distinct, min, min_distinct, max,
+  max_distinct, group_concat, group_concat_distinct}`. The set of
+distinct aggregate-call instances
 (by reference identity in the AST walk) becomes the slot list:
 slot 0 → first encountered call, slot 1 → second, etc.
 `num_aggregates` = slot list length.
@@ -207,12 +265,32 @@ Aggregate-kind mapping (compiler-internal):
 - `count`          → `AggFuncKind::Count`         (1 arg)
 - `count_distinct` → `AggFuncKind::CountDistinct` (1 arg)
 - `sum`            → `AggFuncKind::Sum`           (1 arg)
+- `sum_distinct`   → `AggFuncKind::SumDistinct`   (1 arg)
 - `total`          → `AggFuncKind::Total`         (1 arg)
+- `total_distinct` → `AggFuncKind::TotalDistinct` (1 arg)
 - `avg`            → `AggFuncKind::Avg`           (1 arg)
+- `avg_distinct`   → `AggFuncKind::AvgDistinct`   (1 arg)
 - `min`            → `AggFuncKind::Min`           (1 arg)
+- `min_distinct`   → `AggFuncKind::MinDistinct`   (1 arg)
 - `max`            → `AggFuncKind::Max`           (1 arg)
-- `group_concat`   → `AggFuncKind::GroupConcat`   (1 or 2 args; second
-                                                   arg is the separator)
+- `max_distinct`   → `AggFuncKind::MaxDistinct`   (1 arg)
+- `group_concat`          → `AggFuncKind::GroupConcat`         (1 or 2 args; second
+                                                                arg is the separator)
+- `group_concat_distinct` → `AggFuncKind::GroupConcatDistinct` (1 arg; SQLite
+                                                                disallows custom
+                                                                separator with
+                                                                DISTINCT)
+
+Pin 35 (DISTINCT on aggregates, closed enumeration). Per SQLite
+docs (sqlite.org/lang_aggfunc.html): any single-argument aggregate
+admits `DISTINCT`. The parser-level desugar in
+`parts/parser/parts/expr/master.md` rewrites `<name>(DISTINCT x)`
+to `<name>_distinct(x)` for ALL aggregate names; the compiler maps
+the `<name>_distinct` form to `AggFuncKind::<Name>Distinct`.
+Runtime delegates the distinct gate to a per-slot dedup set, then
+falls through to the base accumulator. `group_concat_distinct`
+takes exactly one argument (no separator); a 2-arg form with
+DISTINCT is a parser error matching SQLite's behavior.
 
 Argument-arity mismatch yields CompileError
 `"aggregate <name> expects <n> argument(s)"`.
@@ -432,6 +510,61 @@ VdbeState. Out of scope for the day-1 push.
   table in t.* projection"`).
 - `ProjectionItem::Expr { expr, alias }` — the alias is IGNORED by
   codegen; it's only used downstream by the caller for column naming.
+
+### §Resolver pin — synthetic Col qualification in multi-source `*`
+
+In multi-source contexts (joins, comma-FROM), `Star` and `TableStar`
+expansion MUST emit each synthetic `Expr::Col` with `table = Some(q)`,
+where `q` is the source's effective qualifier (alias if present, else
+bare table name). The synthesized columns already know their source —
+emitting them unqualified forces them through the unqualified-name
+resolver (Pin 36), which legitimately reports `"ambiguous column"`
+when two sibling sources share a column name (e.g. `tab0.col0` and
+`tab1.col0` in `SELECT * FROM tab0, tab1`). Cross-target proof: this
+invariant is target-agnostic; Rust got it right from day one, C
+regressed and produced ~2k spurious ambiguity errors on the random
+corpus until this pin was promoted (2026-04-26). Targets MUST follow
+the qualified-synth path. USING-elimination still applies before
+qualifying (skip RHS sources whose name is in `using_cols`).
+
+**Source-position fallback (self-join disambiguation, 2026-04-26).**
+The "alias-if-present else bare table name" qualifier is INSUFFICIENT
+when two sources collide on that effective name — e.g.
+`FROM tab1, tab1` (both sources have effective qualifier `tab1`)
+or `FROM tab1 cor0, tab1` (the second source's bare name `tab1`
+collides with nothing visible to the user but is the same table as
+the first). In those cases star-expansion would synthesize multiple
+`Col { table = "tab1", name = "x" }` references; Pin 36's
+unqualified-collect path is bypassed (the table is set), and the
+qualified path matches the LEFTMOST source — collapsing self-join
+columns into one and producing wrong DISTINCT * / projection results.
+
+Required behavior: while flattening sources, walk left-to-right; for
+each source whose **effective qualifier** (alias if present, else bare
+table name) equals ANY earlier source's effective qualifier (case-
+insensitive), assign that source a synthetic qualifier of the form
+`__src{N}` where `N` is the source's zero-based position in the
+flattened source list. The first source (or any non-colliding source)
+keeps its alias-or-bare-name qualifier untouched.
+
+Comparison is **effective-qualifier vs effective-qualifier only**.
+Cross-comparing against the underlying physical `table_name` is
+incorrect: a query like `FROM tab1 cor0, tab1 cor1` has DISTINCT
+effective qualifiers (`cor0`, `cor1`) and MUST NOT be stamped — doing
+so destroys the user's aliases and breaks subsequent `cor0.x` /
+`cor1.x` references. Only when the user has supplied colliding (or no)
+aliases do we synthesize. Star-expansion then
+emits synthetic Col nodes using the resolved qualifier (synthetic if
+assigned, else alias-or-bare). The column-reference resolver MUST
+match the synthetic qualifier just as it matches alias and bare table
+name; user-typed qualifiers (real aliases, real bare names) continue
+to resolve via the source's `table_name` field, so user SQL is
+unaffected.
+
+This is the canonical fix for the "DISTINCT * across self-joined
+sources" failure mode and replaces the prior DEFER. It is target-
+agnostic; every target's flatten-sources / star-expansion / resolver
+trio MUST implement it.
 
 ## Column reference binding
 
@@ -753,6 +886,35 @@ driver then:
 Cross-core register/cursor reuse is safe because each core runs to
 completion (closing its cursors) before the next core begins. The
 shared `slot: 0` buffer is the only state that persists across cores.
+
+### Per-core schema resolution (v27 pin)
+
+A compound SELECT's cores may each name a *different* table:
+`SELECT a1 FROM t1 EXCEPT SELECT b8 FROM t8 UNION SELECT b2 FROM t2`.
+The single-schema entry (`compile_select(stmt, primary_schema)`) MUST
+resolve each core's primary FROM table against the installed schema
+registry (see §"Schema registry") before delegating to the per-core
+single-table compiler:
+
+- For the outer `stmt` and each `tail.select` in `stmt.compound`,
+  inspect the core's `FROM`. If it is `Named { name }` and `name`
+  differs from `primary_schema.name` (case-insensitive), look `name`
+  up in the registry installed by `compile_select_with_db` /
+  `compile_select_with_schemas`. Use the registry hit as that core's
+  schema; fall back to `primary_schema` only when the names match or
+  when `FROM` is absent.
+- Build the `n_cores`-long schema list from these per-core lookups,
+  then call the compound assembler with that list — never a uniform
+  `[primary_schema; n_cores]`. The uniform shape was a v26 regression:
+  it caused every non-primary FROM-name to surface as
+  `"unknown table: tN (schema is for tM)"` even though the registry
+  knew tN. Same rule applies to the single-table dispatch when the
+  outer `stmt`'s FROM names a registered-but-non-primary table.
+
+A core whose Named FROM is not in the registry is still an error
+(`unknown table: {name}`) — the registry is the source of truth, not
+`primary_schema`. CTE-named and view-named cores keep their existing
+α23-c-bufslot-cores routing (they short-circuit before this lookup).
 
 ### Compile errors specific to compound SELECT
 
