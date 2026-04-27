@@ -3,6 +3,7 @@
   "owner": "/parts/storage/parts/wal",
 
   "imports": {
+    "SyncLevel": "/parts/compiler/parts/statements/pragma"
   },
 
   "constants": {
@@ -113,11 +114,22 @@
     },
 
     "wal_commit": {
-      "doc": "Finalize the in-progress transaction. Rewrites the LAST pending frame's db_size_after_commit field to new_db_size and recomputes its checksum_1/checksum_2 with the new value baked in. Flushes all pending frames to the WAL file (single contiguous write at offset 32 + mx_frame * (24 + page_size)). fsyncs the WAL file. Updates state.mx_frame and state.wal_index. Returns WalCommitInfo. Returns err(WalError) if no frames are pending OR if I/O fails — on I/O failure the WAL file may be partially written, but recovery on next open will reject the partial transaction (no commit frame visible past the previous mx_frame).",
+      "doc": "Finalize the in-progress transaction with FULL durability (unconditional fsync). Equivalent to wal_commit_with_sync(state, db_path, new_db_size, SyncLevel::Full). Preserved as a convenience wrapper for direct WAL tests; production callers (the wal-bridge pager) MUST use wal_commit_with_sync to honor the connection's PRAGMA synchronous level per the §fsync discipline matrix.",
       "params": [
         { "name": "state",       "type": { "borrow_mut": "WalState" } },
         { "name": "db_path",     "type": "string" },
         { "name": "new_db_size", "type": "u32" }
+      ],
+      "returns": { "result": { "ok": "WalCommitInfo", "err": "WalError" } }
+    },
+
+    "wal_commit_with_sync": {
+      "doc": "Finalize the in-progress transaction with explicit fsync gating. Rewrites the LAST pending frame's db_size_after_commit field to new_db_size and recomputes its checksum_1/checksum_2 with the new value baked in. Flushes all pending frames to the WAL file (single contiguous write at offset 32 + mx_frame * (24 + page_size)). Calls fsync iff sync_level >= Full per the W15/W16/W18 pins. Updates state.mx_frame and state.wal_index. Returns WalCommitInfo. Returns err(WalError) if no frames are pending OR if I/O fails. The fsync gate matrix (normative): Off → no fsync; Normal → no fsync (mainline-WAL default); Full → fsync; Extra → fsync. Used by pager_commit_transaction in the wal-bridge leaf to honor PRAGMA synchronous.",
+      "params": [
+        { "name": "state",       "type": { "borrow_mut": "WalState" } },
+        { "name": "db_path",     "type": "string" },
+        { "name": "new_db_size", "type": "u32" },
+        { "name": "sync_level",  "type": "SyncLevel" }
       ],
       "returns": { "result": { "ok": "WalCommitInfo", "err": "WalError" } }
     },

@@ -1,0 +1,157 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/storage/parts/wal-bridge",
+
+  "imports": {
+    "RuntimeCondition": "/parts/core",
+    "Value":            "/parts/core",
+    "WalState":         "/parts/storage/parts/wal",
+    "PageCache":        "/parts/storage/parts/page-cache",
+    "Database":         "/parts/storage/parts/mem-store",
+    "CursorHandle":     "/parts/storage/parts/mem-store",
+    "LockManager":      "/parts/storage/parts/locking",
+    "SyncLevel":        "/parts/compiler/parts/statements/pragma"
+  },
+
+  "types": {
+    "JournalMode": {
+      "kind": "enum",
+      "doc": "Connection-level journaling mode. Memory: in-memory only, no on-disk artifacts (used for ephemeral databases and tests). Delete: rollback-journal-mode equivalent — at COMMIT the database is serialized to a temp file and atomic-renamed over the main file (Phase 18.1 has no journal file; the rewrite IS the durability mechanism). Wal: write-ahead-log — at COMMIT, dirty pages flush as WAL frames and fsync (gated by SyncLevel). Truncate, Persist, Off variants from mainline are deferred.",
+      "variants": [
+        { "name": "Memory" },
+        { "name": "Delete" },
+        { "name": "Wal" }
+      ]
+    },
+
+    "PageImage": {
+      "kind": "alias",
+      "doc": "Refcounted page byte buffer. Targets MAY back this with Rc<Vec<u8>>, Arc<[u8]>, refcounted slab, etc. The contract is: cheap to clone (no deep copy), exactly page_size bytes when materialized.",
+      "of": { "list": "u8" }
+    },
+
+    "Pager": {
+      "kind": "record",
+      "doc": "Owns the page cache + WAL state + journal mode + sync level for a path-backed (or in-memory) Database. Threaded through every cursor mutation and read so the cursor consults the cache (which may fault from main file or WAL) instead of holding its own row clone. db_path is empty string for in-memory mode. wal is None unless journal_mode == Wal. lock holds the per-database lock state (process-local for v1; promoted to wal-shm-mediated in pin 20).",
+      "fields": {
+        "db_path":      "string",
+        "page_size":    "u32",
+        "cache":        "PageCache",
+        "wal":          { "option": "WalState" },
+        "journal_mode": "JournalMode",
+        "synchronous":  "SyncLevel",
+        "lock":         "LockManager"
+      }
+    }
+  },
+
+  "functions": {
+    "pager_new_in_memory": {
+      "doc": "Construct an in-memory Pager. db_path is empty, page_size is 4096 (default), cache has capacity 0 (degenerate; never holds pages — every pager_get_page returns an err since there's no on-disk source), wal is None, journal_mode = Memory, synchronous = Off. Used by Database::new() and by tests that want a Pager handle without I/O.",
+      "params": [],
+      "returns": "Pager"
+    },
+
+    "pager_new_file_backed": {
+      "doc": "Construct a file-backed Pager rooted at the given path. Reads the database header to determine page_size (defaults to 4096 if the file is empty or smaller than 100 bytes). Opens or creates the WAL via wal_open. Initializes a PageCache with capacity 2000. Default journal_mode = Wal, default synchronous = Normal. Returns err(IoError) if the path is unreadable or the header is corrupt.",
+      "params": [
+        { "name": "path", "type": "string" }
+      ],
+      "returns": { "result": { "ok": "Pager", "err": "RuntimeCondition" } }
+    },
+
+    "pager_get_page": {
+      "doc": "Fetch a page image. Cache lookup (mutable: LRU touch on hit); on miss in Wal mode consults wal_read_page; on miss in any mode falls back to reading the main file at offset (page_no - 1) * page_size, then caches the result. Returns the cached/loaded image. Err on I/O failure or invalid page_no (zero or beyond file length AND beyond WAL). Borrow note: the parameter is `borrow_mut` because cache.get mutates the LRU order — page-cache pin 3 requires this. Read-only callers MUST still pass &mut Pager; this matches mainline's pager-borrow-mutably-on-every-call convention.",
+      "params": [
+        { "name": "p",       "type": { "borrow_mut": "Pager" } },
+        { "name": "page_no", "type": "u32" }
+      ],
+      "returns": { "result": { "ok": "PageImage", "err": "RuntimeCondition" } }
+    },
+
+    "pager_get_page_mut": {
+      "doc": "Fetch a page image and mark it dirty in the cache. Equivalent to pager_get_page followed by pager_mark_dirty. Used by B-tree write paths.",
+      "params": [
+        { "name": "p",       "type": { "borrow_mut": "Pager" } },
+        { "name": "page_no", "type": "u32" }
+      ],
+      "returns": { "result": { "ok": "PageImage", "err": "RuntimeCondition" } }
+    },
+
+    "pager_mark_dirty": {
+      "doc": "Set the dirty flag on a cached page. Err(IoError) if page_no is not present in the cache (caller must have faulted it via pager_get_page first).",
+      "params": [
+        { "name": "p",       "type": { "borrow_mut": "Pager" } },
+        { "name": "page_no", "type": "u32" }
+      ],
+      "returns": { "result": { "ok": "unit", "err": "RuntimeCondition" } }
+    },
+
+    "pager_set_journal_mode": {
+      "doc": "Switch the connection's journal mode. Memory→Wal opens the WAL file; Wal→Memory drops the WAL state (unsafe if WAL has unflushed frames; caller's responsibility to checkpoint first). Memory→Delete and Delete→Wal are also valid transitions. Subsequent commits honor the new mode.",
+      "params": [
+        { "name": "p",    "type": { "borrow_mut": "Pager" } },
+        { "name": "mode", "type": "JournalMode" }
+      ],
+      "returns": { "result": { "ok": "unit", "err": "RuntimeCondition" } }
+    },
+
+    "pager_set_synchronous": {
+      "doc": "Set the connection's synchronous level. Pure assignment; no side effects. Subsequent fsync sites (wal_commit, wal_checkpoint, atomic-rename commit) consult the new level.",
+      "params": [
+        { "name": "p",     "type": { "borrow_mut": "Pager" } },
+        { "name": "level", "type": "SyncLevel" }
+      ],
+      "returns": "unit"
+    },
+
+    "pager_begin_transaction": {
+      "doc": "Mark the start of a transaction. In Wal mode this is a logical mark only — the writer lock is acquired lazily on first commit. In Delete mode this is a no-op (Delete commits with no preceding mark).",
+      "params": [
+        { "name": "p", "type": { "borrow_mut": "Pager" } }
+      ],
+      "returns": { "result": { "ok": "unit", "err": "RuntimeCondition" } }
+    },
+
+    "pager_commit_transaction": {
+      "doc": "Persist the database state per the journal mode. Memory: no-op. Delete: serialize Database to db_path via fileformat-write atomic-rename, fsync per synchronous. Wal: encode Database into pages, push them through the cache as dirty, acquire WalLockSlot::Write, append each dirty page as a wal frame, wal_commit (fsync per synchronous matrix). Phase 18.1 implementation re-encodes the whole DB each commit (no per-page dirty tracking yet); pin 19 tightens this. Borrow note: this function reads the Database to encode pages and mutates the Pager — callers MUST pass disjoint borrows via the borrow-split helper on Database.",
+      "params": [
+        { "name": "p",  "type": { "borrow_mut": "Pager" } },
+        { "name": "db", "type": { "borrow":     "Database" } }
+      ],
+      "returns": { "result": { "ok": "unit", "err": "RuntimeCondition" } }
+    },
+
+    "pager_rollback_transaction": {
+      "doc": "Discard the in-progress transaction. Wal: wal_rollback (drop pending frames) + cache.clear (drop dirty in-memory pages) + release writer lock if held. Memory/Delete: no-op (mem-store v7-tx in-memory rollback handles row truncation).",
+      "params": [
+        { "name": "p", "type": { "borrow_mut": "Pager" } }
+      ],
+      "returns": { "result": { "ok": "unit", "err": "RuntimeCondition" } }
+    },
+
+    "pager_checkpoint": {
+      "doc": "Fold all committed WAL frames into the main database file and reset the WAL header (PASSIVE checkpoint per W8). No-op for non-Wal modes. Acquires WalLockSlot::Checkpoint exclusive; err(LockError::Busy) if another writer/checkpointer holds it.",
+      "params": [
+        { "name": "p", "type": { "borrow_mut": "Pager" } }
+      ],
+      "returns": { "result": { "ok": "unit", "err": "RuntimeCondition" } }
+    },
+
+    "pager_close": {
+      "doc": "Best-effort close: in Wal mode, attempt one passive checkpoint (silently skip on failure — the WAL replays on next open). Drop the cache and close the main file handle. Consumes the Pager.",
+      "params": [
+        { "name": "p", "type": "Pager" }
+      ],
+      "returns": { "result": { "ok": "unit", "err": "RuntimeCondition" } }
+    },
+
+    "encode_database_to_pages": {
+      "doc": "Serialize the current Database into a list of (page_number, page_image) pairs by running the existing fileformat-write encoder. Page 1 is the database header + sqlite_master. Pages 2..N are table b-tree pages. Phase 18.1 hard-codes the encoder's page_size constant (4096); page-size variability is pin 19+ work, so this function takes no page_size parameter. Used by pager_commit_transaction to materialize the DB state for WAL frame emission. Phase 18.1 implementation may delegate via a temp-file roundtrip (serialize_database_to_with_sync → read back → slice into pages) if the existing encoder's internal helpers are not pub; pin 19 replaces this with cache-aware in-place encoding.",
+      "params": [
+        { "name": "db", "type": { "borrow": "Database" } }
+      ],
+      "returns": { "result": { "ok": { "list": { "tuple": ["u32", "PageImage"] } }, "err": "RuntimeCondition" } }
+    }
+  }
+}

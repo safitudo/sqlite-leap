@@ -328,3 +328,183 @@ restrict itself to verifying that the LIVE functions are reachable
 (no `unimplemented!()` triggered) by constructing a cursor, rewinding,
 reading columns, and advancing — all without going through the VDBE.
 That's still a strictly stronger claim than "stub".
+
+## Pin 18 (v8-pager): Database gains a Pager field
+
+Pin 18 closes the structural gap between the in-memory `Database` and
+the path-backed page-cache + WAL state owned by
+`/parts/storage/parts/wal-bridge`. Every `Database` carries a `Pager`
+field; in-memory mode constructs the Pager via `pager_new_in_memory()`
+and consults it without doing I/O. Path-backed mode (`open_database_at`
+in fileformat-read, file-format leaf) constructs a `JournalMode::Wal`
+Pager and threads it into the same field.
+
+This pin is structural only. Cursor signatures are NOT changed by
+pin 18. The cursor-signature migration that threads `&mut Pager` /
+`&Pager` through every cursor op lands as a separate pin (the
+wal-bridge leaf documents the surface; the mem-store cursor functions
+inherit the parameter list from there).
+
+### Type changes
+
+- `Database` gains `pager: Pager` (imported from
+  `/parts/storage/parts/wal-bridge`).
+- A companion record `DatabaseTablesView` exposes mutable references
+  to every Database field EXCEPT `pager`. The view is what
+  `split_pager_mut` returns alongside `&mut Pager` — see below.
+
+### Function additions
+
+- `database_new()` continues to return a fresh empty Database; it
+  additionally initializes `pager` to `pager_new_in_memory()` per
+  wal-bridge's contract.
+- `Database::split_pager_mut(&mut self) -> (DatabaseTablesView, &mut Pager)`
+  — returns disjoint mutable borrows of the non-pager fields and the
+  Pager. The disjoint-borrow guarantee is essential: every VDBE opcode
+  handler that mutates rows (insert/update/delete) AND consults the
+  Pager (B-tree page faulting in pin 19+; cursor-threading in 18.1c)
+  must hold both borrows simultaneously. The Rust borrow checker
+  accepts this via field-destructuring; equivalent disjoint-borrow
+  patterns exist in C (struct-field pointer aliasing), Zig (separate
+  `*` fields), Go (separate fields), Python (no aliasing, just access
+  both attributes). Targets emit the helper using their natural idiom.
+
+### Database::clone() semantics with Pager
+
+Cloning a `Database` MUST produce a fresh in-memory Pager regardless
+of the source's journal mode. Path-backed databases are constructed
+via `open_database_at` (fileformat-read / wal-bridge), NEVER via
+`Clone`. The cloned Database carries no WAL state, no lock state, no
+cache entries. This avoids the otherwise-unsolvable problem that
+`LockManager` and the WAL writer state are not cloneable (Mutexes,
+file handles), and it codifies the existing semantics of `backup.rs`
+and the test fixtures that clone Database snapshots: a clone is a new
+logical instance, not a duplicated handle on the original's on-disk
+artifacts.
+
+### Default semantics
+
+`Database::default()` produces the same value as `database_new()` —
+empty tables, empty views, empty txn_stack, in-memory Pager.
+
+### Numbered Correctness pins (continued from pin 17)
+
+**P18.1.** Every `Database` has a `pager` field. There is no path
+through the public surface that produces a `Database` with `pager`
+absent (no `Option<Pager>`).
+
+**P18.2.** `database_new()` initializes `pager` via
+`pager_new_in_memory()`. The journal mode of a freshly constructed
+in-memory Database is `Memory`; `synchronous` is `Off`.
+
+**P18.3.** `Database::split_pager_mut` returns disjoint mutable
+references. Targets that cannot express disjoint mutable references
+in safe code (Python, Go) emit a structurally-equivalent pair of
+attribute references; the contract is that mutations through one do
+not invalidate the other.
+
+**P18.4.** `Database::clone()` (or its target equivalent) MUST emit a
+fresh in-memory Pager on the cloned instance. Path-backed databases
+are constructed via `open_database_at`, never via `Clone`. A test
+that opens a path-backed Database, clones it, and asserts the clone's
+journal_mode is `Memory` MUST pass.
+
+**P18.5.** The pager field is structural only at pin 18. No cursor
+function in mem-store v7-tx changes signature at this pin. The
+cursor-signature migration (every cursor op grows a `&mut Pager` or
+`&Pager` parameter) is owned by `parts/storage/parts/wal-bridge`
+§"Cursor-signature migration" and lands as a separate pin.
+
+### Out of scope at pin 18
+
+- Cursor signature migration. Pin 18.1c (separate pin in wal-bridge).
+- File-backed Pager construction inside `database_new()`. The
+  in-memory default is the only path; path-backed Pagers are produced
+  by `open_database_at` (fileformat-read leaf) and assigned into the
+  Database after construction.
+- Multi-process WAL coordination. wal-shm, pin 20+.
+
+## Pin 16-amend (2026-04-27): pk_col_name + pk_index + database_clone_table
+
+Two pre-existing target-local lifts on the Rust mem-store emission are
+promoted to the spec at this pin so regeneration round-trips cleanly
+without dropping caller-visible structure.
+
+### MemTable.pk_col_name (option<string>)
+
+Mirrors the column name of the `Rowid` IndexSpec when present.
+`database_install_table_with_pk` sets it to `Some(name)`;
+`database_install_table` leaves it `None`. Targets emit it as a public
+optional-string field on `MemTable`. Callers that need O(1) name-based
+PK resolution (the compiler's predicate-pushdown + SeekRowid-emission
+path is one such caller) read it directly.
+
+This is redundant with `IndexSpec { kind: Rowid, columns: [n] }`'s
+`columns[0]` (which is the resolved index, not the name) — the spec
+preserves both because they answer different questions:
+
+- "What column index is the PK?" → `IndexSpec.columns[0]`
+- "What column NAME is the PK?" → `pk_col_name`
+
+The compiler's pk-map population and the cursor's rowid-alias hoist
+both read the name; `cursor_seek_rowid` reads the index.
+
+### MemTable.pk_index (auxiliary rowid → row_index map)
+
+Maintained alongside `rowids` so `cursor_seek_rowid` is O(log N)
+instead of O(N). Logically `{ i64 → u32 }`. Targets choose the
+concrete container:
+
+- Rust: `Rc<RefCell<BTreeMap<i64, u32>>>` (shared mutability matches
+  `rows` / `rowids`).
+- Python: dict.
+- Go: map.
+- C/Zig: hash table or sorted vector — implementor's choice.
+
+The contract is:
+1. Lookup is sub-linear in row count.
+2. The map stays consistent with `rowids` after every
+   insert/delete/update — every i in [0, rowids.len()) MUST satisfy
+   `pk_index[rowids[i]] == i`.
+3. `cursor_seek_rowid` MUST consult the map; fallback to linear
+   `rowids` scan is a target-local fallback for not-yet-populated
+   tables and is not required.
+
+External direct reads of the map are permitted (the field is public)
+but the recommended access path for snapshot-style use is
+`database_clone_table` (see below); the recommended access path for
+single-rowid lookup is `cursor_seek_rowid`.
+
+### database_clone_table(db, table_name) -> Result<MemTable>
+
+Owned deep-copy of a named MemTable. Materializes rows / rowids /
+pk_index / pk_col_name into a fresh MemTable that does not alias the
+source's reference-counted state. Subsequent writes to the source
+MUST NOT be visible through the returned clone.
+
+Used by `/parts/storage/parts/backup-engine` to capture a snapshot at
+backup-init time. Without this method, the backup engine would have
+to reach into pk_index / rows / rowids directly and clone-out each
+container, leaking target-private representations into a sibling part.
+
+Returns `err(TableNotFound)` if no table by that name exists.
+
+### Numbered Correctness pins (continued)
+
+**P16a-1.** `pk_col_name` is `Some(name)` iff `database_install_table_with_pk`
+was called with `Some(name)`. `database_install_table` always leaves
+it `None`.
+
+**P16a-2.** `pk_index` is consistent with `rowids` after every
+mem-store-mutating call: for every i in [0, rowids.len()),
+`pk_index.lookup(rowids[i]) == i`.
+
+**P16a-3.** `database_clone_table` produces a value whose subsequent
+mutations do not affect the source MemTable, and whose state at the
+moment of the call exactly equals the source's then-current state
+(rows-by-value, rowids-by-value, pk_index-by-value, pk_col_name-by-value).
+
+**P16a-4.** `cursor_seek_rowid` consults `pk_index` for sub-linear
+performance. Targets MAY include a linear-scan fallback for
+backwards-compat with rows installed before pk_index was populated;
+the fallback's existence does not satisfy P16a-4 by itself.

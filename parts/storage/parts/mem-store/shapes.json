@@ -4,13 +4,25 @@
 
   "imports": {
     "Value":            "/parts/core",
-    "RuntimeCondition": "/parts/core"
+    "RuntimeCondition": "/parts/core",
+    "Pager":            "/parts/storage/parts/wal-bridge"
   },
 
   "types": {
     "Database": {
       "kind": "record",
-      "doc": "In-memory table catalog. Holds a list of named tables and (v6) a parallel views registry. Tables and views are inserted by the caller via `database_install_table` / `database_install_view` before the VDBE runs; the VDBE reads + writes tables, but only reads views (views are compile-time-resolved). Behavioral test harness only — the persistent btree-backed Database is a separate part.",
+      "doc": "In-memory table catalog. Holds a list of named tables and (v6) a parallel views registry. Tables and views are inserted by the caller via `database_install_table` / `database_install_view` before the VDBE runs; the VDBE reads + writes tables, but only reads views (views are compile-time-resolved). Pin 18 (v8-pager): `pager` field carries the page-cache + WAL state owned by `/parts/storage/parts/wal-bridge`. In-memory mode constructs the Pager via `pager_new_in_memory()` and consults it without doing I/O; path-backed mode (open_database_at) assigns a `JournalMode::Wal` Pager. Cloning a Database produces a fresh in-memory Pager regardless of the source's mode (P18.4) — path-backed databases are constructed via `open_database_at`, never via `Clone`. This codifies the existing semantics that LockManager + WAL writer state are not cloneable; a clone is a new logical instance, not a duplicated handle on the source's on-disk artifacts.",
+      "fields": {
+        "tables":    { "list": "MemTable" },
+        "views":     { "list": "ViewEntry" },
+        "txn_stack": { "list": "TxnFrame" },
+        "pager":     "Pager"
+      }
+    },
+
+    "DatabaseTablesView": {
+      "kind": "record",
+      "doc": "Pin 18 (v8-pager): companion view exposing mutable references to every Database field EXCEPT `pager`. Returned by `Database::split_pager_mut` alongside `&mut Pager` so VDBE opcode handlers can hold both borrows simultaneously without conflicting `&mut Database`. The disjoint-borrow guarantee is essential for cursor write paths that mutate rows AND consult the pager (B-tree page faulting in pin 19+; cursor-threading in 18.1c). Targets emit the helper using their natural idiom: Rust uses field-destructuring of `&mut Database`; C uses struct-field pointer aliasing; Zig uses separate `*` fields; Go uses separate fields; Python uses paired attribute references (no aliasing model — the contract is that mutations through one do not invalidate the other).",
       "fields": {
         "tables":    { "list": "MemTable" },
         "views":     { "list": "ViewEntry" },
@@ -20,13 +32,15 @@
 
     "MemTable": {
       "kind": "record",
-      "doc": "One named table: its name, optional column-name list (for UPDATE name→index resolution), the rows in insertion order, and a parallel rowids vector (v5). Column arity is whatever the caller stored — the VDBE resolves columns by index supplied by the Column opcode. If column_names is empty, UPDATE by name will fail with SchemaMissing; INSERT/SELECT/DELETE do not consult column_names. rowids[i] is the SQLite-style 1-based rowid of rows[i]; cursor_insert_row appends rows[i].len()+1 by default but accepts an explicit-rowid path when column_names contains a 'rowid' entry. v7-pp: indexes is a (possibly empty) list of IndexSpec entries describing per-table indexes available to the planner. v1 only ever emits a single `Rowid` index (corresponding to the table's INTEGER PRIMARY KEY column, when the schema declares one). `Unique` and `NonUnique` are reserved for follow-up parts (storage/index, btree-backed) and MUST NOT be populated by mem-store callers in v1. The field is optional in the sense that v1 callers that don't install an INTEGER PRIMARY KEY MAY leave it as the empty list; existing callers that don't yet emit an indexes field continue to round-trip via target-side default-empty initialization.",
+      "doc": "One named table: its name, optional column-name list (for UPDATE name→index resolution), the rows in insertion order, and a parallel rowids vector (v5). Column arity is whatever the caller stored — the VDBE resolves columns by index supplied by the Column opcode. If column_names is empty, UPDATE by name will fail with SchemaMissing; INSERT/SELECT/DELETE do not consult column_names. rowids[i] is the SQLite-style 1-based rowid of rows[i]; cursor_insert_row appends rows[i].len()+1 by default but accepts an explicit-rowid path when column_names contains a 'rowid' entry. v7-pp: indexes is a (possibly empty) list of IndexSpec entries describing per-table indexes available to the planner. v1 only ever emits a single `Rowid` index (corresponding to the table's INTEGER PRIMARY KEY column, when the schema declares one). `Unique` and `NonUnique` are reserved for follow-up parts (storage/index, btree-backed) and MUST NOT be populated by mem-store callers in v1. The field is optional in the sense that v1 callers that don't install an INTEGER PRIMARY KEY MAY leave it as the empty list; existing callers that don't yet emit an indexes field continue to round-trip via target-side default-empty initialization. Pin 16-amend (2026-04-27): `pk_col_name` mirrors the column name of the `Rowid` IndexSpec (when present) for O(1) UPDATE-by-name resolution. `database_install_table_with_pk` sets it to `Some(name)`; `database_install_table` leaves it `None`. Targets emit it as a public optional-string field. Pin 16-amend (2026-04-27): `pk_index` is an auxiliary rowid → row_index map maintained alongside `rowids` so `cursor_seek_rowid` is O(log N) instead of O(N). The map is logically `{ i64 → u32 }`; targets choose the concrete container (Rust `Rc<RefCell<BTreeMap<i64,u32>>>`, Python dict, Go map, etc.) — the contract is that lookups are sub-linear in the row count and the map stays consistent with `rowids` after every insert/delete/update. The `cursor_seek_rowid` body MUST use this map; direct external reads are permitted but the recommended access path is `database_clone_table` (deep-copy snapshot) or `cursor_seek_rowid` (single-rowid query).",
       "fields": {
         "name":         "string",
         "column_names": { "list": "string" },
         "rows":         { "list": { "list": "Value" } },
         "rowids":       { "list": "i64" },
-        "indexes":      { "list": "IndexSpec" }
+        "indexes":      { "list": "IndexSpec" },
+        "pk_col_name":  { "option": "string" },
+        "pk_index":     "map<i64, u32>"
       }
     },
 
@@ -89,9 +103,17 @@
 
   "functions": {
     "database_new": {
-      "doc": "Construct an empty Database (zero tables). Callers install tables via database_install_table.",
+      "doc": "Construct an empty Database (zero tables, zero views, empty txn_stack). Pin 18 (v8-pager): also initializes `pager` via `pager_new_in_memory()` per /parts/storage/parts/wal-bridge — the freshly constructed Database has `journal_mode == Memory` and `synchronous == Off`. Path-backed Pagers are produced by `open_database_at` (fileformat-read leaf) and assigned into the Database after construction; `database_new()` itself never touches a path. Callers install tables via database_install_table.",
       "params": [],
       "returns": "Database"
+    },
+
+    "split_pager_mut": {
+      "doc": "Pin 18 (v8-pager): borrow-split helper. Returns disjoint mutable borrows of `(DatabaseTablesView, Pager)` so callers can hold a &mut Pager and a &mut tables view simultaneously. Targets that express disjoint-mutable-references in safe code (Rust) emit a destructuring of &mut Database; targets without an aliasing model (Python, Go) emit a structurally-equivalent pair of attribute references — the contract is that mutations through the view do not invalidate the Pager and vice-versa. Used by VDBE opcode handlers in pin 18.1c (cursor signature migration) and by every commit-bridge call site that needs both surfaces. The function is a method on Database in language idioms that support method syntax; in idioms that don't (C), it is a free function `database_split_pager_mut(db_ptr) -> (view_ptr, pager_ptr)`.",
+      "params": [
+        { "name": "db", "type": { "borrow_mut": "Database" } }
+      ],
+      "returns": { "tuple": [{ "borrow_mut": "DatabaseTablesView" }, { "borrow_mut": "Pager" }] }
     },
 
     "database_install_table": {
@@ -106,7 +128,7 @@
     },
 
     "database_install_table_with_pk": {
-      "doc": "First-class entrypoint for installing a table that may have a rowid-alias INTEGER PRIMARY KEY column. Same semantics as `database_install_table` plus an optional `pk_column` naming the rowid-alias column. When `pk_column` is `Some(name)`, the storage MUST resolve `name` against `column_names` (ASCII-case-insensitive match), record the resolved 0-based index on the MemTable as a `Rowid` IndexSpec (`IndexSpec { kind: Rowid, columns: [resolved_index] }`), and use that column's INTEGER value as the rowid for subsequent `cursor_insert_row` calls (mirroring SQLite's rowid-alias semantics). When `pk_column` is `None`, no IndexSpec is installed (auto-rowid behavior). If `pk_column` is `Some` but the name does not appear in `column_names`, behavior is undefined for v1 — callers MUST validate against the schema before calling (the parser-leaf helper `pk_from_create_stmt` only returns names of columns it has seen). Replace-on-conflict semantics match the no-pk variant.",
+      "doc": "First-class entrypoint for installing a table that may have a rowid-alias INTEGER PRIMARY KEY column. Same semantics as `database_install_table` plus an optional `pk_column` naming the rowid-alias column. When `pk_column` is `Some(name)`, the storage MUST: (1) resolve `name` against `column_names` (ASCII-case-insensitive match); (2) record the resolved 0-based index on the MemTable as a `Rowid` IndexSpec (`IndexSpec { kind: Rowid, columns: [resolved_index] }`); (3) set `MemTable.pk_col_name = Some(name)` per pin 16-amend; (4) use that column's INTEGER value as the rowid for subsequent `cursor_insert_row` calls (mirroring SQLite's rowid-alias semantics). When `pk_column` is `None`, no IndexSpec is installed and `pk_col_name` is left `None` (auto-rowid behavior). If `pk_column` is `Some` but the name does not appear in `column_names`, behavior is undefined for v1 — callers MUST validate against the schema before calling (the parser-leaf helper `pk_from_create_stmt` only returns names of columns it has seen). Replace-on-conflict semantics match the no-pk variant.",
       "params": [
         { "name": "db",           "type": { "borrow_mut": "Database" } },
         { "name": "name",         "type": "string" },
@@ -259,6 +281,15 @@
         { "name": "values",       "type": { "borrow": { "list": "Value" } } }
       ],
       "returns": { "result": { "ok": "unit", "err": "RuntimeCondition" } }
+    },
+
+    "database_clone_table": {
+      "doc": "Pin 16-amend (2026-04-27): produce an owned deep-copy of the named MemTable, materializing its rows / rowids / pk_index / pk_col_name without sharing reference-counted state with the source. Used by /parts/storage/parts/backup-engine to capture a snapshot that does not alias the source database — without this method, the backup engine would have to reach into pk_index / rows / rowids directly and clone-out each container, leaking target-private representations. Returns err(TableNotFound) if no table by that name exists. Behavioral contract: subsequent writes to the source MemTable MUST NOT be visible through the returned clone.",
+      "params": [
+        { "name": "db",         "type": { "borrow": "Database" } },
+        { "name": "table_name", "type": "string" }
+      ],
+      "returns": { "result": { "ok": "MemTable", "err": "RuntimeCondition" } }
     }
   }
 }
