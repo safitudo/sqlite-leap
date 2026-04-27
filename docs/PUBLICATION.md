@@ -1,6 +1,6 @@
 # sqlite-leap: one spec → 5 SQLite engines, with honest numbers
 
-**TL;DR.** I built a SQLite-compatible database engine from a language-neutral specification that produces buildable engines in **C, Rust, Zig, Go, and Python** — five at once, from one spec. The C target beats mainline SQLite on **two of the standard library-mode benchmark lanes** on real Linux x86_64 (SELECT 1.51×, INSERT 1.81×). All five targets pass a 186-file sample of the upstream sqllogictest corpus at 99.93–99.99% on a "no unsupported features" denominator. They emit `.db` files SHA1-identical to mainline at fixed-size fixtures (270 and 5,000 row) that pass `PRAGMA integrity_check`.
+**TL;DR.** I built a SQLite-compatible database engine from a language-neutral specification that produces buildable engines in **C, Rust, Zig, Go, and Python** — five at once, from one spec. The C target beats mainline SQLite on **L3 in-memory SELECT (1.51× faster)** on real Linux x86_64 in lib-mode, with the win backed by a spec-emitted PK-detection helper as of 2026-04-27. The L4 INSERT measurement (1.81×) is not currently claimed as a win — leap's lib_bench skips BEGIN/COMMIT/ROLLBACK entirely while mainline runs the full transaction bytecode, and that asymmetry has to close before L4 is publishable. All five targets pass a 186-file sample of the upstream sqllogictest corpus at 99.93–99.99% on a "no unsupported features" denominator. They emit `.db` files SHA1-identical to mainline at fixed-size fixtures (270 and 5,000 row) that pass `PRAGMA integrity_check`.
 
 This is a methodology proof, not a SQLite replacement. The point is that **specs and tests can be the product, with code as commodity output**, and the result is competitive — on some lanes — with hand-written code from a 25-year-old project.
 
@@ -12,11 +12,11 @@ This post is deliberately honest about what doesn't beat mainline. An earlier dr
 
 Real Linux box (Ubuntu 22.04, 32 cores, glibc 2.35, rustc 1.89.0, gcc 11.4). Library-mode (in-process, no CLI startup bias). Same workload, same harness, both engines linked into the same `lib_bench` driver.
 
-| Lane | leap-c | mainline | leap-c vs mainline |
-|---|---:|---:|---:|
-| L3 SELECT (in-memory) | 957 K q/s | 632 K q/s | **1.51× faster** |
-| L4 INSERT (WAL) | 1.23 M ips | 678 K ips | **1.81× faster** |
-| L2 parse (parse-only mode) | 1.86 M stmts/s | 1.06 M stmts/s | 1.75× faster — **see caveat below** |
+| Lane | leap-c | mainline | leap-c vs mainline | claim status |
+|---|---:|---:|---:|---|
+| L3 SELECT (in-memory) | 957 K q/s | 632 K q/s | **1.51× faster** | claimed |
+| L4 INSERT | 1.23 M ips | 678 K ips | 1.81× ratio | **NOT claimed** — leap skips BEGIN/COMMIT machinery mainline runs (see roadmap P0.2) |
+| L2 parse (parse-only mode) | 1.86 M stmts/s | 1.06 M stmts/s | 1.75× ratio | **NOT claimed** — see caveat below |
 
 L2 honest framing: in mainline's `parse-only` mode, mainline short-circuits ~60% of statements without doing schema-resolved parsing. On a **filtered corpus where both engines actually parse the statement**, mainline is **~160× faster** than leap-c on raw parse throughput (199,666 vs 1,236 qps). The "1.75×" line above is a real measurement of a real mode mainline ships, but it is not a fair comparison of parser engines — it is a comparison of two different work units. I'm including both numbers; the filtered comparison is the one a parser engineer would care about. Leap's tokenizer and Pratt parser are correct, not fast.
 
