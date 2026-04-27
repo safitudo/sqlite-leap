@@ -1,0 +1,1650 @@
+Flat profile:
+
+Each sample counts as 0.01 seconds.
+  %   cumulative   self              self     total           
+ time   seconds   seconds    calls  ms/call  ms/call  name    
+ 15.03      6.54     6.54 576562842     0.00     0.00  leap_opcode_rows_execute
+  9.70     10.76     4.22 3353966089     0.00     0.00  leap_vdbe_dispatch
+  6.07     13.40     2.64 4871530138     0.00     0.00  leap_vdbe_state_cursor_is_open
+  5.75     15.90     2.50    38375     0.07     1.12  leap_vdbe_execute_program
+  5.68     18.37     2.47 4173489708     0.00     0.00  value_clone
+  5.42     20.73     2.36 1957925339     0.00     0.00  value_release
+  5.38     23.07     2.34 6252543042     0.00     0.00  leap_vdbe_state_set_register
+  5.31     25.38     2.31 4173373638     0.00     0.00  leap_storage_cursor_column
+  5.15     27.62     2.24 1391376501     0.00     0.00  leap_opcode_core_execute
+  4.80     29.71     2.09 4173399410     0.00     0.00  register_in_range
+  4.64     31.73     2.02 4871530138     0.00     0.00  leap_vdbe_state_cursor_borrow
+  3.91     33.43     1.70 2772182681     0.00     0.00  register_in_range
+  3.63     35.01     1.58 6945582289     0.00     0.00  leap_vdbe_state_num_registers
+  2.87     36.26     1.25 4178536148     0.00     0.00  continue_outcome
+  1.86     37.07     0.81 693019930     0.00     0.00  leap_opcode_expr_execute
+  1.84     37.87     0.80 3465183037     0.00     0.00  leap_vdbe_state_get_register
+  1.77     38.64     0.77 1386149474     0.00     0.00  value_clone
+  1.70     39.38     0.74 693006816     0.00     0.00  eval_binop
+  1.56     40.06     0.68                             _init
+  1.22     40.59     0.53 348568197     0.00     0.00  compare_affinity
+  0.99     41.02     0.43 695562273     0.00     0.00  leap_storage_cursor_next
+  0.90     41.41     0.39 1391337928     0.00     0.00  continue_outcome
+  0.90     41.80     0.39 1386026746     0.00     0.00  leap_value_is_null
+  0.85     42.17     0.37 693006816     0.00     0.00  leap_opcode_control_execute
+  0.57     42.42     0.25 697149508     0.00     0.00  coerce_numeric
+  0.53     42.65     0.23 1045704591     0.00     0.00  scalar_quote
+  0.51     42.87     0.22 348568197     0.00     0.00  binop_cmp
+  0.44     43.06     0.19 693006816     0.00     0.00  leap_value_is_truthy
+  0.28     43.18     0.12 698156500     0.00     0.00  leap_vdbe_state_cursor_mut
+  0.25     43.29     0.11 693019930     0.00     0.00  continue_outcome
+  0.21     43.38     0.09 344438619     0.00     0.00  v_null
+  0.14     43.44     0.06 348568197     0.00     0.00  v_int
+  0.05     43.46     0.02  2620200     0.00     0.00  table_pk_index_insert
+  0.02     43.47     0.01 693006223     0.00     0.00  jump_to
+  0.02     43.48     0.01  2594227     0.00     0.00  leap_vdbe_state_db
+  0.02     43.49     0.01  1098716     0.00     0.00  eq_ignore_ascii_ptr
+  0.02     43.50     0.01   128673     0.00     0.00  leap_compiler_expr_compile_compile_expr
+  0.02     43.51     0.01    13229     0.00     0.00  leap_compiler_select_compile_compile_select_with_db
+  0.00     43.51     0.00 692993990     0.00     0.00  jump_to
+  0.00     43.51     0.00  4921566     0.00     0.00  leap_column_schema_release
+  0.00     43.51     0.00  4441972     0.00     0.00  ascii_tolower
+  0.00     43.51     0.00  3291324     0.00     0.00  advance
+  0.00     43.51     0.00  2594290     0.00     0.00  open_cursor_impl
+  0.00     43.51     0.00  2594227     0.00     0.00  leap_storage_close_cursor
+  0.00     43.51     0.00  2594227     0.00     0.00  leap_storage_open_read_cursor
+  0.00     43.51     0.00  2594227     0.00     0.00  leap_vdbe_state_set_cursor
+  0.00     43.51     0.00  2594227     0.00     0.00  leap_vdbe_state_take_cursor
+  0.00     43.51     0.00  2568455     0.00     0.00  leap_storage_cursor_rewind
+  0.00     43.51     0.00  1739000     0.00     0.00  ic_tolower
+  0.00     43.51     0.00  1666854     0.00     0.00  leap_storage_database_table_at
+  0.00     43.51     0.00  1573180     0.00     0.00  ascii_lower
+  0.00     43.51     0.00  1185504     0.00     0.00  err_at
+  0.00     43.51     0.00  1034611     0.00     0.00  tv_push
+  0.00     43.51     0.00   918139     0.00     0.00  err_at
+  0.00     43.51     0.00   872488     0.00     0.00  pk_registry_clear.constprop.0
+  0.00     43.51     0.00   833427     0.00     0.00  leap_storage_database_table_pk_at
+  0.00     43.51     0.00   820261     0.00     0.00  leap_column_schema_list_release
+  0.00     43.51     0.00   820261     0.00     0.00  leap_table_schema_release
+  0.00     43.51     0.00   747900     0.00     0.00  ic_map_unop
+  0.00     43.51     0.00   740876     0.00     0.00  err_at
+  0.00     43.51     0.00   661102     0.00     0.00  leap_opcode_list_push
+  0.00     43.51     0.00   606809     0.00     0.00  ok_sentinel
+  0.00     43.51     0.00   600194     0.00     0.00  unit_kind
+  0.00     43.51     0.00   464216     0.00     0.00  ic_eq_ptr
+  0.00     43.51     0.00   464152     0.00     0.00  ascii_iequal
+  0.00     43.51     0.00   448142     0.00     0.00  kw_lookup
+  0.00     43.51     0.00   435590     0.00     0.00  is_ok
+  0.00     43.51     0.00   434417     0.00     0.00  text_kind
+  0.00     43.51     0.00   270702     0.00     0.00  value_release
+  0.00     43.51     0.00   263016     0.00     0.00  leap_text_release_local
+  0.00     43.51     0.00   243852     0.00     0.00  infix_lookup
+  0.00     43.51     0.00   243456     0.00     0.00  leap_expr_release
+  0.00     43.51     0.00   239457     0.00     0.00  emitter_note_reg
+  0.00     43.51     0.00   226854     0.00     0.00  emitter_push
+  0.00     43.51     0.00   217595     0.00     0.00  parse_prefix
+  0.00     43.51     0.00   211487     0.00     0.00  err_ok
+  0.00     43.51     0.00   191688     0.00     0.00  leap_opcode_list_append
+  0.00     43.51     0.00   191338     0.00     0.00  parse_bp
+  0.00     43.51     0.00   171221     0.00     0.00  leap_parser_expr_parse_expr
+  0.00     43.51     0.00   164689     0.00     0.00  expand_joined_projection
+  0.00     43.51     0.00   144323     0.00     0.00  leap_text_from_borrowed
+  0.00     43.51     0.00   144323     0.00     0.00  leap_text_release_local
+  0.00     43.51     0.00   118104     0.00     0.00  column_list_push
+  0.00     43.51     0.00   118104     0.00     0.00  expr_list_push
+  0.00     43.51     0.00   116070     0.00     0.00  schema_has_column
+  0.00     43.51     0.00    92439     0.00     0.00  xstrdup_view
+  0.00     43.51     0.00    89983     0.00     0.00  ascii_iequal
+  0.00     43.51     0.00    75618     0.00     0.00  emitter_bind_here
+  0.00     43.51     0.00    75618     0.00     0.00  emitter_fresh_label
+  0.00     43.51     0.00    75618     0.00     0.00  emitter_push_with_patch
+  0.00     43.51     0.00    72235     0.00     0.00  expr_heap_dup
+  0.00     43.51     0.00    72235     0.00     0.00  leap_expr_destroy
+  0.00     43.51     0.00    65952     0.00     0.00  release_optional_expr
+  0.00     43.51     0.00    65653     0.00     0.00  classify
+  0.00     43.51     0.00    64207     0.00     0.00  leap_opcode_list_release
+  0.00     43.51     0.00    63417     0.00     0.00  sc_cte_lookup
+  0.00     43.51     0.00    51262     0.00     0.00  join_source_list_push
+  0.00     43.51     0.00    50837     0.00     0.00  flatten_from
+  0.00     43.51     0.00    50412     0.00     0.00  compile_expr_in_multi
+  0.00     43.51     0.00    50412     0.00     0.00  emitter_append_list
+  0.00     43.51     0.00    39511     0.00     0.00  leap_parser_tokenize
+  0.00     43.51     0.00    39511     0.00     0.00  leap_parser_tokens_release
+  0.00     43.51     0.00    39316     0.00     0.00  leap_text_dup
+  0.00     43.51     0.00    39287     0.00     0.00  leap_table_ref_release
+  0.00     43.51     0.00    38375     0.00     0.00  halt_ok_outcome
+  0.00     43.51     0.00    38375     0.00     0.00  leap_vdbe_state_destroy
+  0.00     43.51     0.00    38375     0.00     0.00  leap_vdbe_state_new
+  0.00     43.51     0.00    38375     0.00     0.00  vdbe_state_deinit
+  0.00     43.51     0.00    38375     0.00     0.00  vdbe_state_init
+  0.00     43.51     0.00    26659     0.00     0.00  leap_projection_item_release
+  0.00     43.51     0.00    26659     0.00     0.00  parse_projection_item
+  0.00     43.51     0.00    26659     0.00     0.00  projection_list_push
+  0.00     43.51     0.00    26458     0.00     0.00  leap_storage_database_table_count
+  0.00     43.51     0.00    26282     0.00     0.00  catalog_find
+  0.00     43.51     0.00    26259     0.00     0.00  leap_text_from_borrowed
+  0.00     43.51     0.00    26259     0.00     0.00  leap_text_release
+  0.00     43.51     0.00    26259     0.00     0.00  parse_table_atom
+  0.00     43.51     0.00    26219     0.00     0.00  err_ok
+  0.00     43.51     0.00    26219     0.00     0.00  leap_insert_column_list_release
+  0.00     43.51     0.00    26219     0.00     0.00  leap_insert_row_list_release
+  0.00     43.51     0.00    26219     0.00     0.00  leap_insert_row_release
+  0.00     43.51     0.00    26219     0.00     0.00  leap_insert_stmt_release
+  0.00     43.51     0.00    26219     0.00     0.00  leap_parser_insert_stmt_parse_insert
+  0.00     43.51     0.00    26219     0.00     0.00  leap_result_column_list_release
+  0.00     43.51     0.00    26219     0.00     0.00  release_expr_list
+  0.00     43.51     0.00    26219     0.00     0.00  row_list_push
+  0.00     43.51     0.00    26219     0.00     1.10  run_insert
+  0.00     43.51     0.00    26059     0.00     0.00  sc_schema_lookup
+  0.00     43.51     0.00    26056     0.00     0.00  leap_table_ref_destroy
+  0.00     43.51     0.00    25835     0.00     0.00  table_pk_index_reserve
+  0.00     43.51     0.00    25835     0.00     0.00  table_rowids_reserve
+  0.00     43.51     0.00    25835     0.00     0.00  table_rows_reserve
+  0.00     43.51     0.00    25772     0.00     0.00  leap_compile_insert_ok_release
+  0.00     43.51     0.00    25772     0.00     0.00  leap_compiler_insert_compile_compile_insert
+  0.00     43.51     0.00    25772     0.00     0.00  leap_compiler_insert_compile_compile_insert_with_source
+  0.00     43.51     0.00    25772     0.00     0.00  leap_storage_cursor_insert_row
+  0.00     43.51     0.00    25772     0.00     0.00  leap_storage_open_write_cursor
+  0.00     43.51     0.00    25772     0.00     0.00  pk_index_lower_bound
+  0.00     43.51     0.00    25772     0.00     0.00  row_release
+  0.00     43.51     0.00    25631     0.00     0.00  join_source_list_init
+  0.00     43.51     0.00    25631     0.00     0.00  join_source_list_release
+  0.00     43.51     0.00    25206     0.00     0.00  collect_aggregates_c
+  0.00     43.51     0.00    25206     0.00     0.00  expr_ref_list_push_ptr
+  0.00     43.51     0.00    25206     0.00     0.00  sc_map_binop
+  0.00     43.51     0.00    13670     0.00     0.00  text_from_cstr
+  0.00     43.51     0.00    13231     0.00     0.00  is_statement_boundary_tag
+  0.00     43.51     0.00    13231     0.00     0.00  leap_compound_tail_list_release
+  0.00     43.51     0.00    13231     0.00     0.00  leap_cte_binding_list_release
+  0.00     43.51     0.00    13231     0.00     0.00  leap_group_by_list_release
+  0.00     43.51     0.00    13231     0.00     0.00  leap_order_by_item_list_release
+  0.00     43.51     0.00    13231     0.00     0.00  leap_parser_select_stmt_parse_select
+  0.00     43.51     0.00    13231     0.00     0.00  leap_projection_item_list_release
+  0.00     43.51     0.00    13231     0.00     0.00  leap_select_stmt_release
+  0.00     43.51     0.00    13231     0.00     0.00  parse_from_opt
+  0.00     43.51     0.00    13231     0.00     0.00  parse_group_by_opt
+  0.00     43.51     0.00    13231     0.00     0.00  parse_having_opt
+  0.00     43.51     0.00    13231     0.00     0.00  parse_limit_opt
+  0.00     43.51     0.00    13231     0.00     0.00  parse_order_by_opt.constprop.0
+  0.00     43.51     0.00    13231     0.00     0.00  parse_projection_list
+  0.00     43.51     0.00    13231     0.00     0.00  parse_select_core
+  0.00     43.51     0.00    13231     0.00     0.00  parse_select_inner.constprop.0
+  0.00     43.51     0.00    13231     0.00     0.00  parse_table_or_join_group
+  0.00     43.51     0.00    13231     0.00     0.00  parse_where_opt
+  0.00     43.51     0.00    13231     0.00     0.00  release_optional_table_ref
+  0.00     43.51     0.00    13229     0.00     0.00  catalog_first_schema
+  0.00     43.51     0.00    13229     0.00     0.00  leap_compiler_select_compile_compile_select
+  0.00     43.51     0.00    13229     0.00     0.00  leap_compiler_select_compile_compile_select_body
+  0.00     43.51     0.00    13229     0.00     1.06  run_select
+  0.00     43.51     0.00    13114     0.00     0.00  eval_unaryop
+  0.00     43.51     0.00    13114     0.00     0.00  v_real
+  0.00     43.51     0.00    13028     0.00     0.00  leap_string_list_release
+  0.00     43.51     0.00    13028     0.00     0.00  parse_join_constraint.constprop.0
+  0.00     43.51     0.00    12918     0.00     0.00  map_unop
+  0.00     43.51     0.00    12804     0.00     0.00  sc_splice_expr_prelude
+  0.00     43.51     0.00    12603     0.00     0.00  agg_slot_list_init
+  0.00     43.51     0.00    12603     0.00     0.00  agg_slot_list_release
+  0.00     43.51     0.00    12603     0.00     0.00  compile_joined_select
+  0.00     43.51     0.00    12603     0.00     0.00  emit_inner_body.constprop.0
+  0.00     43.51     0.00    12603     0.00     0.00  emitter_init
+  0.00     43.51     0.00    12603     0.00     0.00  emitter_release
+  0.00     43.51     0.00    12603     0.00     0.00  emitter_resolve
+  0.00     43.51     0.00    12603     0.00     0.00  expr_ref_list_init
+  0.00     43.51     0.00    12603     0.00     0.00  expr_ref_list_release
+  0.00     43.51     0.00    12603     0.00     0.00  leap_compile_select_ok_release
+  0.00     43.51     0.00    12603     0.00     0.00  leap_compiler_select_compile_compile_select_multi
+  0.00     43.51     0.00    12603     0.00     0.00  select_needs_aggregate
+  0.00     43.51     0.00     6354     0.00     0.00  sc_map_unop
+  0.00     43.51     0.00     5607     0.00     0.00  err_at
+  0.00     43.51     0.00      819     0.00     0.00  err_ok
+  0.00     43.51     0.00      819     0.00     0.00  text_release
+  0.00     43.51     0.00      756     0.00     0.00  leap_column_constraint_list_release
+  0.00     43.51     0.00      626     0.00     0.00  leap_compile_error_make
+  0.00     43.51     0.00      626     0.00     0.00  leap_compile_error_release
+  0.00     43.51     0.00      593     0.00     0.00  continue_outcome
+  0.00     43.51     0.00      504     0.00     0.00  strview_cstr
+  0.00     43.51     0.00      441     0.00     0.00  leap_text_from_borrowed
+  0.00     43.51     0.00      378     0.00     0.00  column_def_list_push
+  0.00     43.51     0.00      378     0.00     0.00  leap_column_def_release
+  0.00     43.51     0.00      378     0.00     0.00  leap_parser_create_table_stmt_parse_column_def
+  0.00     43.51     0.00      378     0.00     0.00  type_params_release
+  0.00     43.51     0.00      201     0.00     0.00  leap_storage_database_lookup_view
+  0.00     43.51     0.00      201     0.00     0.00  sc_view_lookup_sql
+  0.00     43.51     0.00      199     0.00     0.00  group_by_list_push
+  0.00     43.51     0.00      198     0.00     0.00  emit_row_outcome
+  0.00     43.51     0.00      198     0.00     0.00  sink
+  0.00     43.51     0.00       64     0.00     0.00  run_create_table
+  0.00     43.51     0.00       63     0.00     0.00  catalog_install_table
+  0.00     43.51     0.00       63     0.00     0.00  column_constraint_list_push
+  0.00     43.51     0.00       63     0.00     0.00  db_tables_reserve
+  0.00     43.51     0.00       63     0.00     0.00  leap_column_constraint_release
+  0.00     43.51     0.00       63     0.00     0.00  leap_column_def_list_release
+  0.00     43.51     0.00       63     0.00     0.00  leap_create_table_stmt_release
+  0.00     43.51     0.00       63     0.00     0.00  leap_parser_create_table_stmt_parse_create_table
+  0.00     43.51     0.00       63     0.00     0.00  leap_storage_database_install_table_with_pk
+  0.00     43.51     0.00       63     0.00     0.00  leap_table_constraint_list_release
+  0.00     43.51     0.00       63     0.00     0.00  lower_dup_cstr
+  0.00     43.51     0.00       63     0.00     0.00  table_clear_column_names
+  0.00     43.51     0.00       63     0.00     0.00  table_clear_rows
+  0.00     43.51     0.00       63     0.00     0.00  table_populate_column_names
+  0.00     43.51     0.00       63     0.00     0.00  table_populate_rows
+  0.00     43.51     0.00       63     0.00     0.00  table_release
+  0.00     43.51     0.00       63     0.00     0.00  xstrdup_cstr
+  0.00     43.51     0.00        2     0.00     0.00  leap_select_stmt_destroy
+  0.00     43.51     0.00        2     0.00     0.00  now_seconds
+  0.00     43.51     0.00        1     0.00     0.00  catalog_destroy
+  0.00     43.51     0.00        1     0.00     0.00  catalog_init
+  0.00     43.51     0.00        1     0.00     0.00  leap_storage_database_destroy
+  0.00     43.51     0.00        1     0.00     0.00  leap_storage_database_new
+
+ %         the percentage of the total running time of the
+time       program used by this function.
+
+cumulative a running sum of the number of seconds accounted
+ seconds   for by this function and those listed above it.
+
+ self      the number of seconds accounted for by this
+seconds    function alone.  This is the major sort for this
+           listing.
+
+calls      the number of times this function was invoked, if
+           this function is profiled, else blank.
+
+ self      the average number of milliseconds spent in this
+ms/call    function per call, if this function is profiled,
+	   else blank.
+
+ total     the average number of milliseconds spent in this
+ms/call    function and its descendents per call, if this
+	   function is profiled, else blank.
+
+name       the name of the function.  This is the minor sort
+           for this listing. The index shows the location of
+	   the function in the gprof listing. If the index is
+	   in parenthesis it shows where it would appear in
+	   the gprof listing if it were to be printed.
+
+Copyright (C) 2012-2022 Free Software Foundation, Inc.
+
+Copying and distribution of this file, with or without modification,
+are permitted in any medium without royalty provided the copyright
+notice and this notice are preserved.
+
+		     Call graph (explanation follows)
+
+
+granularity: each sample hit covers 4 byte(s) for 0.02% of 43.51 seconds
+
+index % time    self  children    called     name
+                                                 <spontaneous>
+[1]     98.4    0.00   42.83                 main [1]
+                0.00   28.75   26219/26219       run_insert [3]
+                0.00   14.08   13229/13229       run_select [5]
+                0.00    0.00      64/64          run_create_table [57]
+                0.00    0.00   65653/65653       classify [117]
+                0.00    0.00       2/2           now_seconds [227]
+                0.00    0.00       1/1           catalog_init [229]
+                0.00    0.00       1/1           catalog_destroy [228]
+-----------------------------------------------
+                0.82   13.24   12603/38375       run_select [5]
+                1.68   27.06   25772/38375       run_insert [3]
+[2]     98.4    2.50   40.30   38375         leap_vdbe_execute_program [2]
+                6.54   16.17 576562842/576562842     leap_opcode_rows_execute [4]
+                2.24    4.49 1391376501/1391376501     leap_opcode_core_execute [6]
+                4.22    0.00 3353966089/3353966089     leap_vdbe_dispatch [8]
+                0.81    3.35 693019930/693019930     leap_opcode_expr_execute [9]
+                1.25    0.00 4178536148/4178536148     continue_outcome [20]
+                0.37    0.35 693006816/693006816     leap_opcode_control_execute [24]
+                0.39    0.00 1391337928/1391337928     continue_outcome [27]
+                0.11    0.00 693019930/693019930     continue_outcome [33]
+                0.01    0.00 693006223/693006223     jump_to [39]
+                0.00    0.00     198/198         sink [60]
+                0.00    0.00 692993990/692993990     jump_to [63]
+                0.00    0.00   38375/38375       halt_ok_outcome [126]
+                0.00    0.00     593/593         continue_outcome [203]
+                0.00    0.00     198/198         emit_row_outcome [211]
+-----------------------------------------------
+                0.00   28.75   26219/26219       main [1]
+[3]     66.1    0.00   28.75   26219         run_insert [3]
+                1.68   27.06   25772/38375       leap_vdbe_execute_program [2]
+                0.00    0.01   25772/25772       leap_compiler_insert_compile_compile_insert [43]
+                0.00    0.00   25772/38375       leap_vdbe_state_destroy [51]
+                0.00    0.00   26219/39511       leap_parser_tokenize [122]
+                0.00    0.00   26219/26219       leap_parser_insert_stmt_parse_insert [142]
+                0.00    0.00   26219/92439       xstrdup_view [109]
+                0.00    0.00   26219/26282       catalog_find [133]
+                0.00    0.00   26219/26219       leap_insert_stmt_release [141]
+                0.00    0.00   26219/39511       leap_parser_tokens_release [123]
+                0.00    0.00   25772/25772       leap_compiler_insert_compile_compile_insert_with_source [152]
+                0.00    0.00   25772/38375       leap_vdbe_state_new [127]
+                0.00    0.00   25772/25772       leap_compile_insert_ok_release [151]
+-----------------------------------------------
+                6.54   16.17 576562842/576562842     leap_vdbe_execute_program [2]
+[4]     52.2    6.54   16.17 576562842         leap_opcode_rows_execute [4]
+                1.56    1.57 4173373638/6252543042     leap_vdbe_state_set_register [7]
+                2.09    0.95 4173399410/4173399410     register_in_range [10]
+                2.64    0.00 4871530138/4871530138     leap_vdbe_state_cursor_is_open [11]
+                2.47    0.00 4173373638/4173489708     value_clone [13]
+                2.31    0.00 4173373638/4173373638     leap_storage_cursor_column [16]
+                2.02    0.00 4871530138/4871530138     leap_vdbe_state_cursor_borrow [17]
+                0.43    0.00 695562273/695562273     leap_storage_cursor_next [26]
+                0.12    0.00 698156500/698156500     leap_vdbe_state_cursor_mut [32]
+                0.00    0.00   25772/25772       leap_storage_cursor_insert_row [53]
+                0.00    0.00 2568455/2568455     leap_storage_cursor_rewind [71]
+-----------------------------------------------
+                0.00   14.08   13229/13229       main [1]
+[5]     32.4    0.00   14.08   13229         run_select [5]
+                0.82   13.24   12603/38375       leap_vdbe_execute_program [2]
+                0.01    0.01   13229/13229       leap_compiler_select_compile_compile_select_with_db [36]
+                0.00    0.00   12603/38375       leap_vdbe_state_destroy [51]
+                0.00    0.00   13229/39511       leap_parser_tokenize [122]
+                0.00    0.00   13229/131333      leap_parser_select_stmt_parse_select <cycle 2> [167]
+                0.00    0.00   13229/13670       text_from_cstr [161]
+                0.00    0.00   13229/13229       catalog_first_schema [181]
+                0.00    0.00   13229/131333      leap_select_stmt_release <cycle 1> [169]
+                0.00    0.00   13229/39511       leap_parser_tokens_release [123]
+                0.00    0.00   12603/38375       leap_vdbe_state_new [127]
+                0.00    0.00   12603/12603       leap_compile_select_ok_release [194]
+                0.00    0.00     626/626         leap_compile_error_release [202]
+-----------------------------------------------
+                2.24    4.49 1391376501/1391376501     leap_vdbe_execute_program [2]
+[6]     15.5    2.24    4.49 1391376501         leap_opcode_core_execute [6]
+                1.70    0.63 2772182681/2772182681     register_in_range [15]
+                0.52    0.52 1386149474/6252543042     leap_vdbe_state_set_register [7]
+                0.77    0.00 1386149474/1386149474     value_clone [23]
+                0.32    0.00 1386033009/3465183037     leap_vdbe_state_get_register [22]
+                0.00    0.02 2594227/2594290     open_cursor_impl [38]
+                0.01    0.00 2594227/2594227     leap_vdbe_state_db [40]
+                0.00    0.00     198/6945582289     leap_vdbe_state_num_registers [18]
+                0.00    0.00 2594227/2594227     leap_storage_open_read_cursor [68]
+                0.00    0.00 2594227/2594227     leap_vdbe_state_set_cursor [69]
+                0.00    0.00 2594227/2594227     leap_vdbe_state_take_cursor [70]
+                0.00    0.00 2594227/2594227     leap_storage_close_cursor [67]
+                0.00    0.00   25772/25772       leap_storage_open_write_cursor [153]
+-----------------------------------------------
+                0.26    0.26 693019930/6252543042     leap_opcode_expr_execute [9]
+                0.52    0.52 1386149474/6252543042     leap_opcode_core_execute [6]
+                1.56    1.57 4173373638/6252543042     leap_opcode_rows_execute [4]
+[7]     10.8    2.34    2.36 6252543042         leap_vdbe_state_set_register [7]
+                2.36    0.00 1957575746/1957925339     value_release [14]
+-----------------------------------------------
+                4.22    0.00 3353966089/3353966089     leap_vdbe_execute_program [2]
+[8]      9.7    4.22    0.00 3353966089         leap_vdbe_dispatch [8]
+-----------------------------------------------
+                0.81    3.35 693019930/693019930     leap_vdbe_execute_program [2]
+[9]      9.6    0.81    3.35 693019930         leap_opcode_expr_execute [9]
+                0.74    1.77 693006816/693006816     eval_binop [12]
+                0.26    0.26 693019930/6252543042     leap_vdbe_state_set_register [7]
+                0.32    0.00 1386026746/3465183037     leap_vdbe_state_get_register [22]
+                0.00    0.00   13114/13114       eval_unaryop [54]
+-----------------------------------------------
+                2.09    0.95 4173399410/4173399410     leap_opcode_rows_execute [4]
+[10]     7.0    2.09    0.95 4173399410         register_in_range [10]
+                0.95    0.00 4173399410/6945582289     leap_vdbe_state_num_registers [18]
+                0.00    0.00  116070/3465183037     leap_vdbe_state_get_register [22]
+-----------------------------------------------
+                2.64    0.00 4871530138/4871530138     leap_opcode_rows_execute [4]
+[11]     6.1    2.64    0.00 4871530138         leap_vdbe_state_cursor_is_open [11]
+-----------------------------------------------
+                0.74    1.77 693006816/693006816     leap_opcode_expr_execute [9]
+[12]     5.8    0.74    1.77 693006816         eval_binop [12]
+                0.22    1.07 348568197/348568197     binop_cmp [19]
+                0.39    0.00 1386013632/1386026746     leap_value_is_null [28]
+                0.09    0.00 344438619/344438619     v_null [34]
+-----------------------------------------------
+                0.00    0.00  116070/4173489708     leap_storage_cursor_insert_row [53]
+                2.47    0.00 4173373638/4173489708     leap_opcode_rows_execute [4]
+[13]     5.7    2.47    0.00 4173489708         value_clone [13]
+-----------------------------------------------
+                0.00    0.00  349593/1957925339     vdbe_state_deinit [52]
+                2.36    0.00 1957575746/1957925339     leap_vdbe_state_set_register [7]
+[14]     5.4    2.36    0.00 1957925339         value_release [14]
+-----------------------------------------------
+                1.70    0.63 2772182681/2772182681     leap_opcode_core_execute [6]
+[15]     5.4    1.70    0.63 2772182681         register_in_range [15]
+                0.63    0.00 2772182681/6945582289     leap_vdbe_state_num_registers [18]
+-----------------------------------------------
+                2.31    0.00 4173373638/4173373638     leap_opcode_rows_execute [4]
+[16]     5.3    2.31    0.00 4173373638         leap_storage_cursor_column [16]
+-----------------------------------------------
+                2.02    0.00 4871530138/4871530138     leap_opcode_rows_execute [4]
+[17]     4.6    2.02    0.00 4871530138         leap_vdbe_state_cursor_borrow [17]
+-----------------------------------------------
+                0.00    0.00     198/6945582289     leap_opcode_core_execute [6]
+                0.63    0.00 2772182681/6945582289     register_in_range [15]
+                0.95    0.00 4173399410/6945582289     register_in_range [10]
+[18]     3.6    1.58    0.00 6945582289         leap_vdbe_state_num_registers [18]
+-----------------------------------------------
+                0.22    1.07 348568197/348568197     eval_binop [12]
+[19]     3.0    0.22    1.07 348568197         binop_cmp [19]
+                0.53    0.40 348568197/348568197     compare_affinity [21]
+                0.08    0.00 348568197/1045704591     scalar_quote [30]
+                0.06    0.00 348568197/348568197     v_int [35]
+-----------------------------------------------
+                1.25    0.00 4178536148/4178536148     leap_vdbe_execute_program [2]
+[20]     2.9    1.25    0.00 4178536148         continue_outcome [20]
+-----------------------------------------------
+                0.53    0.40 348568197/348568197     binop_cmp [19]
+[21]     2.1    0.53    0.40 348568197         compare_affinity [21]
+                0.25    0.00 697136394/697149508     coerce_numeric [29]
+                0.15    0.00 697136394/1045704591     scalar_quote [30]
+-----------------------------------------------
+                0.00    0.00     396/3465183037     sink [60]
+                0.00    0.00  116070/3465183037     register_in_range [10]
+                0.16    0.00 693006816/3465183037     leap_opcode_control_execute [24]
+                0.32    0.00 1386026746/3465183037     leap_opcode_expr_execute [9]
+                0.32    0.00 1386033009/3465183037     leap_opcode_core_execute [6]
+[22]     1.8    0.80    0.00 3465183037         leap_vdbe_state_get_register [22]
+-----------------------------------------------
+                0.77    0.00 1386149474/1386149474     leap_opcode_core_execute [6]
+[23]     1.8    0.77    0.00 1386149474         value_clone [23]
+-----------------------------------------------
+                0.37    0.35 693006816/693006816     leap_vdbe_execute_program [2]
+[24]     1.7    0.37    0.35 693006816         leap_opcode_control_execute [24]
+                0.19    0.00 693006816/693006816     leap_value_is_truthy [31]
+                0.16    0.00 693006816/3465183037     leap_vdbe_state_get_register [22]
+-----------------------------------------------
+                                                 <spontaneous>
+[25]     1.6    0.68    0.00                 _init [25]
+-----------------------------------------------
+                0.43    0.00 695562273/695562273     leap_opcode_rows_execute [4]
+[26]     1.0    0.43    0.00 695562273         leap_storage_cursor_next [26]
+-----------------------------------------------
+                0.39    0.00 1391337928/1391337928     leap_vdbe_execute_program [2]
+[27]     0.9    0.39    0.00 1391337928         continue_outcome [27]
+-----------------------------------------------
+                0.00    0.00   13114/1386026746     eval_unaryop [54]
+                0.39    0.00 1386013632/1386026746     eval_binop [12]
+[28]     0.9    0.39    0.00 1386026746         leap_value_is_null [28]
+-----------------------------------------------
+                0.00    0.00   13114/697149508     eval_unaryop [54]
+                0.25    0.00 697136394/697149508     compare_affinity [21]
+[29]     0.6    0.25    0.00 697149508         coerce_numeric [29]
+-----------------------------------------------
+                0.08    0.00 348568197/1045704591     binop_cmp [19]
+                0.15    0.00 697136394/1045704591     compare_affinity [21]
+[30]     0.5    0.23    0.00 1045704591         scalar_quote [30]
+-----------------------------------------------
+                0.19    0.00 693006816/693006816     leap_opcode_control_execute [24]
+[31]     0.4    0.19    0.00 693006816         leap_value_is_truthy [31]
+-----------------------------------------------
+                0.12    0.00 698156500/698156500     leap_opcode_rows_execute [4]
+[32]     0.3    0.12    0.00 698156500         leap_vdbe_state_cursor_mut [32]
+-----------------------------------------------
+                0.11    0.00 693019930/693019930     leap_vdbe_execute_program [2]
+[33]     0.3    0.11    0.00 693019930         continue_outcome [33]
+-----------------------------------------------
+                0.09    0.00 344438619/344438619     eval_binop [12]
+[34]     0.2    0.09    0.00 344438619         v_null [34]
+-----------------------------------------------
+                0.06    0.00 348568197/348568197     binop_cmp [19]
+[35]     0.1    0.06    0.00 348568197         v_int [35]
+-----------------------------------------------
+                0.01    0.01   13229/13229       run_select [5]
+[36]     0.0    0.01    0.01   13229         leap_compiler_select_compile_compile_select_with_db [36]
+                0.01    0.00  833427/1098716     eq_ignore_ascii_ptr [41]
+                0.00    0.00   13229/13229       leap_compiler_select_compile_compile_select [44]
+                0.00    0.00 1666854/1666854     leap_storage_database_table_at [73]
+                0.00    0.00  846656/872488      pk_registry_clear.constprop.0 [78]
+                0.00    0.00  833427/833427      leap_storage_database_table_pk_at [79]
+                0.00    0.00  820198/820261      leap_column_schema_list_release [80]
+                0.00    0.00  820198/820261      leap_table_schema_release [81]
+                0.00    0.00   26458/26458       leap_storage_database_table_count [132]
+                0.00    0.00   13229/64207       leap_opcode_list_release [118]
+                0.00    0.00   12603/12804       sc_splice_expr_prelude [186]
+-----------------------------------------------
+                0.00    0.00     201/2620200     leap_storage_database_lookup_view [55]
+                0.00    0.00   25772/2620200     leap_storage_cursor_insert_row [53]
+                0.02    0.00 2594227/2620200     open_cursor_impl [38]
+[37]     0.0    0.02    0.00 2620200         table_pk_index_insert [37]
+                0.00    0.00   25772/25835       table_pk_index_reserve [148]
+                0.00    0.00   25772/25772       pk_index_lower_bound [154]
+-----------------------------------------------
+                0.00    0.00      63/2594290     leap_storage_database_install_table_with_pk [59]
+                0.00    0.02 2594227/2594290     leap_opcode_core_execute [6]
+[38]     0.0    0.00    0.02 2594290         open_cursor_impl [38]
+                0.02    0.00 2594227/2620200     table_pk_index_insert [37]
+-----------------------------------------------
+                0.01    0.00 693006223/693006223     leap_vdbe_execute_program [2]
+[39]     0.0    0.01    0.00 693006223         jump_to [39]
+-----------------------------------------------
+                0.01    0.00 2594227/2594227     leap_opcode_core_execute [6]
+[40]     0.0    0.01    0.00 2594227         leap_vdbe_state_db [40]
+-----------------------------------------------
+                0.00    0.00     626/1098716     leap_compiler_select_compile_compile_select_body [45]
+                0.00    0.00   25206/1098716     compile_joined_select [46]
+                0.00    0.00  239457/1098716     sc_cte_lookup [50]
+                0.01    0.00  833427/1098716     leap_compiler_select_compile_compile_select_with_db [36]
+[41]     0.0    0.01    0.00 1098716         eq_ignore_ascii_ptr [41]
+                0.00    0.00 4441972/4441972     ascii_tolower [65]
+-----------------------------------------------
+                               12918             leap_compiler_expr_compile_compile_expr [42]
+                0.00    0.00   12603/128673      compile_expr_in_multi [48]
+                0.01    0.00  116070/128673      leap_compiler_insert_compile_compile_insert [43]
+[42]     0.0    0.01    0.00  128673+12918   leap_compiler_expr_compile_compile_expr [42]
+                0.00    0.00  141591/661102      leap_opcode_list_push [84]
+                0.00    0.00   89983/89983       ascii_iequal [110]
+                0.00    0.00   38690/39316       leap_text_dup [124]
+                0.00    0.00   12918/12918       map_unop [185]
+                               12918             leap_compiler_expr_compile_compile_expr [42]
+-----------------------------------------------
+                0.00    0.01   25772/25772       run_insert [3]
+[43]     0.0    0.00    0.01   25772         leap_compiler_insert_compile_compile_insert [43]
+                0.01    0.00  116070/128673      leap_compiler_expr_compile_compile_expr [42]
+                0.00    0.00  193386/747900      ic_map_unop [82]
+                0.00    0.00  122464/661102      leap_opcode_list_push [84]
+                0.00    0.00  116070/116070      schema_has_column [108]
+                0.00    0.00  116070/191688      leap_opcode_list_append [100]
+                0.00    0.00   25772/464216      ic_eq_ptr [87]
+-----------------------------------------------
+                0.00    0.00   13229/13229       leap_compiler_select_compile_compile_select_with_db [36]
+[44]     0.0    0.00    0.00   13229         leap_compiler_select_compile_compile_select [44]
+                0.00    0.00   13229/13229       leap_compiler_select_compile_compile_select_body [45]
+-----------------------------------------------
+                0.00    0.00   13229/13229       leap_compiler_select_compile_compile_select [44]
+[45]     0.0    0.00    0.00   13229         leap_compiler_select_compile_compile_select_body [45]
+                0.00    0.00   12603/12603       leap_compiler_select_compile_compile_select_multi [47]
+                0.00    0.00     402/63417       sc_cte_lookup [50]
+                0.00    0.00     626/1098716     eq_ignore_ascii_ptr [41]
+                0.00    0.00     201/201         sc_view_lookup_sql [56]
+                0.00    0.00   26059/26059       sc_schema_lookup [146]
+                0.00    0.00   13229/872488      pk_registry_clear.constprop.0 [78]
+                0.00    0.00   13028/25631       join_source_list_init [156]
+                0.00    0.00   13028/50837       flatten_from [120]
+                0.00    0.00   13028/25631       join_source_list_release [157]
+                0.00    0.00     626/626         leap_compile_error_make [201]
+-----------------------------------------------
+                0.00    0.00   12603/12603       leap_compiler_select_compile_compile_select_multi [47]
+[46]     0.0    0.00    0.00   12603         compile_joined_select [46]
+                0.00    0.00   12603/12603       emit_inner_body.constprop.0 [49]
+                0.00    0.00   12603/50412       compile_expr_in_multi [48]
+                0.00    0.00   25206/1098716     eq_ignore_ascii_ptr [41]
+                0.00    0.00  214251/226854      emitter_push [97]
+                0.00    0.00  176442/239457      emitter_note_reg [96]
+                0.00    0.00   75618/75618       emitter_fresh_label [112]
+                0.00    0.00   75618/75618       emitter_bind_here [111]
+                0.00    0.00   63015/75618       emitter_push_with_patch [113]
+                0.00    0.00   25206/50837       flatten_from [120]
+                0.00    0.00   12603/25631       join_source_list_init [156]
+                0.00    0.00   12603/164689      expand_joined_projection [103]
+                0.00    0.00   12603/12603       emitter_init [189]
+                0.00    0.00   12603/12603       emitter_resolve [191]
+                0.00    0.00   12603/12603       emitter_release [190]
+                0.00    0.00   12603/12603       expr_ref_list_release [193]
+                0.00    0.00   12603/25631       join_source_list_release [157]
+                0.00    0.00   12603/50412       emitter_append_list [121]
+-----------------------------------------------
+                0.00    0.00   12603/12603       leap_compiler_select_compile_compile_select_body [45]
+[47]     0.0    0.00    0.00   12603         leap_compiler_select_compile_compile_select_multi [47]
+                0.00    0.00   12603/12603       compile_joined_select [46]
+                0.00    0.00   12603/872488      pk_registry_clear.constprop.0 [78]
+                0.00    0.00   12603/12603       agg_slot_list_init [187]
+                0.00    0.00   12603/12603       select_needs_aggregate [195]
+                0.00    0.00   12603/12603       agg_slot_list_release [188]
+-----------------------------------------------
+                               56766             compile_expr_in_multi [48]
+                0.00    0.00   12603/50412       compile_joined_select [46]
+                0.00    0.00   37809/50412       emit_inner_body.constprop.0 [49]
+[48]     0.0    0.00    0.00   50412+56766   compile_expr_in_multi [48]
+                0.00    0.00   63015/63417       sc_cte_lookup [50]
+                0.00    0.00   12603/128673      leap_compiler_expr_compile_compile_expr [42]
+                0.00    0.00   94575/661102      leap_opcode_list_push [84]
+                0.00    0.00   25206/25206       sc_map_binop [160]
+                0.00    0.00   25206/191688      leap_opcode_list_append [100]
+                0.00    0.00    6354/6354        sc_map_unop [196]
+                               56766             compile_expr_in_multi [48]
+-----------------------------------------------
+                0.00    0.00   12603/12603       compile_joined_select [46]
+[49]     0.0    0.00    0.00   12603         emit_inner_body.constprop.0 [49]
+                0.00    0.00   37809/50412       compile_expr_in_multi [48]
+                0.00    0.00   63015/239457      emitter_note_reg [96]
+                0.00    0.00   37809/50412       emitter_append_list [121]
+                0.00    0.00   12603/75618       emitter_push_with_patch [113]
+                0.00    0.00   12603/226854      emitter_push [97]
+-----------------------------------------------
+                              138633             sc_cte_lookup [50]
+                0.00    0.00     402/63417       leap_compiler_select_compile_compile_select_body [45]
+                0.00    0.00   63015/63417       compile_expr_in_multi [48]
+[50]     0.0    0.00    0.00   63417+138633  sc_cte_lookup [50]
+                0.00    0.00  239457/1098716     eq_ignore_ascii_ptr [41]
+                0.00    0.00  100824/164689      expand_joined_projection [103]
+                0.00    0.00     201/12804       sc_splice_expr_prelude [186]
+                              138633             sc_cte_lookup [50]
+-----------------------------------------------
+                0.00    0.00   12603/38375       run_select [5]
+                0.00    0.00   25772/38375       run_insert [3]
+[51]     0.0    0.00    0.00   38375         leap_vdbe_state_destroy [51]
+                0.00    0.00   38375/38375       vdbe_state_deinit [52]
+-----------------------------------------------
+                0.00    0.00   38375/38375       leap_vdbe_state_destroy [51]
+[52]     0.0    0.00    0.00   38375         vdbe_state_deinit [52]
+                0.00    0.00  349593/1957925339     value_release [14]
+-----------------------------------------------
+                0.00    0.00   25772/25772       leap_opcode_rows_execute [4]
+[53]     0.0    0.00    0.00   25772         leap_storage_cursor_insert_row [53]
+                0.00    0.00   25772/2620200     table_pk_index_insert [37]
+                0.00    0.00  116070/4173489708     value_clone [13]
+                0.00    0.00  464152/464152      ascii_iequal [88]
+                0.00    0.00  116070/270702      value_release [92]
+                0.00    0.00   25772/25835       table_rows_reserve [150]
+                0.00    0.00   25772/25835       table_rowids_reserve [149]
+-----------------------------------------------
+                0.00    0.00   13114/13114       leap_opcode_expr_execute [9]
+[54]     0.0    0.00    0.00   13114         eval_unaryop [54]
+                0.00    0.00   13114/697149508     coerce_numeric [29]
+                0.00    0.00   13114/1386026746     leap_value_is_null [28]
+                0.00    0.00   13114/13114       v_real [182]
+-----------------------------------------------
+                0.00    0.00     201/201         sc_view_lookup_sql [56]
+[55]     0.0    0.00    0.00     201         leap_storage_database_lookup_view [55]
+                0.00    0.00     201/2620200     table_pk_index_insert [37]
+-----------------------------------------------
+                0.00    0.00     201/201         leap_compiler_select_compile_compile_select_body [45]
+[56]     0.0    0.00    0.00     201         sc_view_lookup_sql [56]
+                0.00    0.00     201/201         leap_storage_database_lookup_view [55]
+-----------------------------------------------
+                0.00    0.00      64/64          main [1]
+[57]     0.0    0.00    0.00      64         run_create_table [57]
+                0.00    0.00      63/63          catalog_install_table [58]
+                0.00    0.00   66157/92439       xstrdup_view [109]
+                0.00    0.00      63/39511       leap_parser_tokenize [122]
+                0.00    0.00      63/63          leap_parser_create_table_stmt_parse_create_table [217]
+                0.00    0.00      63/63          leap_create_table_stmt_release [216]
+                0.00    0.00      63/39511       leap_parser_tokens_release [123]
+-----------------------------------------------
+                0.00    0.00      63/63          run_create_table [57]
+[58]     0.0    0.00    0.00      63         catalog_install_table [58]
+                0.00    0.00      63/63          leap_storage_database_install_table_with_pk [59]
+                0.00    0.00     504/504         strview_cstr [204]
+                0.00    0.00     441/13670       text_from_cstr [161]
+                0.00    0.00      63/26282       catalog_find [133]
+                0.00    0.00      63/92439       xstrdup_view [109]
+                0.00    0.00      63/63          xstrdup_cstr [225]
+                0.00    0.00      63/63          lower_dup_cstr [219]
+-----------------------------------------------
+                0.00    0.00      63/63          catalog_install_table [58]
+[59]     0.0    0.00    0.00      63         leap_storage_database_install_table_with_pk [59]
+                0.00    0.00      63/2594290     open_cursor_impl [38]
+                0.00    0.00      63/63          db_tables_reserve [213]
+                0.00    0.00      63/63          table_populate_column_names [222]
+                0.00    0.00      63/63          table_populate_rows [223]
+-----------------------------------------------
+                0.00    0.00     198/198         leap_vdbe_execute_program [2]
+[60]     0.0    0.00    0.00     198         sink [60]
+                0.00    0.00     396/3465183037     leap_vdbe_state_get_register [22]
+-----------------------------------------------
+[61]     0.0    0.00    0.00  131333+395238  <cycle 1 as a whole> [61]
+                0.00    0.00  243456+398         leap_expr_release <cycle 1> [95]
+                0.00    0.00   72235             leap_expr_destroy <cycle 1> [115]
+                0.00    0.00   65952             release_optional_expr <cycle 1> [116]
+                0.00    0.00   39287             leap_table_ref_release <cycle 1> [125]
+                0.00    0.00   26659             leap_projection_item_release <cycle 1> [129]
+                0.00    0.00   26056             leap_table_ref_destroy <cycle 1> [147]
+                0.00    0.00   13231             leap_select_stmt_release <cycle 1> [169]
+                0.00    0.00   13231             leap_group_by_list_release <cycle 1> [165]
+                0.00    0.00   13231             leap_projection_item_list_release <cycle 1> [168]
+                0.00    0.00   13231             release_optional_table_ref <cycle 1> [180]
+                0.00    0.00       2             leap_select_stmt_destroy <cycle 1> [226]
+-----------------------------------------------
+[62]     0.0    0.00    0.00  131333+607587  <cycle 2 as a whole> [62]
+                0.00    0.00  191338+26655       parse_bp <cycle 2> [101]
+                0.00    0.00  217595             parse_prefix <cycle 2> [98]
+                0.00    0.00  171221             leap_parser_expr_parse_expr <cycle 2> [102]
+                0.00    0.00   26659             parse_projection_item <cycle 2> [130]
+                0.00    0.00   13231             leap_parser_select_stmt_parse_select <cycle 2> [167]
+                0.00    0.00   13231             parse_select_inner.constprop.0 <cycle 2> [177]
+                0.00    0.00   13231             parse_select_core <cycle 2> [176]
+                0.00    0.00   13231             parse_having_opt <cycle 2> [172]
+                0.00    0.00   13231             parse_group_by_opt <cycle 2> [171]
+                0.00    0.00   13231             parse_where_opt <cycle 2> [179]
+                0.00    0.00   13231             parse_from_opt <cycle 2> [170]
+                0.00    0.00   13231             parse_table_or_join_group <cycle 2> [178]
+                0.00    0.00   13231             parse_projection_list <cycle 2> [175]
+                0.00    0.00   13028             parse_join_constraint.constprop.0 <cycle 2> [184]
+-----------------------------------------------
+                0.00    0.00 692993990/692993990     leap_vdbe_execute_program [2]
+[63]     0.0    0.00    0.00 692993990         jump_to [63]
+-----------------------------------------------
+                0.00    0.00 4921566/4921566     leap_column_schema_list_release [80]
+[64]     0.0    0.00    0.00 4921566         leap_column_schema_release [64]
+-----------------------------------------------
+                0.00    0.00 4441972/4441972     eq_ignore_ascii_ptr [41]
+[65]     0.0    0.00    0.00 4441972         ascii_tolower [65]
+-----------------------------------------------
+                0.00    0.00 3291324/3291324     leap_parser_tokenize [122]
+[66]     0.0    0.00    0.00 3291324         advance [66]
+-----------------------------------------------
+                0.00    0.00 2594227/2594227     leap_opcode_core_execute [6]
+[67]     0.0    0.00    0.00 2594227         leap_storage_close_cursor [67]
+-----------------------------------------------
+                0.00    0.00 2594227/2594227     leap_opcode_core_execute [6]
+[68]     0.0    0.00    0.00 2594227         leap_storage_open_read_cursor [68]
+-----------------------------------------------
+                0.00    0.00 2594227/2594227     leap_opcode_core_execute [6]
+[69]     0.0    0.00    0.00 2594227         leap_vdbe_state_set_cursor [69]
+-----------------------------------------------
+                0.00    0.00 2594227/2594227     leap_opcode_core_execute [6]
+[70]     0.0    0.00    0.00 2594227         leap_vdbe_state_take_cursor [70]
+-----------------------------------------------
+                0.00    0.00 2568455/2568455     leap_opcode_rows_execute [4]
+[71]     0.0    0.00    0.00 2568455         leap_storage_cursor_rewind [71]
+-----------------------------------------------
+                0.00    0.00 1739000/1739000     ic_eq_ptr [87]
+[72]     0.0    0.00    0.00 1739000         ic_tolower [72]
+-----------------------------------------------
+                0.00    0.00 1666854/1666854     leap_compiler_select_compile_compile_select_with_db [36]
+[73]     0.0    0.00    0.00 1666854         leap_storage_database_table_at [73]
+-----------------------------------------------
+                0.00    0.00 1573180/1573180     ascii_iequal [88]
+[74]     0.0    0.00    0.00 1573180         ascii_lower [74]
+-----------------------------------------------
+                0.00    0.00  244656/1185504     parse_bp <cycle 2> [101]
+                0.00    0.00  940848/1185504     parse_prefix <cycle 2> [98]
+[75]     0.0    0.00    0.00 1185504         err_at [75]
+-----------------------------------------------
+                0.00    0.00 1034611/1034611     leap_parser_tokenize [122]
+[76]     0.0    0.00    0.00 1034611         tv_push [76]
+-----------------------------------------------
+                              655712             err_at [77]
+                0.00    0.00  918139/918139      leap_parser_insert_stmt_parse_insert [142]
+[77]     0.0    0.00    0.00  918139+655712  err_at [77]
+                              655712             err_at [77]
+-----------------------------------------------
+                0.00    0.00   12603/872488      leap_compiler_select_compile_compile_select_multi [47]
+                0.00    0.00   13229/872488      leap_compiler_select_compile_compile_select_body [45]
+                0.00    0.00  846656/872488      leap_compiler_select_compile_compile_select_with_db [36]
+[78]     0.0    0.00    0.00  872488         pk_registry_clear.constprop.0 [78]
+-----------------------------------------------
+                0.00    0.00  833427/833427      leap_compiler_select_compile_compile_select_with_db [36]
+[79]     0.0    0.00    0.00  833427         leap_storage_database_table_pk_at [79]
+-----------------------------------------------
+                0.00    0.00      63/820261      catalog_destroy [228]
+                0.00    0.00  820198/820261      leap_compiler_select_compile_compile_select_with_db [36]
+[80]     0.0    0.00    0.00  820261         leap_column_schema_list_release [80]
+                0.00    0.00 4921566/4921566     leap_column_schema_release [64]
+-----------------------------------------------
+                0.00    0.00      63/820261      catalog_destroy [228]
+                0.00    0.00  820198/820261      leap_compiler_select_compile_compile_select_with_db [36]
+[81]     0.0    0.00    0.00  820261         leap_table_schema_release [81]
+-----------------------------------------------
+                0.00    0.00   25772/747900      leap_compiler_insert_compile_compile_insert_with_source [152]
+                0.00    0.00  193386/747900      leap_compiler_insert_compile_compile_insert [43]
+                0.00    0.00  528742/747900      schema_has_column [108]
+[82]     0.0    0.00    0.00  747900         ic_map_unop [82]
+-----------------------------------------------
+                              423354             err_at [83]
+                0.00    0.00   13231/740876      parse_limit_opt [173]
+                0.00    0.00   13231/740876      parse_order_by_opt.constprop.0 [174]
+                0.00    0.00   13430/740876      parse_having_opt <cycle 2> [172]
+                0.00    0.00   13828/740876      parse_group_by_opt <cycle 2> [171]
+                0.00    0.00   26056/740876      parse_join_constraint.constprop.0 <cycle 2> [184]
+                0.00    0.00   26263/740876      parse_where_opt <cycle 2> [179]
+                0.00    0.00   26462/740876      parse_from_opt <cycle 2> [170]
+                0.00    0.00   26462/740876      leap_parser_select_stmt_parse_select <cycle 2> [167]
+                0.00    0.00   65546/740876      parse_table_or_join_group <cycle 2> [178]
+                0.00    0.00   66155/740876      parse_select_inner.constprop.0 <cycle 2> [177]
+                0.00    0.00   66549/740876      parse_projection_list <cycle 2> [175]
+                0.00    0.00   92617/740876      parse_select_core <cycle 2> [176]
+                0.00    0.00  105036/740876      parse_table_atom [136]
+                0.00    0.00  186010/740876      parse_projection_item <cycle 2> [130]
+[83]     0.0    0.00    0.00  740876+423354  err_at [83]
+                              423354             err_at [83]
+-----------------------------------------------
+                0.00    0.00   75618/661102      emitter_push_with_patch [113]
+                0.00    0.00   94575/661102      compile_expr_in_multi [48]
+                0.00    0.00  122464/661102      leap_compiler_insert_compile_compile_insert [43]
+                0.00    0.00  141591/661102      leap_compiler_expr_compile_compile_expr [42]
+                0.00    0.00  226854/661102      emitter_push [97]
+[84]     0.0    0.00    0.00  661102         leap_opcode_list_push [84]
+-----------------------------------------------
+                0.00    0.00  171221/606809      leap_parser_expr_parse_expr <cycle 2> [102]
+                0.00    0.00  217595/606809      parse_prefix <cycle 2> [98]
+                0.00    0.00  217993/606809      parse_bp <cycle 2> [101]
+[85]     0.0    0.00    0.00  606809         ok_sentinel [85]
+-----------------------------------------------
+                0.00    0.00  600194/600194      leap_parser_tokenize [122]
+[86]     0.0    0.00    0.00  600194         unit_kind [86]
+-----------------------------------------------
+                0.00    0.00   25772/464216      leap_compiler_insert_compile_compile_insert [43]
+                0.00    0.00   25772/464216      leap_compiler_insert_compile_compile_insert_with_source [152]
+                0.00    0.00  412672/464216      schema_has_column [108]
+[87]     0.0    0.00    0.00  464216         ic_eq_ptr [87]
+                0.00    0.00 1739000/1739000     ic_tolower [72]
+-----------------------------------------------
+                0.00    0.00  464152/464152      leap_storage_cursor_insert_row [53]
+[88]     0.0    0.00    0.00  464152         ascii_iequal [88]
+                0.00    0.00 1573180/1573180     ascii_lower [74]
+-----------------------------------------------
+                0.00    0.00  448142/448142      leap_parser_tokenize [122]
+[89]     0.0    0.00    0.00  448142         kw_lookup [89]
+-----------------------------------------------
+                0.00    0.00   20117/435590      parse_prefix <cycle 2> [98]
+                0.00    0.00  171221/435590      leap_parser_expr_parse_expr <cycle 2> [102]
+                0.00    0.00  244252/435590      parse_bp <cycle 2> [101]
+[90]     0.0    0.00    0.00  435590         is_ok [90]
+-----------------------------------------------
+                0.00    0.00  434417/434417      leap_parser_tokenize [122]
+[91]     0.0    0.00    0.00  434417         text_kind [91]
+-----------------------------------------------
+                0.00    0.00  116070/270702      leap_storage_cursor_insert_row [53]
+                0.00    0.00  154632/270702      row_release [155]
+[92]     0.0    0.00    0.00  270702         value_release [92]
+-----------------------------------------------
+                0.00    0.00     199/263016      leap_group_by_list_release <cycle 1> [165]
+                0.00    0.00   26062/263016      leap_projection_item_release <cycle 1> [129]
+                0.00    0.00   65474/263016      leap_expr_destroy <cycle 1> [115]
+                0.00    0.00   66334/263016      leap_expr_release <cycle 1> [95]
+                0.00    0.00  104947/263016      release_expr_list [144]
+[93]     0.0    0.00    0.00  263016         leap_text_release_local [93]
+-----------------------------------------------
+                0.00    0.00  243852/243852      parse_bp <cycle 2> [101]
+[94]     0.0    0.00    0.00  243852         infix_lookup [94]
+-----------------------------------------------
+                                 398             leap_expr_release <cycle 1> [95]
+                                 199             leap_group_by_list_release <cycle 1> [165]
+                               26259             release_optional_expr <cycle 1> [116]
+                               26659             leap_projection_item_release <cycle 1> [129]
+                               72235             leap_expr_destroy <cycle 1> [115]
+                0.00    0.00  118104/131333      release_expr_list [144]
+[95]     0.0    0.00    0.00  243456+398     leap_expr_release <cycle 1> [95]
+                0.00    0.00   66334/263016      leap_text_release_local [93]
+                               72235             leap_expr_destroy <cycle 1> [115]
+                                   2             leap_select_stmt_destroy <cycle 1> [226]
+                                 398             leap_expr_release <cycle 1> [95]
+-----------------------------------------------
+                0.00    0.00   63015/239457      emit_inner_body.constprop.0 [49]
+                0.00    0.00  176442/239457      compile_joined_select [46]
+[96]     0.0    0.00    0.00  239457         emitter_note_reg [96]
+-----------------------------------------------
+                0.00    0.00   12603/226854      emit_inner_body.constprop.0 [49]
+                0.00    0.00  214251/226854      compile_joined_select [46]
+[97]     0.0    0.00    0.00  226854         emitter_push [97]
+                0.00    0.00  226854/661102      leap_opcode_list_push [84]
+-----------------------------------------------
+                              217595             parse_bp <cycle 2> [101]
+[98]     0.0    0.00    0.00  217595         parse_prefix <cycle 2> [98]
+                0.00    0.00  940848/1185504     err_at [75]
+                0.00    0.00  217595/606809      ok_sentinel [85]
+                0.00    0.00   20117/435590      is_ok [90]
+                0.00    0.00   19719/72235       expr_heap_dup [114]
+                               20117             parse_bp <cycle 2> [101]
+-----------------------------------------------
+                0.00    0.00   13028/211487      parse_join_constraint.constprop.0 <cycle 2> [184]
+                0.00    0.00   13231/211487      parse_limit_opt [173]
+                0.00    0.00   13231/211487      parse_having_opt <cycle 2> [172]
+                0.00    0.00   13231/211487      parse_where_opt <cycle 2> [179]
+                0.00    0.00   13231/211487      parse_projection_list <cycle 2> [175]
+                0.00    0.00   13231/211487      parse_group_by_opt <cycle 2> [171]
+                0.00    0.00   13231/211487      parse_order_by_opt.constprop.0 [174]
+                0.00    0.00   13231/211487      parse_select_inner.constprop.0 <cycle 2> [177]
+                0.00    0.00   13231/211487      parse_table_or_join_group <cycle 2> [178]
+                0.00    0.00   13231/211487      parse_from_opt <cycle 2> [170]
+                0.00    0.00   13231/211487      parse_select_core <cycle 2> [176]
+                0.00    0.00   13231/211487      leap_parser_select_stmt_parse_select <cycle 2> [167]
+                0.00    0.00   26259/211487      parse_table_atom [136]
+                0.00    0.00   26659/211487      parse_projection_item <cycle 2> [130]
+[99]     0.0    0.00    0.00  211487         err_ok [99]
+-----------------------------------------------
+                0.00    0.00   25206/191688      compile_expr_in_multi [48]
+                0.00    0.00   50412/191688      emitter_append_list [121]
+                0.00    0.00  116070/191688      leap_compiler_insert_compile_compile_insert [43]
+[100]    0.0    0.00    0.00  191688         leap_opcode_list_append [100]
+-----------------------------------------------
+                               26655             parse_bp <cycle 2> [101]
+                               20117             parse_prefix <cycle 2> [98]
+                              171221             leap_parser_expr_parse_expr <cycle 2> [102]
+[101]    0.0    0.00    0.00  191338+26655   parse_bp <cycle 2> [101]
+                0.00    0.00  244656/1185504     err_at [75]
+                0.00    0.00  244252/435590      is_ok [90]
+                0.00    0.00  243852/243852      infix_lookup [94]
+                0.00    0.00  217993/606809      ok_sentinel [85]
+                0.00    0.00   52516/72235       expr_heap_dup [114]
+                              217595             parse_prefix <cycle 2> [98]
+                                   2             leap_parser_select_stmt_parse_select <cycle 2> [167]
+                               26655             parse_bp <cycle 2> [101]
+-----------------------------------------------
+                                 199             parse_having_opt <cycle 2> [172]
+                                 199             parse_group_by_opt <cycle 2> [171]
+                               13028             parse_join_constraint.constprop.0 <cycle 2> [184]
+                               13032             parse_where_opt <cycle 2> [179]
+                               26659             parse_projection_item <cycle 2> [130]
+                0.00    0.00  118104/131333      leap_parser_insert_stmt_parse_insert [142]
+[102]    0.0    0.00    0.00  171221         leap_parser_expr_parse_expr <cycle 2> [102]
+                0.00    0.00  171221/435590      is_ok [90]
+                0.00    0.00  171221/606809      ok_sentinel [85]
+                              171221             parse_bp <cycle 2> [101]
+-----------------------------------------------
+                0.00    0.00   12603/164689      compile_joined_select [46]
+                0.00    0.00   51262/164689      flatten_from [120]
+                0.00    0.00  100824/164689      sc_cte_lookup [50]
+[103]    0.0    0.00    0.00  164689         expand_joined_projection [103]
+                0.00    0.00   25206/25206       expr_ref_list_push_ptr [159]
+                0.00    0.00   12603/12603       expr_ref_list_init [192]
+-----------------------------------------------
+                0.00    0.00  144323/144323      leap_parser_insert_stmt_parse_insert [142]
+[104]    0.0    0.00    0.00  144323         leap_text_from_borrowed [104]
+-----------------------------------------------
+                0.00    0.00   26219/144323      leap_insert_stmt_release [141]
+                0.00    0.00  118104/144323      leap_insert_column_list_release [138]
+[105]    0.0    0.00    0.00  144323         leap_text_release_local [105]
+-----------------------------------------------
+                0.00    0.00  118104/118104      leap_parser_insert_stmt_parse_insert [142]
+[106]    0.0    0.00    0.00  118104         column_list_push [106]
+-----------------------------------------------
+                0.00    0.00  118104/118104      leap_parser_insert_stmt_parse_insert [142]
+[107]    0.0    0.00    0.00  118104         expr_list_push [107]
+-----------------------------------------------
+                0.00    0.00  116070/116070      leap_compiler_insert_compile_compile_insert [43]
+[108]    0.0    0.00    0.00  116070         schema_has_column [108]
+                0.00    0.00  528742/747900      ic_map_unop [82]
+                0.00    0.00  412672/464216      ic_eq_ptr [87]
+-----------------------------------------------
+                0.00    0.00      63/92439       catalog_install_table [58]
+                0.00    0.00   26219/92439       run_insert [3]
+                0.00    0.00   66157/92439       run_create_table [57]
+[109]    0.0    0.00    0.00   92439         xstrdup_view [109]
+-----------------------------------------------
+                0.00    0.00   89983/89983       leap_compiler_expr_compile_compile_expr [42]
+[110]    0.0    0.00    0.00   89983         ascii_iequal [110]
+-----------------------------------------------
+                0.00    0.00   75618/75618       compile_joined_select [46]
+[111]    0.0    0.00    0.00   75618         emitter_bind_here [111]
+-----------------------------------------------
+                0.00    0.00   75618/75618       compile_joined_select [46]
+[112]    0.0    0.00    0.00   75618         emitter_fresh_label [112]
+-----------------------------------------------
+                0.00    0.00   12603/75618       emit_inner_body.constprop.0 [49]
+                0.00    0.00   63015/75618       compile_joined_select [46]
+[113]    0.0    0.00    0.00   75618         emitter_push_with_patch [113]
+                0.00    0.00   75618/661102      leap_opcode_list_push [84]
+-----------------------------------------------
+                0.00    0.00   19719/72235       parse_prefix <cycle 2> [98]
+                0.00    0.00   52516/72235       parse_bp <cycle 2> [101]
+[114]    0.0    0.00    0.00   72235         expr_heap_dup [114]
+-----------------------------------------------
+                               72235             leap_expr_release <cycle 1> [95]
+[115]    0.0    0.00    0.00   72235         leap_expr_destroy <cycle 1> [115]
+                0.00    0.00   65474/263016      leap_text_release_local [93]
+                               72235             leap_expr_release <cycle 1> [95]
+-----------------------------------------------
+                               13028             leap_table_ref_release <cycle 1> [125]
+                               52924             leap_select_stmt_release <cycle 1> [169]
+[116]    0.0    0.00    0.00   65952         release_optional_expr <cycle 1> [116]
+                               26259             leap_expr_release <cycle 1> [95]
+-----------------------------------------------
+                0.00    0.00   65653/65653       main [1]
+[117]    0.0    0.00    0.00   65653         classify [117]
+-----------------------------------------------
+                0.00    0.00   12603/64207       emitter_release [190]
+                0.00    0.00   12603/64207       leap_compile_select_ok_release [194]
+                0.00    0.00   13229/64207       leap_compiler_select_compile_compile_select_with_db [36]
+                0.00    0.00   25772/64207       leap_compile_insert_ok_release [151]
+[118]    0.0    0.00    0.00   64207         leap_opcode_list_release [118]
+-----------------------------------------------
+                0.00    0.00   51262/51262       flatten_from [120]
+[119]    0.0    0.00    0.00   51262         join_source_list_push [119]
+-----------------------------------------------
+                               51262             flatten_from [120]
+                0.00    0.00   12603/50837       sc_splice_expr_prelude [186]
+                0.00    0.00   13028/50837       leap_compiler_select_compile_compile_select_body [45]
+                0.00    0.00   25206/50837       compile_joined_select [46]
+[120]    0.0    0.00    0.00   50837+51262   flatten_from [120]
+                0.00    0.00   51262/164689      expand_joined_projection [103]
+                0.00    0.00   51262/51262       join_source_list_push [119]
+                               51262             flatten_from [120]
+-----------------------------------------------
+                0.00    0.00   12603/50412       compile_joined_select [46]
+                0.00    0.00   37809/50412       emit_inner_body.constprop.0 [49]
+[121]    0.0    0.00    0.00   50412         emitter_append_list [121]
+                0.00    0.00   50412/191688      leap_opcode_list_append [100]
+-----------------------------------------------
+                0.00    0.00      63/39511       run_create_table [57]
+                0.00    0.00   13229/39511       run_select [5]
+                0.00    0.00   26219/39511       run_insert [3]
+[122]    0.0    0.00    0.00   39511         leap_parser_tokenize [122]
+                0.00    0.00 3291324/3291324     advance [66]
+                0.00    0.00 1034611/1034611     tv_push [76]
+                0.00    0.00  600194/600194      unit_kind [86]
+                0.00    0.00  448142/448142      kw_lookup [89]
+                0.00    0.00  434417/434417      text_kind [91]
+-----------------------------------------------
+                0.00    0.00      63/39511       run_create_table [57]
+                0.00    0.00   13229/39511       run_select [5]
+                0.00    0.00   26219/39511       run_insert [3]
+[123]    0.0    0.00    0.00   39511         leap_parser_tokens_release [123]
+-----------------------------------------------
+                0.00    0.00     626/39316       leap_compile_error_make [201]
+                0.00    0.00   38690/39316       leap_compiler_expr_compile_compile_expr [42]
+[124]    0.0    0.00    0.00   39316         leap_text_dup [124]
+-----------------------------------------------
+                               13231             release_optional_table_ref <cycle 1> [180]
+                               26056             leap_table_ref_destroy <cycle 1> [147]
+[125]    0.0    0.00    0.00   39287         leap_table_ref_release <cycle 1> [125]
+                0.00    0.00   26259/26259       leap_text_release [135]
+                               26056             leap_table_ref_destroy <cycle 1> [147]
+                               13028             release_optional_expr <cycle 1> [116]
+-----------------------------------------------
+                0.00    0.00   38375/38375       leap_vdbe_execute_program [2]
+[126]    0.0    0.00    0.00   38375         halt_ok_outcome [126]
+-----------------------------------------------
+                0.00    0.00   12603/38375       run_select [5]
+                0.00    0.00   25772/38375       run_insert [3]
+[127]    0.0    0.00    0.00   38375         leap_vdbe_state_new [127]
+                0.00    0.00   38375/38375       vdbe_state_init [128]
+-----------------------------------------------
+                0.00    0.00   38375/38375       leap_vdbe_state_new [127]
+[128]    0.0    0.00    0.00   38375         vdbe_state_init [128]
+-----------------------------------------------
+                               26659             leap_projection_item_list_release <cycle 1> [168]
+[129]    0.0    0.00    0.00   26659         leap_projection_item_release <cycle 1> [129]
+                0.00    0.00   26062/263016      leap_text_release_local [93]
+                               26659             leap_expr_release <cycle 1> [95]
+-----------------------------------------------
+                               26659             parse_projection_list <cycle 2> [175]
+[130]    0.0    0.00    0.00   26659         parse_projection_item <cycle 2> [130]
+                0.00    0.00  186010/740876      err_at [83]
+                0.00    0.00   26659/211487      err_ok [99]
+                               26659             leap_parser_expr_parse_expr <cycle 2> [102]
+-----------------------------------------------
+                0.00    0.00   26659/26659       parse_projection_list <cycle 2> [175]
+[131]    0.0    0.00    0.00   26659         projection_list_push [131]
+-----------------------------------------------
+                0.00    0.00   26458/26458       leap_compiler_select_compile_compile_select_with_db [36]
+[132]    0.0    0.00    0.00   26458         leap_storage_database_table_count [132]
+-----------------------------------------------
+                0.00    0.00      63/26282       catalog_install_table [58]
+                0.00    0.00   26219/26282       run_insert [3]
+[133]    0.0    0.00    0.00   26282         catalog_find [133]
+-----------------------------------------------
+                0.00    0.00   26259/26259       parse_table_atom [136]
+[134]    0.0    0.00    0.00   26259         leap_text_from_borrowed [134]
+-----------------------------------------------
+                0.00    0.00   26259/26259       leap_table_ref_release <cycle 1> [125]
+[135]    0.0    0.00    0.00   26259         leap_text_release [135]
+-----------------------------------------------
+                0.00    0.00   26259/26259       parse_table_or_join_group <cycle 2> [178]
+[136]    0.0    0.00    0.00   26259         parse_table_atom [136]
+                0.00    0.00  105036/740876      err_at [83]
+                0.00    0.00   26259/26259       leap_text_from_borrowed [134]
+                0.00    0.00   26259/211487      err_ok [99]
+-----------------------------------------------
+                0.00    0.00   26219/26219       leap_parser_insert_stmt_parse_insert [142]
+[137]    0.0    0.00    0.00   26219         err_ok [137]
+-----------------------------------------------
+                0.00    0.00   26219/26219       leap_insert_stmt_release [141]
+[138]    0.0    0.00    0.00   26219         leap_insert_column_list_release [138]
+                0.00    0.00  118104/144323      leap_text_release_local [105]
+-----------------------------------------------
+                0.00    0.00   26219/26219       leap_insert_stmt_release [141]
+[139]    0.0    0.00    0.00   26219         leap_insert_row_list_release [139]
+                0.00    0.00   26219/26219       release_expr_list [144]
+                0.00    0.00   26219/26219       leap_insert_row_release [140]
+-----------------------------------------------
+                0.00    0.00   26219/26219       leap_insert_row_list_release [139]
+[140]    0.0    0.00    0.00   26219         leap_insert_row_release [140]
+-----------------------------------------------
+                0.00    0.00   26219/26219       run_insert [3]
+[141]    0.0    0.00    0.00   26219         leap_insert_stmt_release [141]
+                0.00    0.00   26219/26219       leap_insert_column_list_release [138]
+                0.00    0.00   26219/144323      leap_text_release_local [105]
+                0.00    0.00   26219/26219       leap_insert_row_list_release [139]
+                0.00    0.00   26219/26219       leap_result_column_list_release [143]
+-----------------------------------------------
+                0.00    0.00   26219/26219       run_insert [3]
+[142]    0.0    0.00    0.00   26219         leap_parser_insert_stmt_parse_insert [142]
+                0.00    0.00  918139/918139      err_at [77]
+                0.00    0.00  144323/144323      leap_text_from_borrowed [104]
+                0.00    0.00  118104/118104      column_list_push [106]
+                0.00    0.00  118104/131333      leap_parser_expr_parse_expr <cycle 2> [102]
+                0.00    0.00  118104/118104      expr_list_push [107]
+                0.00    0.00   26219/26219       row_list_push [145]
+                0.00    0.00   26219/26219       err_ok [137]
+-----------------------------------------------
+                0.00    0.00   26219/26219       leap_insert_stmt_release [141]
+[143]    0.0    0.00    0.00   26219         leap_result_column_list_release [143]
+-----------------------------------------------
+                0.00    0.00   26219/26219       leap_insert_row_list_release [139]
+[144]    0.0    0.00    0.00   26219         release_expr_list [144]
+                0.00    0.00  118104/131333      leap_expr_release <cycle 1> [95]
+                0.00    0.00  104947/263016      leap_text_release_local [93]
+-----------------------------------------------
+                0.00    0.00   26219/26219       leap_parser_insert_stmt_parse_insert [142]
+[145]    0.0    0.00    0.00   26219         row_list_push [145]
+-----------------------------------------------
+                0.00    0.00   26059/26059       leap_compiler_select_compile_compile_select_body [45]
+[146]    0.0    0.00    0.00   26059         sc_schema_lookup [146]
+-----------------------------------------------
+                               26056             leap_table_ref_release <cycle 1> [125]
+[147]    0.0    0.00    0.00   26056         leap_table_ref_destroy <cycle 1> [147]
+                               26056             leap_table_ref_release <cycle 1> [125]
+-----------------------------------------------
+                0.00    0.00      63/25835       table_populate_rows [223]
+                0.00    0.00   25772/25835       table_pk_index_insert [37]
+[148]    0.0    0.00    0.00   25835         table_pk_index_reserve [148]
+-----------------------------------------------
+                0.00    0.00      63/25835       table_populate_rows [223]
+                0.00    0.00   25772/25835       leap_storage_cursor_insert_row [53]
+[149]    0.0    0.00    0.00   25835         table_rowids_reserve [149]
+-----------------------------------------------
+                0.00    0.00      63/25835       table_populate_rows [223]
+                0.00    0.00   25772/25835       leap_storage_cursor_insert_row [53]
+[150]    0.0    0.00    0.00   25835         table_rows_reserve [150]
+-----------------------------------------------
+                0.00    0.00   25772/25772       run_insert [3]
+[151]    0.0    0.00    0.00   25772         leap_compile_insert_ok_release [151]
+                0.00    0.00   25772/64207       leap_opcode_list_release [118]
+-----------------------------------------------
+                0.00    0.00   25772/25772       run_insert [3]
+[152]    0.0    0.00    0.00   25772         leap_compiler_insert_compile_compile_insert_with_source [152]
+                0.00    0.00   25772/464216      ic_eq_ptr [87]
+                0.00    0.00   25772/747900      ic_map_unop [82]
+-----------------------------------------------
+                0.00    0.00   25772/25772       leap_opcode_core_execute [6]
+[153]    0.0    0.00    0.00   25772         leap_storage_open_write_cursor [153]
+-----------------------------------------------
+                0.00    0.00   25772/25772       table_pk_index_insert [37]
+[154]    0.0    0.00    0.00   25772         pk_index_lower_bound [154]
+-----------------------------------------------
+                0.00    0.00   25772/25772       table_clear_rows [221]
+[155]    0.0    0.00    0.00   25772         row_release [155]
+                0.00    0.00  154632/270702      value_release [92]
+-----------------------------------------------
+                0.00    0.00   12603/25631       compile_joined_select [46]
+                0.00    0.00   13028/25631       leap_compiler_select_compile_compile_select_body [45]
+[156]    0.0    0.00    0.00   25631         join_source_list_init [156]
+-----------------------------------------------
+                0.00    0.00   12603/25631       compile_joined_select [46]
+                0.00    0.00   13028/25631       leap_compiler_select_compile_compile_select_body [45]
+[157]    0.0    0.00    0.00   25631         join_source_list_release [157]
+-----------------------------------------------
+                0.00    0.00   25206/25206       select_needs_aggregate [195]
+[158]    0.0    0.00    0.00   25206         collect_aggregates_c [158]
+-----------------------------------------------
+                0.00    0.00   25206/25206       expand_joined_projection [103]
+[159]    0.0    0.00    0.00   25206         expr_ref_list_push_ptr [159]
+-----------------------------------------------
+                0.00    0.00   25206/25206       compile_expr_in_multi [48]
+[160]    0.0    0.00    0.00   25206         sc_map_binop [160]
+-----------------------------------------------
+                0.00    0.00     441/13670       catalog_install_table [58]
+                0.00    0.00   13229/13670       run_select [5]
+[161]    0.0    0.00    0.00   13670         text_from_cstr [161]
+-----------------------------------------------
+                0.00    0.00   13231/13231       leap_parser_select_stmt_parse_select <cycle 2> [167]
+[162]    0.0    0.00    0.00   13231         is_statement_boundary_tag [162]
+-----------------------------------------------
+                0.00    0.00   13231/13231       leap_select_stmt_release <cycle 1> [169]
+[163]    0.0    0.00    0.00   13231         leap_compound_tail_list_release [163]
+-----------------------------------------------
+                0.00    0.00   13231/13231       leap_select_stmt_release <cycle 1> [169]
+[164]    0.0    0.00    0.00   13231         leap_cte_binding_list_release [164]
+-----------------------------------------------
+                               13231             leap_select_stmt_release <cycle 1> [169]
+[165]    0.0    0.00    0.00   13231         leap_group_by_list_release <cycle 1> [165]
+                0.00    0.00     199/263016      leap_text_release_local [93]
+                                 199             leap_expr_release <cycle 1> [95]
+-----------------------------------------------
+                0.00    0.00   13231/13231       leap_select_stmt_release <cycle 1> [169]
+[166]    0.0    0.00    0.00   13231         leap_order_by_item_list_release [166]
+-----------------------------------------------
+                                   2             parse_bp <cycle 2> [101]
+                0.00    0.00   13229/131333      run_select [5]
+[167]    0.0    0.00    0.00   13231         leap_parser_select_stmt_parse_select <cycle 2> [167]
+                0.00    0.00   26462/740876      err_at [83]
+                0.00    0.00   13231/13231       is_statement_boundary_tag [162]
+                0.00    0.00   13231/211487      err_ok [99]
+                               13231             parse_select_inner.constprop.0 <cycle 2> [177]
+-----------------------------------------------
+                               13231             leap_select_stmt_release <cycle 1> [169]
+[168]    0.0    0.00    0.00   13231         leap_projection_item_list_release <cycle 1> [168]
+                               26659             leap_projection_item_release <cycle 1> [129]
+-----------------------------------------------
+                                   2             leap_select_stmt_destroy <cycle 1> [226]
+                0.00    0.00   13229/131333      run_select [5]
+[169]    0.0    0.00    0.00   13231         leap_select_stmt_release <cycle 1> [169]
+                0.00    0.00   13231/13231       leap_order_by_item_list_release [166]
+                0.00    0.00   13231/13231       leap_cte_binding_list_release [164]
+                0.00    0.00   13231/13231       leap_compound_tail_list_release [163]
+                               52924             release_optional_expr <cycle 1> [116]
+                               13231             release_optional_table_ref <cycle 1> [180]
+                               13231             leap_projection_item_list_release <cycle 1> [168]
+                               13231             leap_group_by_list_release <cycle 1> [165]
+-----------------------------------------------
+                               13231             parse_select_core <cycle 2> [176]
+[170]    0.0    0.00    0.00   13231         parse_from_opt <cycle 2> [170]
+                0.00    0.00   26462/740876      err_at [83]
+                0.00    0.00   13231/211487      err_ok [99]
+                               13231             parse_table_or_join_group <cycle 2> [178]
+-----------------------------------------------
+                               13231             parse_select_core <cycle 2> [176]
+[171]    0.0    0.00    0.00   13231         parse_group_by_opt <cycle 2> [171]
+                0.00    0.00   13828/740876      err_at [83]
+                0.00    0.00   13231/211487      err_ok [99]
+                0.00    0.00     199/199         group_by_list_push [210]
+                                 199             leap_parser_expr_parse_expr <cycle 2> [102]
+-----------------------------------------------
+                               13231             parse_select_core <cycle 2> [176]
+[172]    0.0    0.00    0.00   13231         parse_having_opt <cycle 2> [172]
+                0.00    0.00   13430/740876      err_at [83]
+                0.00    0.00   13231/211487      err_ok [99]
+                                 199             leap_parser_expr_parse_expr <cycle 2> [102]
+-----------------------------------------------
+                0.00    0.00   13231/13231       parse_select_inner.constprop.0 <cycle 2> [177]
+[173]    0.0    0.00    0.00   13231         parse_limit_opt [173]
+                0.00    0.00   13231/740876      err_at [83]
+                0.00    0.00   13231/211487      err_ok [99]
+-----------------------------------------------
+                0.00    0.00   13231/13231       parse_select_inner.constprop.0 <cycle 2> [177]
+[174]    0.0    0.00    0.00   13231         parse_order_by_opt.constprop.0 [174]
+                0.00    0.00   13231/740876      err_at [83]
+                0.00    0.00   13231/211487      err_ok [99]
+-----------------------------------------------
+                               13231             parse_select_core <cycle 2> [176]
+[175]    0.0    0.00    0.00   13231         parse_projection_list <cycle 2> [175]
+                0.00    0.00   66549/740876      err_at [83]
+                0.00    0.00   26659/26659       projection_list_push [131]
+                0.00    0.00   13231/211487      err_ok [99]
+                               26659             parse_projection_item <cycle 2> [130]
+-----------------------------------------------
+                               13231             parse_select_inner.constprop.0 <cycle 2> [177]
+[176]    0.0    0.00    0.00   13231         parse_select_core <cycle 2> [176]
+                0.00    0.00   92617/740876      err_at [83]
+                0.00    0.00   13231/211487      err_ok [99]
+                               13231             parse_projection_list <cycle 2> [175]
+                               13231             parse_from_opt <cycle 2> [170]
+                               13231             parse_where_opt <cycle 2> [179]
+                               13231             parse_group_by_opt <cycle 2> [171]
+                               13231             parse_having_opt <cycle 2> [172]
+-----------------------------------------------
+                               13231             leap_parser_select_stmt_parse_select <cycle 2> [167]
+[177]    0.0    0.00    0.00   13231         parse_select_inner.constprop.0 <cycle 2> [177]
+                0.00    0.00   66155/740876      err_at [83]
+                0.00    0.00   13231/13231       parse_order_by_opt.constprop.0 [174]
+                0.00    0.00   13231/13231       parse_limit_opt [173]
+                0.00    0.00   13231/211487      err_ok [99]
+                               13231             parse_select_core <cycle 2> [176]
+-----------------------------------------------
+                               13231             parse_from_opt <cycle 2> [170]
+[178]    0.0    0.00    0.00   13231         parse_table_or_join_group <cycle 2> [178]
+                0.00    0.00   65546/740876      err_at [83]
+                0.00    0.00   26259/26259       parse_table_atom [136]
+                0.00    0.00   13231/211487      err_ok [99]
+                               13028             parse_join_constraint.constprop.0 <cycle 2> [184]
+-----------------------------------------------
+                               13231             parse_select_core <cycle 2> [176]
+[179]    0.0    0.00    0.00   13231         parse_where_opt <cycle 2> [179]
+                0.00    0.00   26263/740876      err_at [83]
+                0.00    0.00   13231/211487      err_ok [99]
+                               13032             leap_parser_expr_parse_expr <cycle 2> [102]
+-----------------------------------------------
+                               13231             leap_select_stmt_release <cycle 1> [169]
+[180]    0.0    0.00    0.00   13231         release_optional_table_ref <cycle 1> [180]
+                0.00    0.00   13028/13028       leap_string_list_release [183]
+                               13231             leap_table_ref_release <cycle 1> [125]
+-----------------------------------------------
+                0.00    0.00   13229/13229       run_select [5]
+[181]    0.0    0.00    0.00   13229         catalog_first_schema [181]
+-----------------------------------------------
+                0.00    0.00   13114/13114       eval_unaryop [54]
+[182]    0.0    0.00    0.00   13114         v_real [182]
+-----------------------------------------------
+                0.00    0.00   13028/13028       release_optional_table_ref <cycle 1> [180]
+[183]    0.0    0.00    0.00   13028         leap_string_list_release [183]
+-----------------------------------------------
+                               13028             parse_table_or_join_group <cycle 2> [178]
+[184]    0.0    0.00    0.00   13028         parse_join_constraint.constprop.0 <cycle 2> [184]
+                0.00    0.00   26056/740876      err_at [83]
+                0.00    0.00   13028/211487      err_ok [99]
+                               13028             leap_parser_expr_parse_expr <cycle 2> [102]
+-----------------------------------------------
+                0.00    0.00   12918/12918       leap_compiler_expr_compile_compile_expr [42]
+[185]    0.0    0.00    0.00   12918         map_unop [185]
+-----------------------------------------------
+                0.00    0.00     201/12804       sc_cte_lookup [50]
+                0.00    0.00   12603/12804       leap_compiler_select_compile_compile_select_with_db [36]
+[186]    0.0    0.00    0.00   12804         sc_splice_expr_prelude [186]
+                0.00    0.00   12603/50837       flatten_from [120]
+-----------------------------------------------
+                0.00    0.00   12603/12603       leap_compiler_select_compile_compile_select_multi [47]
+[187]    0.0    0.00    0.00   12603         agg_slot_list_init [187]
+-----------------------------------------------
+                0.00    0.00   12603/12603       leap_compiler_select_compile_compile_select_multi [47]
+[188]    0.0    0.00    0.00   12603         agg_slot_list_release [188]
+-----------------------------------------------
+                0.00    0.00   12603/12603       compile_joined_select [46]
+[189]    0.0    0.00    0.00   12603         emitter_init [189]
+-----------------------------------------------
+                0.00    0.00   12603/12603       compile_joined_select [46]
+[190]    0.0    0.00    0.00   12603         emitter_release [190]
+                0.00    0.00   12603/64207       leap_opcode_list_release [118]
+-----------------------------------------------
+                0.00    0.00   12603/12603       compile_joined_select [46]
+[191]    0.0    0.00    0.00   12603         emitter_resolve [191]
+-----------------------------------------------
+                0.00    0.00   12603/12603       expand_joined_projection [103]
+[192]    0.0    0.00    0.00   12603         expr_ref_list_init [192]
+-----------------------------------------------
+                0.00    0.00   12603/12603       compile_joined_select [46]
+[193]    0.0    0.00    0.00   12603         expr_ref_list_release [193]
+-----------------------------------------------
+                0.00    0.00   12603/12603       run_select [5]
+[194]    0.0    0.00    0.00   12603         leap_compile_select_ok_release [194]
+                0.00    0.00   12603/64207       leap_opcode_list_release [118]
+-----------------------------------------------
+                0.00    0.00   12603/12603       leap_compiler_select_compile_compile_select_multi [47]
+[195]    0.0    0.00    0.00   12603         select_needs_aggregate [195]
+                0.00    0.00   25206/25206       collect_aggregates_c [158]
+-----------------------------------------------
+                0.00    0.00    6354/6354        compile_expr_in_multi [48]
+[196]    0.0    0.00    0.00    6354         sc_map_unop [196]
+-----------------------------------------------
+                                2835             err_at [197]
+                0.00    0.00    1071/5607        leap_column_constraint_list_release [200]
+                0.00    0.00    1890/5607        leap_parser_create_table_stmt_parse_create_table [217]
+                0.00    0.00    2646/5607        leap_parser_create_table_stmt_parse_column_def [208]
+[197]    0.0    0.00    0.00    5607+2835    err_at [197]
+                                2835             err_at [197]
+-----------------------------------------------
+                0.00    0.00      63/819         leap_parser_create_table_stmt_parse_create_table [217]
+                0.00    0.00     378/819         leap_column_constraint_list_release [200]
+                0.00    0.00     378/819         leap_parser_create_table_stmt_parse_column_def [208]
+[198]    0.0    0.00    0.00     819         err_ok [198]
+-----------------------------------------------
+                0.00    0.00      63/819         leap_create_table_stmt_release [216]
+                0.00    0.00     756/819         leap_column_def_release [207]
+[199]    0.0    0.00    0.00     819         text_release [199]
+-----------------------------------------------
+                0.00    0.00     378/756         leap_column_def_list_release [215]
+                0.00    0.00     378/756         leap_parser_create_table_stmt_parse_column_def [208]
+[200]    0.0    0.00    0.00     756         leap_column_constraint_list_release [200]
+                0.00    0.00    1071/5607        err_at [197]
+                0.00    0.00     378/819         err_ok [198]
+                0.00    0.00      63/63          leap_column_constraint_release [214]
+                0.00    0.00      63/63          column_constraint_list_push [212]
+-----------------------------------------------
+                0.00    0.00     626/626         leap_compiler_select_compile_compile_select_body [45]
+[201]    0.0    0.00    0.00     626         leap_compile_error_make [201]
+                0.00    0.00     626/39316       leap_text_dup [124]
+-----------------------------------------------
+                0.00    0.00     626/626         run_select [5]
+[202]    0.0    0.00    0.00     626         leap_compile_error_release [202]
+-----------------------------------------------
+                0.00    0.00     593/593         leap_vdbe_execute_program [2]
+[203]    0.0    0.00    0.00     593         continue_outcome [203]
+-----------------------------------------------
+                0.00    0.00     504/504         catalog_install_table [58]
+[204]    0.0    0.00    0.00     504         strview_cstr [204]
+-----------------------------------------------
+                0.00    0.00      63/441         leap_parser_create_table_stmt_parse_create_table [217]
+                0.00    0.00     378/441         leap_parser_create_table_stmt_parse_column_def [208]
+[205]    0.0    0.00    0.00     441         leap_text_from_borrowed [205]
+-----------------------------------------------
+                0.00    0.00     378/378         leap_parser_create_table_stmt_parse_create_table [217]
+[206]    0.0    0.00    0.00     378         column_def_list_push [206]
+-----------------------------------------------
+                0.00    0.00     378/378         leap_column_def_list_release [215]
+[207]    0.0    0.00    0.00     378         leap_column_def_release [207]
+                0.00    0.00     756/819         text_release [199]
+                0.00    0.00     378/378         type_params_release [209]
+-----------------------------------------------
+                0.00    0.00     378/378         leap_parser_create_table_stmt_parse_create_table [217]
+[208]    0.0    0.00    0.00     378         leap_parser_create_table_stmt_parse_column_def [208]
+                0.00    0.00    2646/5607        err_at [197]
+                0.00    0.00     378/441         leap_text_from_borrowed [205]
+                0.00    0.00     378/819         err_ok [198]
+                0.00    0.00     378/756         leap_column_constraint_list_release [200]
+-----------------------------------------------
+                0.00    0.00     378/378         leap_column_def_release [207]
+[209]    0.0    0.00    0.00     378         type_params_release [209]
+-----------------------------------------------
+                0.00    0.00     199/199         parse_group_by_opt <cycle 2> [171]
+[210]    0.0    0.00    0.00     199         group_by_list_push [210]
+-----------------------------------------------
+                0.00    0.00     198/198         leap_vdbe_execute_program [2]
+[211]    0.0    0.00    0.00     198         emit_row_outcome [211]
+-----------------------------------------------
+                0.00    0.00      63/63          leap_column_constraint_list_release [200]
+[212]    0.0    0.00    0.00      63         column_constraint_list_push [212]
+-----------------------------------------------
+                0.00    0.00      63/63          leap_storage_database_install_table_with_pk [59]
+[213]    0.0    0.00    0.00      63         db_tables_reserve [213]
+-----------------------------------------------
+                0.00    0.00      63/63          leap_column_constraint_list_release [200]
+[214]    0.0    0.00    0.00      63         leap_column_constraint_release [214]
+-----------------------------------------------
+                0.00    0.00      63/63          leap_create_table_stmt_release [216]
+[215]    0.0    0.00    0.00      63         leap_column_def_list_release [215]
+                0.00    0.00     378/756         leap_column_constraint_list_release [200]
+                0.00    0.00     378/378         leap_column_def_release [207]
+-----------------------------------------------
+                0.00    0.00      63/63          run_create_table [57]
+[216]    0.0    0.00    0.00      63         leap_create_table_stmt_release [216]
+                0.00    0.00      63/63          leap_column_def_list_release [215]
+                0.00    0.00      63/819         text_release [199]
+                0.00    0.00      63/63          leap_table_constraint_list_release [218]
+-----------------------------------------------
+                0.00    0.00      63/63          run_create_table [57]
+[217]    0.0    0.00    0.00      63         leap_parser_create_table_stmt_parse_create_table [217]
+                0.00    0.00    1890/5607        err_at [197]
+                0.00    0.00     378/378         leap_parser_create_table_stmt_parse_column_def [208]
+                0.00    0.00     378/378         column_def_list_push [206]
+                0.00    0.00      63/441         leap_text_from_borrowed [205]
+                0.00    0.00      63/819         err_ok [198]
+-----------------------------------------------
+                0.00    0.00      63/63          leap_create_table_stmt_release [216]
+[218]    0.0    0.00    0.00      63         leap_table_constraint_list_release [218]
+-----------------------------------------------
+                0.00    0.00      63/63          catalog_install_table [58]
+[219]    0.0    0.00    0.00      63         lower_dup_cstr [219]
+-----------------------------------------------
+                0.00    0.00      63/63          table_release [224]
+[220]    0.0    0.00    0.00      63         table_clear_column_names [220]
+-----------------------------------------------
+                0.00    0.00      63/63          table_release [224]
+[221]    0.0    0.00    0.00      63         table_clear_rows [221]
+                0.00    0.00   25772/25772       row_release [155]
+-----------------------------------------------
+                0.00    0.00      63/63          leap_storage_database_install_table_with_pk [59]
+[222]    0.0    0.00    0.00      63         table_populate_column_names [222]
+-----------------------------------------------
+                0.00    0.00      63/63          leap_storage_database_install_table_with_pk [59]
+[223]    0.0    0.00    0.00      63         table_populate_rows [223]
+                0.00    0.00      63/25835       table_rows_reserve [150]
+                0.00    0.00      63/25835       table_rowids_reserve [149]
+                0.00    0.00      63/25835       table_pk_index_reserve [148]
+-----------------------------------------------
+                0.00    0.00      63/63          leap_storage_database_destroy [230]
+[224]    0.0    0.00    0.00      63         table_release [224]
+                0.00    0.00      63/63          table_clear_rows [221]
+                0.00    0.00      63/63          table_clear_column_names [220]
+-----------------------------------------------
+                0.00    0.00      63/63          catalog_install_table [58]
+[225]    0.0    0.00    0.00      63         xstrdup_cstr [225]
+-----------------------------------------------
+                                   2             leap_expr_release <cycle 1> [95]
+[226]    0.0    0.00    0.00       2         leap_select_stmt_destroy <cycle 1> [226]
+                                   2             leap_select_stmt_release <cycle 1> [169]
+-----------------------------------------------
+                0.00    0.00       2/2           main [1]
+[227]    0.0    0.00    0.00       2         now_seconds [227]
+-----------------------------------------------
+                0.00    0.00       1/1           main [1]
+[228]    0.0    0.00    0.00       1         catalog_destroy [228]
+                0.00    0.00      63/820261      leap_column_schema_list_release [80]
+                0.00    0.00      63/820261      leap_table_schema_release [81]
+                0.00    0.00       1/1           leap_storage_database_destroy [230]
+-----------------------------------------------
+                0.00    0.00       1/1           main [1]
+[229]    0.0    0.00    0.00       1         catalog_init [229]
+                0.00    0.00       1/1           leap_storage_database_new [231]
+-----------------------------------------------
+                0.00    0.00       1/1           catalog_destroy [228]
+[230]    0.0    0.00    0.00       1         leap_storage_database_destroy [230]
+                0.00    0.00      63/63          table_release [224]
+-----------------------------------------------
+                0.00    0.00       1/1           catalog_init [229]
+[231]    0.0    0.00    0.00       1         leap_storage_database_new [231]
+-----------------------------------------------
+
+ This table describes the call tree of the program, and was sorted by
+ the total amount of time spent in each function and its children.
+
+ Each entry in this table consists of several lines.  The line with the
+ index number at the left hand margin lists the current function.
+ The lines above it list the functions that called this function,
+ and the lines below it list the functions this one called.
+ This line lists:
+     index	A unique number given to each element of the table.
+		Index numbers are sorted numerically.
+		The index number is printed next to every function name so
+		it is easier to look up where the function is in the table.
+
+     % time	This is the percentage of the `total' time that was spent
+		in this function and its children.  Note that due to
+		different viewpoints, functions excluded by options, etc,
+		these numbers will NOT add up to 100%.
+
+     self	This is the total amount of time spent in this function.
+
+     children	This is the total amount of time propagated into this
+		function by its children.
+
+     called	This is the number of times the function was called.
+		If the function called itself recursively, the number
+		only includes non-recursive calls, and is followed by
+		a `+' and the number of recursive calls.
+
+     name	The name of the current function.  The index number is
+		printed after it.  If the function is a member of a
+		cycle, the cycle number is printed between the
+		function's name and the index number.
+
+
+ For the function's parents, the fields have the following meanings:
+
+     self	This is the amount of time that was propagated directly
+		from the function into this parent.
+
+     children	This is the amount of time that was propagated from
+		the function's children into this parent.
+
+     called	This is the number of times this parent called the
+		function `/' the total number of times the function
+		was called.  Recursive calls to the function are not
+		included in the number after the `/'.
+
+     name	This is the name of the parent.  The parent's index
+		number is printed after it.  If the parent is a
+		member of a cycle, the cycle number is printed between
+		the name and the index number.
+
+ If the parents of the function cannot be determined, the word
+ `<spontaneous>' is printed in the `name' field, and all the other
+ fields are blank.
+
+ For the function's children, the fields have the following meanings:
+
+     self	This is the amount of time that was propagated directly
+		from the child into the function.
+
+     children	This is the amount of time that was propagated from the
+		child's children to the function.
+
+     called	This is the number of times the function called
+		this child `/' the total number of times the child
+		was called.  Recursive calls by the child are not
+		listed in the number after the `/'.
+
+     name	This is the name of the child.  The child's index
+		number is printed after it.  If the child is a
+		member of a cycle, the cycle number is printed
+		between the name and the index number.
+
+ If there are any cycles (circles) in the call graph, there is an
+ entry for the cycle-as-a-whole.  This entry shows who called the
+ cycle (as parents) and the members of the cycle (as children.)
+ The `+' recursive calls entry shows the number of function calls that
+ were internal to the cycle, and the calls entry for each member shows,
+ for that member, how many times it was called from other members of
+ the cycle.
+
+Copyright (C) 2012-2022 Free Software Foundation, Inc.
+
+Copying and distribution of this file, with or without modification,
+are permitted in any medium without royalty provided the copyright
+notice and this notice are preserved.
+
+Index by function name
+
+  [25] _init                 [202] leap_compile_error_release [18] leap_vdbe_state_num_registers
+  [66] advance (tokenizer.c) [151] leap_compile_insert_ok_release [69] leap_vdbe_state_set_cursor
+ [187] agg_slot_list_init (select_compile.c) [194] leap_compile_select_ok_release [7] leap_vdbe_state_set_register
+ [188] agg_slot_list_release (select_compile.c) [42] leap_compiler_expr_compile_compile_expr [70] leap_vdbe_state_take_cursor
+  [88] ascii_iequal (storage.c) [43] leap_compiler_insert_compile_compile_insert [219] lower_dup_cstr (lib_bench.c)
+ [110] ascii_iequal (expr_compile.c) [152] leap_compiler_insert_compile_compile_insert_with_source [185] map_unop (expr_compile.c)
+  [74] ascii_lower (storage.c) [44] leap_compiler_select_compile_compile_select [227] now_seconds (lib_bench.c)
+  [65] ascii_tolower (select_compile.c) [45] leap_compiler_select_compile_compile_select_body (select_compile.c) [85] ok_sentinel (expr.c)
+  [19] binop_cmp (opcodes_expr.c) [47] leap_compiler_select_compile_compile_select_multi [38] open_cursor_impl (storage.c)
+ [228] catalog_destroy (lib_bench.c) [36] leap_compiler_select_compile_compile_select_with_db [101] parse_bp (expr.c)
+ [133] catalog_find (lib_bench.c) [163] leap_compound_tail_list_release [170] parse_from_opt (select_stmt.c)
+ [181] catalog_first_schema (lib_bench.c) [216] leap_create_table_stmt_release [171] parse_group_by_opt (select_stmt.c)
+ [229] catalog_init (lib_bench.c) [164] leap_cte_binding_list_release [172] parse_having_opt (select_stmt.c)
+  [58] catalog_install_table (lib_bench.c) [115] leap_expr_destroy [184] parse_join_constraint.constprop.0 (select_stmt.c)
+ [117] classify (lib_bench.c) [95] leap_expr_release     [173] parse_limit_opt (select_stmt.c)
+  [29] coerce_numeric (opcodes_expr.c) [165] leap_group_by_list_release [174] parse_order_by_opt.constprop.0 (select_stmt.c)
+ [158] collect_aggregates_c (select_compile.c) [138] leap_insert_column_list_release [98] parse_prefix (expr.c)
+ [212] column_constraint_list_push (create_table_stmt.c) [139] leap_insert_row_list_release [130] parse_projection_item (select_stmt.c)
+ [206] column_def_list_push (create_table_stmt.c) [140] leap_insert_row_release [175] parse_projection_list (select_stmt.c)
+ [106] column_list_push (insert_stmt.c) [141] leap_insert_stmt_release [176] parse_select_core (select_stmt.c)
+  [21] compare_affinity (opcodes_expr.c) [24] leap_opcode_control_execute [177] parse_select_inner.constprop.0 (select_stmt.c)
+  [48] compile_expr_in_multi (select_compile.c) [6] leap_opcode_core_execute [136] parse_table_atom (select_stmt.c)
+  [46] compile_joined_select (select_compile.c) [9] leap_opcode_expr_execute [178] parse_table_or_join_group (select_stmt.c)
+  [27] continue_outcome (opcodes_core.c) [100] leap_opcode_list_append [179] parse_where_opt (select_stmt.c)
+  [20] continue_outcome (opcodes_rows.c) [84] leap_opcode_list_push [154] pk_index_lower_bound (storage.c)
+ [203] continue_outcome (opcodes_control.c) [118] leap_opcode_list_release [78] pk_registry_clear.constprop.0 (select_compile.c)
+  [33] continue_outcome (opcodes_expr.c) [4] leap_opcode_rows_execute [131] projection_list_push (select_stmt.c)
+ [213] db_tables_reserve (storage.c) [166] leap_order_by_item_list_release [15] register_in_range (opcodes_core.c)
+  [49] emit_inner_body.constprop.0 (select_compile.c) [208] leap_parser_create_table_stmt_parse_column_def [10] register_in_range (opcodes_rows.c)
+ [211] emit_row_outcome (opcodes_core.c) [217] leap_parser_create_table_stmt_parse_create_table [144] release_expr_list (insert_stmt.c)
+ [121] emitter_append_list (select_compile.c) [102] leap_parser_expr_parse_expr [116] release_optional_expr (select_stmt.c)
+ [111] emitter_bind_here (select_compile.c) [142] leap_parser_insert_stmt_parse_insert [180] release_optional_table_ref (select_stmt.c)
+ [112] emitter_fresh_label (select_compile.c) [167] leap_parser_select_stmt_parse_select [145] row_list_push (insert_stmt.c)
+ [189] emitter_init (select_compile.c) [122] leap_parser_tokenize [155] row_release (storage.c)
+  [96] emitter_note_reg (select_compile.c) [123] leap_parser_tokens_release [57] run_create_table (lib_bench.c)
+  [97] emitter_push (select_compile.c) [168] leap_projection_item_list_release [3] run_insert (lib_bench.c)
+ [113] emitter_push_with_patch (select_compile.c) [129] leap_projection_item_release [5] run_select (lib_bench.c)
+ [190] emitter_release (select_compile.c) [143] leap_result_column_list_release [50] sc_cte_lookup (select_compile.c)
+ [191] emitter_resolve (select_compile.c) [226] leap_select_stmt_destroy [160] sc_map_binop (select_compile.c)
+  [41] eq_ignore_ascii_ptr (select_compile.c) [169] leap_select_stmt_release [196] sc_map_unop (select_compile.c)
+  [75] err_at (expr.c)        [67] leap_storage_close_cursor [146] sc_schema_lookup (select_compile.c)
+ [197] err_at (create_table_stmt.c) [16] leap_storage_cursor_column [186] sc_splice_expr_prelude (select_compile.c)
+  [77] err_at (insert_stmt.c) [53] leap_storage_cursor_insert_row [56] sc_view_lookup_sql (select_compile.c)
+  [83] err_at (select_stmt.c) [26] leap_storage_cursor_next [30] scalar_quote (opcodes_expr.c)
+ [198] err_ok (create_table_stmt.c) [71] leap_storage_cursor_rewind [108] schema_has_column (insert_compile.c)
+ [137] err_ok (insert_stmt.c) [230] leap_storage_database_destroy [195] select_needs_aggregate (select_compile.c)
+  [99] err_ok (select_stmt.c) [59] leap_storage_database_install_table_with_pk [60] sink (lib_bench.c)
+  [12] eval_binop (opcodes_expr.c) [55] leap_storage_database_lookup_view [204] strview_cstr (lib_bench.c)
+  [54] eval_unaryop (opcodes_expr.c) [231] leap_storage_database_new [220] table_clear_column_names (storage.c)
+ [103] expand_joined_projection (select_compile.c) [73] leap_storage_database_table_at [221] table_clear_rows (storage.c)
+ [114] expr_heap_dup (expr.c) [132] leap_storage_database_table_count [37] table_pk_index_insert (storage.c)
+ [107] expr_list_push (insert_stmt.c) [79] leap_storage_database_table_pk_at [148] table_pk_index_reserve (storage.c)
+ [192] expr_ref_list_init (select_compile.c) [68] leap_storage_open_read_cursor [222] table_populate_column_names (storage.c)
+ [159] expr_ref_list_push_ptr (select_compile.c) [153] leap_storage_open_write_cursor [223] table_populate_rows (storage.c)
+ [193] expr_ref_list_release (select_compile.c) [183] leap_string_list_release [224] table_release (storage.c)
+ [120] flatten_from (select_compile.c) [218] leap_table_constraint_list_release [149] table_rowids_reserve (storage.c)
+ [210] group_by_list_push (select_stmt.c) [147] leap_table_ref_destroy [150] table_rows_reserve (storage.c)
+ [126] halt_ok_outcome (opcodes_core.c) [125] leap_table_ref_release [161] text_from_cstr (lib_bench.c)
+  [87] ic_eq_ptr (insert_compile.c) [81] leap_table_schema_release [91] text_kind (tokenizer.c)
+  [82] ic_map_unop (insert_compile.c) [124] leap_text_dup [199] text_release (create_table_stmt.c)
+  [72] ic_tolower (insert_compile.c) [205] leap_text_from_borrowed (create_table_stmt.c) [76] tv_push (tokenizer.c)
+  [94] infix_lookup (expr.c) [104] leap_text_from_borrowed (insert_stmt.c) [209] type_params_release (create_table_stmt.c)
+  [90] is_ok (expr.c)        [134] leap_text_from_borrowed (select_stmt.c) [86] unit_kind (tokenizer.c)
+ [162] is_statement_boundary_tag (select_stmt.c) [135] leap_text_release (select_stmt.c) [35] v_int (opcodes_expr.c)
+ [156] join_source_list_init (select_compile.c) [93] leap_text_release_local (expr.c) [34] v_null (opcodes_expr.c)
+ [119] join_source_list_push (select_compile.c) [105] leap_text_release_local (insert_stmt.c) [182] v_real (opcodes_expr.c)
+ [157] join_source_list_release (select_compile.c) [28] leap_value_is_null [13] value_clone (storage.c)
+  [63] jump_to (opcodes_rows.c) [31] leap_value_is_truthy [23] value_clone (opcodes_core.c)
+  [39] jump_to (opcodes_control.c) [8] leap_vdbe_dispatch [92] value_release (storage.c)
+  [89] kw_lookup (tokenizer.c) [2] leap_vdbe_execute_program [14] value_release (mod.c)
+ [200] leap_column_constraint_list_release [17] leap_vdbe_state_cursor_borrow [52] vdbe_state_deinit (mod.c)
+ [214] leap_column_constraint_release [11] leap_vdbe_state_cursor_is_open [128] vdbe_state_init (mod.c)
+ [215] leap_column_def_list_release [32] leap_vdbe_state_cursor_mut [225] xstrdup_cstr (lib_bench.c)
+ [207] leap_column_def_release [40] leap_vdbe_state_db   [109] xstrdup_view (lib_bench.c)
+  [80] leap_column_schema_list_release [51] leap_vdbe_state_destroy [61] <cycle 1>
+  [64] leap_column_schema_release [22] leap_vdbe_state_get_register [62] <cycle 2>
+ [201] leap_compile_error_make [127] leap_vdbe_state_new

@@ -1,0 +1,9 @@
+=== filtered main ===
+elapsed_seconds=0.328778 statements=65646 errors=7 qps=199666
+=== filtered c ===
+elapsed_seconds=53.075563 statements=65653 errors=1073 qps=1236
+=== filtered rust ===
+elapsed_seconds=35.841843 statements=65653 errors=1073 qps=1831
+=== orig main === elapsed_seconds=2.420310 statements=157182 errors=191 qps=64942
+=== orig c === elapsed_seconds=56.677826 statements=157373 errors=52122 qps=2776
+=== orig rust === elapsed_seconds=46.447609 statements=157373 errors=39124 qps=3388

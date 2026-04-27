@@ -114,14 +114,26 @@ static int run_one(sqlite3 *db, const char *sql) {
     return 0;
 }
 
+
+/* Parse-only: prepare_v2 + finalize, no step. */
+static int run_one_parse_only(sqlite3 *db, const char *sql) {
+    sqlite3_stmt *st = NULL;
+    int rc = sqlite3_prepare_v2(db, sql, -1, &st, NULL);
+    if (st) sqlite3_finalize(st);
+    if (rc != SQLITE_OK) return 1;
+    return 0;
+}
+
 int main(int argc, char **argv) {
     if (argc < 2) { fprintf(stderr, "usage: %s <workload.sql> [--time-setup] [--db PATH]\n              %s --prepared 'INSERT INTO t(a,b) VALUES(?, ?)' --rows N [--db PATH]\n", argv[0], argv[0]); return 2; }
     int time_setup = 0;
+    int parse_only = 0;
     const char *db_path = ":memory:";
     const char *prepared_sql = NULL;
     long rows = 100000;
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--time-setup") == 0) time_setup = 1;
+        else if (strcmp(argv[i], "--parse-only") == 0) { parse_only = 1; time_setup = 1; }
         else if (strcmp(argv[i], "--db") == 0 && i + 1 < argc) { db_path = argv[++i]; }
         else if (strcmp(argv[i], "--prepared") == 0 && i + 1 < argc) { prepared_sql = argv[++i]; }
         else if (strcmp(argv[i], "--rows") == 0 && i + 1 < argc) { rows = atol(argv[++i]); }
@@ -198,8 +210,14 @@ int main(int argc, char **argv) {
         }
     } else {
         t0 = now_s();
-        for (size_t i = 0; i < n; i++) {
-            if (run_one(db, stmts[i]) == 0) counted++; else errors++;
+        if (parse_only) {
+            for (size_t i = 0; i < n; i++) {
+                if (run_one_parse_only(db, stmts[i]) == 0) counted++; else errors++;
+            }
+        } else {
+            for (size_t i = 0; i < n; i++) {
+                if (run_one(db, stmts[i]) == 0) counted++; else errors++;
+            }
         }
     }
     double elapsed = now_s() - t0;
