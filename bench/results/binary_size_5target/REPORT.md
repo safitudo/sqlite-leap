@@ -1,22 +1,22 @@
 # Lane 5 — 5-target binary size
 
-Generated 2026-04-25T09:16:56Z on Darwin arm64.
-Mainline sqlite3 baseline: `/usr/bin/sqlite3` = 4690560 bytes (4580.6 KB).
+Generated 2026-04-27T02:58:58Z on Darwin arm64.
+Mainline sqlite3 baseline: `/Users/stanislav/miniconda3/bin/sqlite3` = 1809536 bytes (1767.1 KB).
 
 Each row builds the same SELECT behavioral smoke (parser + compiler + VDBE + storage)
 with the smallest-binary flags available in that toolchain.
 
 | target | bytes | KB | vs sqlite3 mainline | notes |
 |---|---:|---:|---:|---|
-| c | 157752 | 154.1 | 0.03x | gcc -Os -ffunction-sections + dead-strip + strip |
-| rust | 536032 | 523.5 | 0.11x | cargo --profile release-small |
-| zig | 2449864 | 2392.4 | 0.52x | zig build -Doptimize=ReleaseSmall + strip |
-| go | 2344898 | 2289.9 | 0.50x | go build -trimpath -ldflags '-s -w' |
-| python | 553975 | 541.0 | 0.12x | .py source only; interpreter python3.10 = 33816 bytes (excluded) |
-| sqlite3 (mainline) | 4690560 | 4580.6 | 1.00x | system `3.51.0` |
+| c | 207912 | 203.0 | 0.11x | gcc -Os -ffunction-sections + dead-strip + strip |
+| rust | 586112 | 572.4 | 0.32x | cargo --profile release-small |
+| zig | 2879192 | 2811.7 | 1.59x | zig build -Doptimize=ReleaseSmall + strip |
+| go | 2680962 | 2618.1 | 1.48x | go build -trimpath -ldflags '-s -w' |
+| python | 824822 | 805.5 | 0.46x | .py source only; interpreter python3.10 = 33816 bytes (excluded) |
+| sqlite3 (mainline) | 1809536 | 1767.1 | 1.00x | system `3.41.2` |
 
-**Smallest binary target:** c at 157752 bytes (154.1 KB).
-**C target beats mainline sqlite3:** YES (0.03x of mainline).
+**Smallest binary target:** c at 207912 bytes (203.0 KB).
+**C target beats mainline sqlite3:** YES (0.11x of mainline).
 
 Notes:
 - Python is reported as engine-package `.py` source bytes; the CPython interpreter

@@ -43,6 +43,7 @@ C_BIN="$OUT_DIR/c/select_behavioral_smoke"
 C_SRCS=(
   "$REPO_ROOT/src-c/core.c"
   "$REPO_ROOT/src-c/storage.c"
+  "$REPO_ROOT/src-c/scalar_json1.c"
   "$REPO_ROOT/src-c/parser/tokenizer.c"
   "$REPO_ROOT/src-c/parser/expr.c"
   "$REPO_ROOT/src-c/parser/select_stmt.c"
