@@ -10,6 +10,7 @@
     "RuntimeCondition": "/parts/core",
     "Database":         "/parts/storage",
     "CursorHandle":     "/parts/storage",
+    "Pager":            "/parts/storage/parts/wal-bridge",
     "OpcodeCore":       "/parts/vdbe/parts/opcodes-core",
     "OpcodeRows":       "/parts/vdbe/parts/opcodes-rows",
     "OpcodeScan":       "/parts/vdbe/parts/opcodes-scan",
@@ -196,10 +197,31 @@
       },
       {
         "name": "db",
+        "receiver": "mut",
+        "params": [],
+        "returns": { "borrow_mut": "Database" },
+        "doc": "Borrow the storage database handle mutably. Pin 18.1c (2026-04-27): receiver promoted from `borrow` to `mut` and return type from `borrow Database` to `borrow_mut Database`. Required because cursor functions take `&mut Pager` (page-cache pin 3 makes LRU touch a mutation), which is reachable only via Database::split_pager_mut. Read-only callers may use `db_ref` instead."
+      },
+      {
+        "name": "db_ref",
         "receiver": "borrow",
         "params": [],
         "returns": { "borrow": "Database" },
-        "doc": "Borrow the storage database handle. Used by OpenRead/OpenWrite and by any opcode that calls into storage."
+        "doc": "Pin 18.1c (2026-04-27): immutable companion to `db`. Used by opcode handlers that only need to read the database (schema lookup, view registry, etc.) and don't want to take an exclusive borrow of state. Implementations return the same underlying database handle as `db`, just shared rather than mutably borrowed."
+      },
+      {
+        "name": "pager_mut",
+        "receiver": "mut",
+        "params": [],
+        "returns": { "borrow_mut": "Pager" },
+        "doc": "Pin 18.1c (2026-04-27): direct accessor for the pager. Equivalent to `state.db().split_pager_mut().1`. Used by transaction-control opcodes (BeginTxn / CommitTxn / RollbackTxn) that need only the pager, not a cursor."
+      },
+      {
+        "name": "cursor_and_pager_mut",
+        "receiver": "mut",
+        "params": [{ "name": "c", "type": "CursorId" }],
+        "returns": { "tuple": [{ "borrow_mut": "CursorHandle" }, { "borrow_mut": "Pager" }] },
+        "doc": "Pin 18.1c (2026-04-27): disjoint-borrow helper returning the cursor handle at slot `c` and the pager simultaneously. Required by every opcode handler that calls a pin-18.1c cursor function (rewind / next / column / seek_rowid / insert_row / delete_row / update_row), all of which take `(handle: &mut/&CursorHandle, pager: &mut Pager)`. Implemented via field-destructuring at the VdbeState level (cursor table and db field are disjoint). Targets that cannot express disjoint mutable borrows in safe code (Python, Go) emit a structurally equivalent paired access — the contract is that mutations through one borrow do not invalidate the other. Panics or returns an error if the cursor slot is empty (caller must verify with `cursor_is_open` first; the existing pattern is preserved)."
       },
       {
         "name": "aggregate_reset",
@@ -437,10 +459,10 @@
           { "name": "num_cursors",    "type": "u32" },
           { "name": "num_aggregates", "type": "u32" },
           { "name": "num_windows",    "type": "u32" },
-          { "name": "db",             "type": { "borrow": "Database" } }
+          { "name": "db",             "type": { "borrow_mut": "Database" } }
         ],
         "returns": "VdbeState",
-        "doc": "Allocate a fresh state. Sizing params size the register file, cursor slot table, aggregate accumulator table, and window session table. `db` is borrowed for the duration of the state. All slots initialized per the §\"VdbeState implementation\" invariants in master.md: registers = Null, cursor slots = empty, pc = 0, return stack empty, aggregate/window slots empty."
+        "doc": "Allocate a fresh state. Sizing params size the register file, cursor slot table, aggregate accumulator table, and window session table. `db` is borrowed mutably for the duration of the state (pin 18.1c, 2026-04-27 — was `borrow Database`, promoted because cursor functions take `&mut Pager` reachable only via the mutable Database borrow). All slots initialized per the §\"VdbeState implementation\" invariants in master.md: registers = Null, cursor slots = empty, pc = 0, return stack empty, aggregate/window slots empty."
       }
     ]
   },

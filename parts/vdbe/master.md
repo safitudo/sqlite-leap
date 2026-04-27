@@ -291,3 +291,75 @@ that cursors live in.
 - Composed `mod.*` per target: 400-800 lines (VdbeState impl is the
   bulk; ~25 methods × 10-20 lines each, plus Opcode union + dispatch
   ~80 lines + execution loop ~30 lines + constructor ~40 lines).
+
+## Pin 18.1c — VdbeState carries `&mut Database`
+
+Pin 18.1c (cross-leaf with `/parts/storage/parts/mem-store`) promotes
+`VdbeState`'s database borrow from `&Database` to `&mut Database` so
+opcode handlers can reach the Pager via
+`Database::split_pager_mut` and pass `&mut Pager` into the now-pin-18.1c
+cursor functions (`cursor_rewind`, `cursor_next`, `cursor_column`,
+`cursor_insert_row`, `cursor_delete_row`, `cursor_update_row`,
+`cursor_seek_rowid`, etc.).
+
+### What changes
+
+- `VdbeState::new` constructor: the `db` parameter changes from
+  `borrow Database` to `borrow_mut Database`.
+- `VdbeState::db` method: returns `borrow_mut Database` (was `borrow`).
+  A read-only `db_ref` companion method is added that returns
+  `borrow Database` for opcode handlers (OpenRead/OpenWrite,
+  schema lookup) that genuinely don't need mutation.
+- `execute_program` function: the `state` parameter is unchanged
+  (still `&mut VdbeState`); the borrow inside state propagates the
+  upgrade.
+- New `VdbeState::cursor_and_pager_mut(c: CursorId)` method: returns
+  the disjoint `(&mut CursorHandle, &mut Pager)` pair so opcode
+  handlers can hold both borrows simultaneously. Implemented via
+  field-destructuring at the VdbeState level (cursor table + db are
+  disjoint fields).
+- New `VdbeState::pager_mut()` method: returns `&mut Pager` directly
+  for opcode handlers that need only the pager (e.g. transaction
+  control opcodes that route through `pager_commit_transaction`).
+
+### Why borrow_mut everywhere
+
+Cursor reads (rewind/next/column/seek_rowid) take `&mut Pager` per
+the wal-bridge contract — page-cache pin 3 makes LRU touch a mutation,
+and the wal-bridge `pager_get_page` signature is `borrow_mut`. There
+is no spec-clean path that lets cursor reads hold `&Pager` while the
+underlying cache operation is mutable. So VdbeState must hold
+`&mut Database` to produce `&mut Pager` for any cursor call.
+
+### VDBE handler call pattern
+
+```
+// Read or write a cursor in pin 18.1c style:
+let (handle, pager) = state.cursor_and_pager_mut(cursor_id);
+let result = cursor_rewind(handle, pager);
+```
+
+For cursor_insert_row / cursor_update_row / cursor_delete_row the
+shape is identical — pin 18.1c keeps the in-memory row-mutation path
+flowing through `MemTable.rows`'s interior mutability (Rc<RefCell<>>
+in Rust; equivalent in other targets). The Pager param is structural;
+no I/O happens for in-memory mode.
+
+### Numbered Correctness pins (vdbe-side, continued)
+
+**Pin V18c-1.** `VdbeState` holds `db: &mut Database`. Targets that
+cannot express borrow-mut as a stored reference (Python, Go) carry
+a target-equivalent mutable handle — the contract is that
+`state.db().split_pager_mut()` is reachable from any opcode handler.
+
+**Pin V18c-2.** `state.cursor_and_pager_mut(c)` returns disjoint
+mutable references to the cursor at slot `c` and the pager. Targets
+emit this via field-destructuring (Rust), pointer-pair (C/Zig),
+struct-field-access (Go/Python).
+
+**Pin V18c-3.** `state.db()` returns `&mut Database`. A read-only
+`state.db_ref()` is provided for opcode handlers that don't need
+mutation (cleaner borrow scopes; not required to use, but available).
+
+**Pin V18c-4.** `execute_program(program, state)` is unchanged at the
+function-signature level; the upgrade is internal to `VdbeState`.

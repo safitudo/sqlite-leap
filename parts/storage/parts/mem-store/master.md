@@ -508,3 +508,83 @@ moment of the call exactly equals the source's then-current state
 performance. Targets MAY include a linear-scan fallback for
 backwards-compat with rows installed before pk_index was populated;
 the fallback's existence does not satisfy P16a-4 by itself.
+
+## Pin 18.1c (v8-pager): cursor signature migration
+
+Pin 18.1c is the structural migration that threads `&mut Pager`
+through every cursor mutation/read function. Pin 18.1a/b set up the
+Pager + the wal-bridge contract; pin 18 (v8-pager) added the field on
+Database; pin 18.1c is the consumer-facing change that makes the
+threading actually visible at every cursor call site. Pin 19's
+incremental B-tree faulting and pin 20's wal-shm coordination both
+depend on the Pager being reachable from inside cursor bodies — this
+pin closes that dependency.
+
+### What changes
+
+Every LIVE cursor function (rewind, next, column, insert_row,
+delete_row, update_row, seek_rowid) gains a `pager: &mut Pager`
+parameter as its second argument (after `cursor`). The deferred stubs
+(open_index_cursor, cursor_seek_ge/gt/le/lt, cursor_idx_next,
+cursor_idx_rowid, cursor_prev) likewise gain the parameter for
+forward-compat; their bodies still return `Err(IoError)` until they
+are promoted to LIVE in a later phase.
+
+`open_read_cursor`, `open_write_cursor`, and `close_cursor` are
+unchanged — cursor open does not yet touch the pager (page faulting
+moves to pin 19), and close is a no-op.
+
+Cursor body semantics at this pin are otherwise unchanged from
+pin 17 (v7-tx): mem-store mutation still flows through interior
+mutability on `MemTable.rows / rowids / pk_index`. The Pager is
+consulted but does no I/O for in-memory mode (`JournalMode::Memory`).
+The threading is structural prep, not behavioral change.
+
+### Drop of `db: &Database` from cursor read paths
+
+The pre-pin-18.1c spec declared `cursor_rewind`, `cursor_next`,
+`cursor_column`, `cursor_seek_rowid` as taking `db: &Database` even
+though the live emission did not. This was a stale leak — the cursor
+handle already carries the row-data Rc clones it needs. Pin 18.1c
+removes the `db` param from these signatures, aligning shape with
+the live regen output.
+
+### Pager threading at the call site
+
+The Pager reaches the cursor function from the caller's `&mut Database`
+via `Database::split_pager_mut` (declared at pin 18). VDBE opcode
+handlers obtain the Pager through a VdbeState helper documented in
+`/parts/vdbe/master.md` §"Pin 18.1c — VdbeState carries `&mut Database`":
+`state.cursor_and_pager_mut(c)` returns the disjoint
+`(&mut CursorHandle, &mut Pager)` pair so handlers can hold both
+borrows simultaneously.
+
+### Numbered Correctness pins (continued)
+
+**P18c-1.** Every LIVE cursor function except `open_*` /
+`close_cursor` takes `pager: &mut Pager` as its second parameter.
+Targets that emit a stub body for any of these MUST still accept the
+parameter (signature is pinned even when behavior is deferred).
+
+**P18c-2.** `cursor_column` takes `pager: &mut Pager` (NOT &Pager).
+Page-cache pin 3 makes the LRU touch a mutation; the wal-bridge
+`pager_get_page` signature is `borrow_mut` to match. Read paths and
+write paths use the same Pager mutability for this reason.
+
+**P18c-3.** Cursor body semantics at pin 18.1c are otherwise
+unchanged from pin 17. Mem-store cursor mutation still flows through
+interior mutability on `MemTable.rows / rowids / pk_index`. The Pager
+is structural prep — pin 19's incremental B-tree page faulting will
+route reads through `pager_get_page_mut` and writes through
+`pager_mark_dirty`. At pin 18.1c the pager parameter exists but is
+not yet consulted by any LIVE cursor body for in-memory mode.
+
+**P18c-4.** Deferred-stub cursor functions (cursor_seek_ge/gt/le/lt,
+cursor_idx_next, cursor_idx_rowid, cursor_prev, open_index_cursor)
+accept the pager parameter and ignore it in their stub bodies. They
+still return `Err(IoError)` per pin 1.
+
+**P18c-5.** The `db: &Database` parameter previously declared on
+`cursor_rewind`, `cursor_next`, `cursor_column`, `cursor_seek_rowid`
+is REMOVED at pin 18.1c. The cursor handle already carries the
+row-data references it needs. This closes a pre-existing spec leak.
