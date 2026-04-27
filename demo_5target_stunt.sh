@@ -301,7 +301,9 @@ COLD_FASTEST=$(echo "$COLD_TABLE" | awk -F'|' '/^\| (c|rust|zig|go|python) / { p
     | sort -k2 -n | head -1)
 COLD_BEAT=$(echo "$COLD_TABLE" | awk -F'|' '
     /^\| (c|rust|zig|go) / { gsub(/x/,"",$4); if ($4+0 >= 1.0) n++ } END { print n+0 }')
-if [[ "$rc" == "0" && -f "$COLD_REPORT" ]]; then v=PASS; else v=FAIL; fi
+if [[ "$rc" == "0" && -f "$COLD_REPORT" ]]; then
+    if [[ "$COLD_BEAT" -ge 1 ]]; then v=PASS; else v=PARTIAL; fi
+else v=FAIL; fi
 HEAD="fastest:$(echo "$COLD_FASTEST" | tr '\t' ' ' | xargs) ; native_beat_mainline=$COLD_BEAT/4"
 record_step "cold_start" "Lane 1 cold start" "$v" "$HEAD"
 echo "  $(verdict_color "$v")  $HEAD"
@@ -319,7 +321,10 @@ if [[ -f "$SIZE_REPORT" ]]; then
     BEATS=$(grep -E '^\*\*C target beats mainline' "$SIZE_REPORT" | head -1 | sed 's/^\*\*//;s/\*\*//')
     SIZE_HEAD="${SMALLEST:-?} ; ${BEATS:-?}"
 fi
-if [[ "$rc" == "0" && -f "$SIZE_REPORT" ]]; then v=PASS; else v=FAIL; fi
+if [[ "$rc" == "0" && -f "$SIZE_REPORT" ]]; then
+    # PASS if leap-c beats mainline (engine vs CLI — apples-to-oranges, but a real measurement).
+    if grep -q '^\*\*C target beats mainline sqlite3:\*\* YES' "$SIZE_REPORT"; then v=PASS; else v=PARTIAL; fi
+else v=FAIL; fi
 record_step "binary_size" "Lane 5 binary size" "$v" "$SIZE_HEAD"
 echo "  $(verdict_color "$v")  $SIZE_HEAD"
 
@@ -338,7 +343,10 @@ if [[ -f "$MEM_REPORT" ]]; then
     MEM_BEAT=$(awk -F'|' '/^\| (c|rust|zig|go|python) / { gsub(/x/,"",$5); if ($5+0 >= 1.0) n++ } END { print n+0 }' "$MEM_REPORT")
     MEM_HEAD="lightest: $LIGHTEST ; mainline=$MAINLINE_RSS bytes ; beat_mainline=$MEM_BEAT/5"
 fi
-if [[ "$rc" == "0" && -f "$MEM_REPORT" ]]; then v=PASS; else v=FAIL; fi
+if [[ "$rc" == "0" && -f "$MEM_REPORT" ]]; then
+    # PASS only if at least one leap target beats mainline on peak RSS.
+    if [[ "$MEM_BEAT" -ge 1 ]]; then v=PASS; else v=PARTIAL; fi
+else v=FAIL; fi
 record_step "memory" "Lane 6 memory footprint" "$v" "$MEM_HEAD"
 echo "  $(verdict_color "$v")  $MEM_HEAD"
 

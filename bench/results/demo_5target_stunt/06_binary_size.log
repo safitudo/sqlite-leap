@@ -93,7 +93,7 @@ warning: function `ident_text` is never used
    |    ^^^^^^^^^^
 
 warning: `leap_sqlite` (lib) generated 12 warnings (run `cargo fix --lib -p leap_sqlite` to apply 4 suggestions)
-    Finished `release-small` profile [optimized] target(s) in 0.03s
+    Finished `release-small` profile [optimized] target(s) in 0.02s
 >>> C (-Os, strip, dead-code eliminations)
 >>> Zig (-Doptimize=ReleaseSmall, strip)
 OK: Zig SELECT steel thread green
@@ -101,7 +101,7 @@ OK: Zig SELECT steel thread green
 >>> Python (source bytes; interpreter footprint reported separately)
 # Lane 5 — 5-target binary size
 
-Generated 2026-04-27T18:30:46Z on Darwin arm64.
+Generated 2026-04-27T19:10:48Z on Darwin arm64.
 Mainline sqlite3 baseline: `/Users/stanislav/miniconda3/bin/sqlite3` = 1809536 bytes (1767.1 KB).
 
 Each row builds the same SELECT behavioral smoke (parser + compiler + VDBE + storage)

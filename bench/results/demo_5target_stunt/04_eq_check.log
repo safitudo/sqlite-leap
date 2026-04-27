@@ -2,7 +2,7 @@ build rust   ... ok
 build python ... ok
 build go     ... ok
 build zig    ... ok
-build c      ... FAIL (see /var/folders/vl/xgdd28sx5hl5dwfv599xjtlm0000gn/T/tmp.glwviDZTQr/build.c.log)
+build c      ... FAIL (see /var/folders/vl/xgdd28sx5hl5dwfv599xjtlm0000gn/T/tmp.0fL02ie0JT/build.c.log)
 
 == count_star_x3 ==
   rust   OK   (reference)

@@ -6,7 +6,7 @@
 >>> sampling python...
 # Lane 6 — 5-target memory footprint
 
-Generated 2026-04-27T18:30:51Z on Darwin arm64.
+Generated 2026-04-27T19:10:53Z on Darwin arm64.
 
 Peak resident set size (`maximum resident set size` from
 `/usr/bin/time -lp`) over the lifetime of a process running a
@@ -16,12 +16,12 @@ Median of 5 samples per target.
 
 | target | peak RSS (bytes) | KB | vs mainline | notes |
 |---|---:|---:|---:|---|
-| c | 3129344 | 3056.0 | 0.98x | slt_runner(c) on memory_footprint.test |
-| rust | 3555328 | 3472.0 | 0.87x | slt_runner(rust) on memory_footprint.test |
-| zig | 3473408 | 3392.0 | 0.89x | slt_runner(zig) on memory_footprint.test |
-| go | 10141696 | 9904.0 | 0.30x | slt_runner(go) on memory_footprint.test |
-| python | 29360128 | 28672.0 | 0.10x | slt_runner(python) on memory_footprint.test |
-| sqlite3 (mainline) | 3080192 | 3008.0 | 1.00x | system `3.51.0` |
+| c | 3162112 | 3088.0 | 0.98x | slt_runner(c) on memory_footprint.test |
+| rust | 3653632 | 3568.0 | 0.85x | slt_runner(rust) on memory_footprint.test |
+| zig | 3506176 | 3424.0 | 0.88x | slt_runner(zig) on memory_footprint.test |
+| go | 10158080 | 9920.0 | 0.30x | slt_runner(go) on memory_footprint.test |
+| python | 29409280 | 28720.0 | 0.11x | slt_runner(python) on memory_footprint.test |
+| sqlite3 (mainline) | 3096576 | 3024.0 | 1.00x | system `3.51.0` |
 
 Ratio convention: mainline-RSS / leap-RSS. >1.0x means leap is
 **lighter** (uses less memory).
