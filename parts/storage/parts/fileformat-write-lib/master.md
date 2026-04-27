@@ -41,10 +41,22 @@ deserialize_database_from(path: string)
 `open_database_at`:
 1. Unlink any leftover `<path>.leap-stage` (open protocol step 1 of
    durability.spec.md).
-2. If `<path>` does not exist or is empty, return an empty `Database`.
+2. If `<path>` does not exist or is empty, return an empty `Database`
+   (with an in-memory `Pager`, since no on-disk file exists yet).
 3. Otherwise validate the SQLite-format-3 magic + 100-byte header,
    read `sqlite_master` from page 1, descend each table's b-tree, and
    construct an in-memory `Database` with one `MemTable` per row.
+4. Pin 18.1d — Pager attachment. After the in-memory `Database` is
+   constructed (steps 2 or 3), if `<path>` exists on disk, attach a
+   file-backed `Pager` to the `Database` by calling
+   `pager_new_file_backed(path)` and stamping the result onto
+   `Database.pager`. This wires the WAL bridge: subsequent
+   `pager_commit_transaction` calls on this `Database` will fsync
+   committed frames to `<path>-wal` per `parts/storage/parts/wal-bridge`.
+   Before stamping, the implementation MAY perform Phase A.3 crash
+   recovery (replay any committed WAL frames into the in-memory page
+   image) so that `deserialize_database_from_bytes` sees the
+   post-recovery view; this is independent of the Pager attachment.
 
 `close_database_at` / `serialize_database_to`:
 1. Lay out one b-tree per user table starting at page 2. Pack rows
