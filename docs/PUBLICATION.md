@@ -22,6 +22,22 @@ L2 honest framing: in mainline's `parse-only` mode, mainline short-circuits ~60%
 
 Raw CSV, run logs, hardware spec at `bench/results/2026-04-27-linux-native/`. Reproduce with `bash bench/run-linux-libmode.sh`.
 
+## How fragile are these numbers?
+
+Twenty-four hours before this post was written, leap was *losing every numerical bench lane*: L2 parse 1:28, L3 SELECT 1:200, L4 INSERT 1:16.5 against mainline. The honest end-of-day report from 2026-04-26 (`bench/results/2026-04-26-FINAL-REPORT.md`) names structural reasons — no PK index in the in-memory store, ~40K ips VDBE-INSERT ceiling, parser cold-cache.
+
+The 30–300× swing overnight came from three concrete changes that the reader should know about, because two of them depend on **target-local hand-written code that is not yet spec-generated**:
+
+1. **L3 SELECT 1:200 → 1.51×:** unlocked by adding INTEGER PRIMARY KEY detection in `src-c/examples/lib_bench.c:240-273`. The bench harness detects an `INTEGER PRIMARY KEY` column and installs a PK-index path via `leap_storage_database_install_table_with_pk`. The file's header explicitly tags it `leaplint: target-local lift (pending spec promotion 2026-04-26)` — meaning **this code is hand-written into `src-c/`, not generated from a spec**. The methodology this post sells (specs win, code regenerates) does not yet apply to this win.
+
+2. **L4 INSERT 1:16.5 → 1.81×:** partly real (prepared-statement cache, predicate pushdown landed in mainline branch) and partly because the same hand-tuned harness has `PRAGMA / BEGIN / COMMIT / ROLLBACK` as no-ops (`src-c/examples/lib_bench.c:20`) — leap-c skips the begin/commit machinery mainline does. An apples-to-apples version that runs the same transactions on both sides is debatable; the published number does not run that comparison.
+
+3. **L2 parse changed what it measures:** the 04-26 honest 1:28 number was in `--time-setup` mode (full parse + compile + plan). The 04-27 1.75× is in a newly-added `--parse-only` mode. Both are valid measurements; the headline win required choosing the second.
+
+**What this means for the methodology claim.** The L3 and L4 wins live in code that bypasses the spec. The strongest honest reframing is: **"a spec-generated engine + a hand-tuned C bench harness with a PK-index lift beats mainline on 2 lib-mode lanes."** Not "the spec-generated engine beats mainline." The PK-install lift is on the spec-promotion roadmap; until that lands, this distinction is real.
+
+I'm leaving the wins in the headline because they're reproducible and the harness is in the same repo a critic can read. But anyone planning to cite the 1.51× / 1.81× should also cite the harness file.
+
 ## Mac arm64 benchmarks (different machine, different methodology)
 
 These were measured on Mac arm64, not Linux. Treat as confirmatory, not the headline. Lane harnesses differ (process-spawn wallclock vs in-process throughput).
@@ -106,7 +122,7 @@ The hardest discipline: specs must be **strictly language-neutral**. No `Result<
 
 ## What's actually proven, soberly
 
-1. **One spec → 5 native engines.** Roughly 10K lines of `parts/` produce ~140K lines of buildable engine code across 5 targets. All five execute the SQL surface of the 186-file SLT sample at 99.93–99.99% excl-SKIP / 92–95% incl-SKIP.
+1. **One spec → 5 native engines.** ~22K lines of `parts/*/master.md` + ~7K lines of `shapes.json` (≈29K total spec) produce ~233K lines of buildable engine code across 5 targets. All five execute the SQL surface of the 186-file SLT sample at 99.93–99.99% excl-SKIP / 92–95% incl-SKIP.
 2. **One spec → byte-identical on-disk format at fixed fixtures.** Two fixtures, 5/5 targets, SHA1 match, integrity-check passes.
 3. **One spec → competitive perf on 2 of the lanes I committed to.** L3 SELECT 1.51× and L4 INSERT 1.81× faster than mainline in lib-mode on Linux native x86_64. L1 cold-start is faster on Mac. L2 parse, L5 binary, L6 RSS comparisons each have caveats large enough that I won't claim them as straight wins.
 4. **One spec → WASM build.** Via the Rust target's `wasm32-unknown-unknown`. 226 KB artifact, runs the SELECT-expression smoke under node.
@@ -117,6 +133,8 @@ The structural flex — same spec, five languages, byte-identical disk format at
 
 ## What's not proven, listed honestly
 
+- **L3 / L4 wins depend on hand-written bench harness.** `src-c/examples/lib_bench.c` is target-local code (tagged `pending spec promotion`), not generated from `parts/`. The PK-index install path that produces L3's win is hand-written; PRAGMA / BEGIN / COMMIT / ROLLBACK are no-ops on the leap side, so L4 is comparing leap's no-transaction path to mainline's full transaction path. The wins are real measurements but they are not yet "the spec-generated engine" beating mainline; they are "the spec-generated engine + a hand-tuned C harness with a PK lift" beating mainline. Spec promotion of the harness primitives is on the roadmap.
+- **24-hour-old reversal.** On 2026-04-26 the FINAL-REPORT had leap losing every numerical lane (L3 1:200, L4 1:16.5). The wins above are 24 hours old and depend on three concrete changes (PK-install lift, prepared-statement cache, parse-only mode). They have not been independently re-verified on a second machine yet.
 - **L6 RSS:** mainline is lighter than leap-c by 1.5%. Not a win.
 - **L2 parse on apples-to-apples corpus:** mainline is ~160× faster than leap-c. The published 1.75× number is in mainline's parse-only mode where mainline does less work.
 - **L5 binary size apples-to-apples:** mainline's number includes the CLI shell. An engine-only mainline build would be much closer to leap-c.

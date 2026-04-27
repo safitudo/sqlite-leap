@@ -16,7 +16,7 @@ Built using [LEAP](https://github.com/safitudo/leap) methodology: specs and test
 
 2. **One spec → mainline-byte-identical on-disk format at fixed fixtures.** Every target writes .db files with identical SHA1 to mainline at the 270-row and 5,000-row split fixtures. Mainline `PRAGMA integrity_check` passes on every leap-emitted file. (Random-shape byte-identity at scale is not yet claimed.)
 
-3. **One spec → competitive performance on 2 lib-mode lanes.** Real Linux x86_64 (Ubuntu 22.04, rustc 1.89, gcc 11.4), library-mode, in-process, both engines linked into the same `lib_bench` driver:
+3. **One spec → competitive performance on 2 lib-mode lanes** *with a hand-tuned C bench harness* (`src-c/examples/lib_bench.c`, tagged `pending spec promotion`). Real Linux x86_64 (Ubuntu 22.04, rustc 1.89, gcc 11.4), library-mode, in-process, both engines linked into the same `lib_bench` driver:
 
    | Lane | leap-c | mainline | leap-c vs mainline |
    |---|---:|---:|---:|
