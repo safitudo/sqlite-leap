@@ -90,6 +90,14 @@
         { "name": "start",  "type": "u32" }
       ],
       "returns": { "result": { "ok": "CreateTableParseOk", "err": "ParseError" } }
+    },
+
+    "pk_from_create_stmt": {
+      "doc": "Detect the rowid-alias INTEGER PRIMARY KEY column on a parsed CreateTableStmt. SQLite admits exactly one column as a rowid alias when ALL of these hold: (a) the column carries a column-level `PRIMARY KEY` constraint (ColumnConstraint::PrimaryKey); (b) its declared type-name is exactly `INTEGER` matched ASCII-case-insensitively (so `Integer`, `integer`, `INTEGER` qualify; `INT`, `BIGINT`, `INTEGER(11)` with type_params do NOT — the type_params list MUST be empty); (c) NO table-level `PRIMARY KEY` constraint exists in `table_constraints` (a table-level PK never produces a rowid alias even on a single column); (d) NO other column carries a column-level `PRIMARY KEY` (composite PK via repeated column-level constraints disqualifies); (e) `without_rowid` is false (WITHOUT ROWID tables never have a rowid alias). Returns Some(column_name) with the eligible column's name; None otherwise. Does NOT inspect ascending/descending — both ASC and DESC are accepted (the rowid-alias rule applies regardless of declared order).",
+      "params": [
+        { "name": "stmt", "type": { "borrow": "CreateTableStmt" } }
+      ],
+      "returns": { "option": "string" }
     }
   }
 }

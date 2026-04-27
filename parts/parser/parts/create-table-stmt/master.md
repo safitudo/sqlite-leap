@@ -215,6 +215,30 @@ case-insensitively (per pin 12).
     were empty; consumers that DO care (re-emission, ALTER TABLE
     cloning) round-trip the field.
 
+20. **Rowid-alias detection (`pk_from_create_stmt`)** — encodes the
+    SQLite rowid-alias rule: a single column qualifies iff it
+    declares a column-level `PRIMARY KEY` constraint AND its
+    `type_name` is `Some(s)` with `s.eq_ignore_ascii_case("INTEGER")`
+    AND `type_params` is empty AND no other column in
+    `columns` carries a column-level `PrimaryKey` constraint AND
+    `table_constraints` contains no `TableConstraint::PrimaryKey` AND
+    `without_rowid == false`. Returns `Some(column_name)` on match,
+    `None` otherwise. Pure inspection of the parsed AST — no token
+    re-scan, no allocator besides the cloned name string. The
+    ASC/DESC ordering on the column-level `PrimaryKey` does NOT
+    disqualify (both ASC and DESC are admitted as rowid-aliases —
+    SQLite admits DESC purely as a hint). Worked examples:
+    - `id INTEGER PRIMARY KEY`        → `Some("id")`.
+    - `id Integer Primary Key`        → `Some("id")` (case-insensitive).
+    - `id INT  PRIMARY KEY`           → `None` (`INT` is not `INTEGER`).
+    - `id INTEGER(11) PRIMARY KEY`    → `None` (type_params non-empty).
+    - `id TEXT PRIMARY KEY`           → `None`.
+    - `a INTEGER, b INTEGER, PRIMARY KEY(a, b)` → `None` (table-level PK).
+    - `a INTEGER PRIMARY KEY, b INTEGER PRIMARY KEY` → `None`
+      (composite via two column-level PKs — not a SQLite-legal CREATE
+      either, but defensively rejected here).
+    - `id INTEGER PRIMARY KEY) WITHOUT ROWID` → `None`.
+
 ## Regeneration envelope
 
 - Line budget: **~400-600 lines** of Rust. The bulk is the column-

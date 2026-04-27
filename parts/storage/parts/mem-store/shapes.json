@@ -76,12 +76,24 @@
     },
 
     "database_install_table": {
-      "doc": "Install a named table with the provided rows and column-name list. Replaces any existing table with the same name (case-sensitive match for the probe; case-insensitive SQL-semantic match is deferred to the real storage part). column_names may be empty; if empty, UPDATE by name will fail with SchemaMissing at runtime. INSERT/SELECT/DELETE do not consult column_names. Returns unit.",
+      "doc": "Install a named table with the provided rows and column-name list. Replaces any existing table with the same name (case-sensitive match for the probe; case-insensitive SQL-semantic match is deferred to the real storage part). column_names may be empty; if empty, UPDATE by name will fail with SchemaMissing at runtime. INSERT/SELECT/DELETE do not consult column_names. Returns unit. Equivalent to `database_install_table_with_pk` with `pk_column = None`.",
       "params": [
         { "name": "db",           "type": { "borrow_mut": "Database" } },
         { "name": "name",         "type": "string" },
         { "name": "column_names", "type": { "list": "string" } },
         { "name": "rows",         "type": { "list": { "list": "Value" } } }
+      ],
+      "returns": "unit"
+    },
+
+    "database_install_table_with_pk": {
+      "doc": "First-class entrypoint for installing a table that may have a rowid-alias INTEGER PRIMARY KEY column. Same semantics as `database_install_table` plus an optional `pk_column` naming the rowid-alias column. When `pk_column` is `Some(name)`, the storage MUST resolve `name` against `column_names` (ASCII-case-insensitive match), record the resolved 0-based index on the MemTable as a `Rowid` IndexSpec (`IndexSpec { kind: Rowid, columns: [resolved_index] }`), and use that column's INTEGER value as the rowid for subsequent `cursor_insert_row` calls (mirroring SQLite's rowid-alias semantics). When `pk_column` is `None`, no IndexSpec is installed (auto-rowid behavior). If `pk_column` is `Some` but the name does not appear in `column_names`, behavior is undefined for v1 — callers MUST validate against the schema before calling (the parser-leaf helper `pk_from_create_stmt` only returns names of columns it has seen). Replace-on-conflict semantics match the no-pk variant.",
+      "params": [
+        { "name": "db",           "type": { "borrow_mut": "Database" } },
+        { "name": "name",         "type": "string" },
+        { "name": "column_names", "type": { "list": "string" } },
+        { "name": "rows",         "type": { "list": { "list": "Value" } } },
+        { "name": "pk_column",    "type": { "option": "string" } }
       ],
       "returns": "unit"
     },

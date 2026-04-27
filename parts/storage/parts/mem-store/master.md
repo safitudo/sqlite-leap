@@ -116,6 +116,29 @@ them.
     "advance to 0" rather than "error". This is how a full-table
     `DELETE FROM t` manages to remove every row in one pass.
 
+16. **database_install_table_with_pk records Rowid IndexSpec** —
+    when `pk_column == Some(name)`, the resolved 0-based column
+    index is recorded on the MemTable as `IndexSpec { kind: Rowid,
+    columns: [idx] }` (replacing any prior IndexSpec list on the
+    table — v1 mem-store only ever has at most one). When
+    `pk_column == None`, the IndexSpec list is left empty.
+    Subsequent `cursor_insert_row` calls on a table with a Rowid
+    IndexSpec MUST use the inserted row's value at column `idx` as
+    the rowid (provided that value is `Value::Integer`); other
+    types fall back to auto-rowid (probe-grade — the spec leaves
+    type coercion to v2). `cursor_seek_rowid` MAY use a
+    target-local sorted index (e.g. BTreeMap) keyed by rowid for
+    O(log N) lookup; targets without an ambient ordered map MAY
+    fall back to linear scan (correctness over speed). Pin 14
+    (frozen public surface) is amended: the public surface now
+    additionally exports `database_install_table_with_pk`.
+    `database_install_table` is preserved as a thin shim that
+    forwards `pk_column = None`. The lib_bench harnesses in
+    `src-c/examples/lib_bench.c` and `src-rust/examples/lib_bench.rs`
+    obtain the `pk_column` argument by calling
+    `pk_from_create_stmt` (parser leaf) on the parsed
+    CreateTableStmt — they MUST NOT inline that detection.
+
 ## Version history (mem-store)
 
 - **v1 (pre-2026-04-24):** read-only cursor; INSERT/UPDATE/DELETE stubs.
