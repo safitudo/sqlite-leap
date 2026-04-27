@@ -1,6 +1,6 @@
 # Lane 3 — 5-target in-memory SELECT throughput
 
-Generated 2026-04-26T18:51:08Z on Darwin arm64.
+Generated 2026-04-27T03:23:33Z on Darwin arm64.
 
 Each engine is sampled on **two** fixtures, 5 samples each, median reported.
 Resolution: `time.perf_counter()`.
@@ -18,12 +18,12 @@ Wallclock divided by 100 SELECTs.
 
 | target | wallclock (ms) | queries/sec | vs mainline |
 |---|---:|---:|---:|
-| c | 22.226 | 4499 | 0.54x |
-| rust | 17.598 | 5682 | 0.68x |
-| zig | 16.297 | 6136 | 0.73x |
-| go | 27.256 | 3669 | 0.44x |
-| python | 1498.690 | 67 | 0.01x |
-| sqlite3 (mainline) | 11.970 | 8354 | 1.00x |
+| c | 22.697 | 4406 | 0.53x |
+| rust | 17.732 | 5640 | 0.68x |
+| zig | 15.856 | 6307 | 0.76x |
+| go | 27.176 | 3680 | 0.44x |
+| python | 1476.391 | 68 | 0.01x |
+| sqlite3 (mainline) | 12.090 | 8271 | 1.00x |
 
 ## Pure-loop (engine inner-loop)
 
@@ -31,12 +31,12 @@ Wallclock divided by 10000 SELECTs. Setup amortizes to ~5-10%.
 
 | target | wallclock (ms) | queries/sec | vs mainline |
 |---|---:|---:|---:|
-| c | 822.453 | 12159 | 0.24x |
-| rust | 362.141 | 27614 | 0.55x |
-| zig | 520.682 | 19206 | 0.38x |
-| go | 910.646 | 10981 | 0.22x |
-| python | 104683.022 | 96 | 0.00x |
-| sqlite3 (mainline) | 200.156 | 49961 | 1.00x |
+| c | 816.261 | 12251 | 0.24x |
+| rust | 353.002 | 28328 | 0.55x |
+| zig | 510.380 | 19593 | 0.38x |
+| go | 914.418 | 10936 | 0.21x |
+| python | 103203.413 | 97 | 0.00x |
+| sqlite3 (mainline) | 194.999 | 51282 | 1.00x |
 
 Ratio convention: mainline-wallclock / leap-wallclock. >1.0x means
 leap is **faster**.
