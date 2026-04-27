@@ -1,0 +1,45 @@
+{
+  "$schema": "../../../../shape.schema.json",
+  "doc": "JSON1 scalar functions. Twelve new variants of ScalarKind (declared in parts/vdbe/parts/opcodes-expr/shapes.json). This shapes.json carries the supporting types for the json1 module: an internal JsonNode model, a JsonError condition set, and the JsonPathSegment grammar. Targets emit these as idiomatic-language equivalents (Rust enum, C tagged union, Zig union(enum), Go interface, Python class).",
+  "types": {
+    "JsonNode": {
+      "kind": "variant",
+      "doc": "Internal JSON model. Number splits into Integer/Real to match SQL value flow; Object preserves insertion order in the underlying list.",
+      "cases": {
+        "Null":    { "fields": {} },
+        "Bool":    { "fields": { "v": "bool" } },
+        "Integer": { "fields": { "v": "i64" } },
+        "Real":    { "fields": { "v": "f64" } },
+        "String":  { "fields": { "v": "str" } },
+        "Array":   { "fields": { "v": { "list": "JsonNode" } } },
+        "Object":  { "fields": { "entries": { "list": "JsonObjectEntry" } } }
+      }
+    },
+    "JsonObjectEntry": {
+      "kind": "record",
+      "doc": "Object key+value, ordered by insertion. Targets render as a (key, value) pair; when serializing, iterate in list order.",
+      "fields": {
+        "key":   "str",
+        "value": "JsonNode"
+      }
+    },
+    "JsonPathSegment": {
+      "kind": "variant",
+      "doc": "One step of a parsed JSONPath. The full path is a list of these starting from the root '$'.",
+      "cases": {
+        "Key":   { "fields": { "name": "str" } },
+        "Index": { "fields": { "i":    "i64" } }
+      }
+    },
+    "JsonError": {
+      "kind": "variant",
+      "doc": "Closed set of JSON1-internal error conditions. v1 collapses every variant to SQL Null at the runtime boundary. A follow-up promotes these to RuntimeCondition.",
+      "cases": {
+        "JsonInvalid":     { "fields": {} },
+        "JsonInvalidPath": { "fields": {} },
+        "JsonInvalidArgs": { "fields": {} },
+        "JsonRootRemove":  { "fields": {} }
+      }
+    }
+  }
+}

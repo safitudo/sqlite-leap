@@ -83,7 +83,19 @@
         "Strftime":  { "fields": {} },
         "Unicode":   { "fields": {} },
         "Char":      { "fields": {} },
-        "Printf":    { "fields": {} }
+        "Printf":    { "fields": {} },
+        "JsonNorm":          { "fields": {} },
+        "JsonArray":         { "fields": {} },
+        "JsonObject":        { "fields": {} },
+        "JsonExtract":       { "fields": {} },
+        "JsonType":          { "fields": {} },
+        "JsonValid":         { "fields": {} },
+        "JsonArrayLength":   { "fields": {} },
+        "JsonInsert":        { "fields": {} },
+        "JsonReplace":       { "fields": {} },
+        "JsonSet":           { "fields": {} },
+        "JsonRemove":        { "fields": {} },
+        "JsonPatch":         { "fields": {} }
       }
     },
     "OpcodeExpr": {
