@@ -1,0 +1,125 @@
+# WITHOUT ROWID storage smoke.
+# Specifies the WITHOUT ROWID surface end-to-end: parse, install,
+# round-trip DML, PK seek, PK uniqueness, composite PK, and the
+# missing-PK rejection. Pins map to:
+#   parts/storage/parts/without-rowid/master.md (pins 1, 5, 7, 8, 9, 15)
+#
+# Language-neutral; targets Rust + C + Zig + Go + Python via slt_runner.
+#
+# NOTE: At time of authoring, slt_runner.run_create_table() forwards
+# only column NAMES to Catalog.install_create_table — the parsed
+# `without_rowid` flag is NOT propagated, so the without_rowid storage
+# adapter is not actually engaged for slt_runner round-trips. Records
+# that depend on PK-uniqueness enforcement (pin 7) and missing-PK
+# rejection (pin 1) will FAIL until the runner wires the flag through
+# install_table() in src-rust/without_rowid.rs:130. Failing baseline IS
+# the wire-in checklist for the next agent.
+
+# ----- INSERT/SELECT/UPDATE/DELETE round-trip on a WITHOUT ROWID table --
+# CREATE TABLE … WITHOUT ROWID parses (parser/create_table_stmt.rs:668).
+statement ok
+CREATE TABLE t (k TEXT PRIMARY KEY, v INT) WITHOUT ROWID
+
+statement ok
+INSERT INTO t VALUES ('alpha', 1)
+
+statement ok
+INSERT INTO t VALUES ('beta', 2)
+
+statement ok
+INSERT INTO t VALUES ('gamma', 3)
+
+# Pin 5: storage record canonicalizes PK first; SELECT must surface the
+# rows in their declared (k, v) order regardless.
+query TI rowsort
+SELECT k, v FROM t
+----
+alpha
+1
+beta
+2
+gamma
+3
+
+# ----- PK seek (WHERE k = '...') ---------------------------------------
+# Pin 9: cursor_seek_pk against the canonical encoded key.
+query I
+SELECT v FROM t WHERE k = 'beta'
+----
+2
+
+# UPDATE through a WITHOUT ROWID cursor (pin 8: non-PK update is
+# in-place; PK update is delete-old + insert-new, atomic).
+statement ok
+UPDATE t SET v = 22 WHERE k = 'beta'
+
+query I
+SELECT v FROM t WHERE k = 'beta'
+----
+22
+
+# DELETE through a WITHOUT ROWID cursor.
+statement ok
+DELETE FROM t WHERE k = 'gamma'
+
+query TI rowsort
+SELECT k, v FROM t
+----
+alpha
+1
+beta
+22
+
+# ----- PK uniqueness — INSERT dup → constraint error (pin 7) ----------
+# Two rows with identical PK tuples must collide → ConstraintUnique.
+statement error
+INSERT INTO t VALUES ('alpha', 999)
+
+# Original row must be preserved (pin 7 — collision must not mutate).
+query I
+SELECT v FROM t WHERE k = 'alpha'
+----
+1
+
+# ----- Composite PK WITHOUT ROWID --------------------------------------
+# Pin 1: pk_columns may have arity > 1; pin 5: PK columns appear first
+# in the canonical record in the declared PRIMARY KEY (a, b) order.
+statement ok
+CREATE TABLE c (a INT, b TEXT, payload INT, PRIMARY KEY(a, b)) WITHOUT ROWID
+
+statement ok
+INSERT INTO c VALUES (1, 'x', 100)
+
+statement ok
+INSERT INTO c VALUES (1, 'y', 200)
+
+statement ok
+INSERT INTO c VALUES (2, 'x', 300)
+
+# Composite PK seek: only the (1,'y') pair matches.
+query I
+SELECT payload FROM c WHERE a = 1 AND b = 'y'
+----
+200
+
+# Composite PK collision (same (a,b) tuple) → ConstraintUnique.
+statement error
+INSERT INTO c VALUES (1, 'x', 999)
+
+# All three composite-PK rows survive.
+query IT rowsort
+SELECT a, b FROM c
+----
+1
+x
+1
+y
+2
+x
+
+# ----- WITHOUT ROWID rejected if PK missing (pin 1 / pin 15) ----------
+# install_table() must reject a WITHOUT ROWID schema with empty
+# pk_columns → SchemaWithoutRowidPkMissing. The CREATE TABLE statement
+# itself may parse, but the install must error before any row writes.
+statement error
+CREATE TABLE bad (x INT, y INT) WITHOUT ROWID

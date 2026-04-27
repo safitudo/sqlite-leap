@@ -1,0 +1,113 @@
+# multi-db ATTACH/DETACH SLT smoke
+#
+# Real cross-DB behavior. Backed by slt_runner's MultiCat alias-keyed
+# Catalog map: ATTACH DATABASE creates a fresh in-memory Catalog under
+# the given alias; DETACH drops it; qualified `<alias>.table` references
+# are routed to that Catalog. Cross-database JOIN is out of scope for v1
+# (no multi-Database VDBE cursor) — a SELECT touching two distinct
+# schemas raises "cross-database query not supported".
+
+# ---------------------------------------------------------------------
+# Step 1: baseline main-db CREATE/INSERT/SELECT works (control).
+statement ok
+CREATE TABLE t1(a INTEGER, b TEXT)
+
+statement ok
+INSERT INTO t1 VALUES(1, 'one'), (2, 'two')
+
+query IT nosort
+SELECT a, b FROM t1 ORDER BY a
+----
+1
+one
+2
+two
+
+# ---------------------------------------------------------------------
+# Step 2: ATTACH ':memory:' AS aux — real attach, alias-keyed catalog.
+statement ok
+ATTACH DATABASE ':memory:' AS aux
+
+# Step 3: CREATE / INSERT / SELECT inside aux schema.
+statement ok
+CREATE TABLE aux.t2(x INTEGER, y TEXT)
+
+statement ok
+INSERT INTO aux.t2 VALUES(10, 'ten'), (20, 'twenty')
+
+query IT nosort
+SELECT x, y FROM aux.t2 ORDER BY x
+----
+10
+ten
+20
+twenty
+
+# Step 4: SELECT from aux without qualifier resolves against main
+# (which has no t2) and errors honestly.
+statement error
+SELECT x FROM t2
+
+# ---------------------------------------------------------------------
+# Step 5: cross-DB JOIN deliberately rejected (v1 narrow scope).
+statement error
+SELECT a FROM main.t1 JOIN aux.t2 ON main.t1.a = aux.t2.x
+
+# ---------------------------------------------------------------------
+# Step 6: dup ATTACH under same alias — registry rejects.
+statement error
+ATTACH DATABASE ':memory:' AS aux
+
+# Step 7: ATTACH with reserved name 'main' — parser/registry both reject.
+statement error
+ATTACH DATABASE ':memory:' AS main
+
+# Step 8: ATTACH with KEY clause — encryption not supported.
+statement error
+ATTACH DATABASE ':memory:' AS aux2 KEY 'pw'
+
+# ---------------------------------------------------------------------
+# Step 9: DETACH aux drops the alias.
+statement ok
+DETACH DATABASE aux
+
+# Step 10: post-detach reference fails — alias is gone.
+statement error
+SELECT x FROM aux.t2
+
+# Step 11: re-detach errors (alias not bound).
+statement error
+DETACH DATABASE aux
+
+# Step 12: DETACH reserved schema rejected.
+statement error
+DETACH DATABASE main
+
+# ---------------------------------------------------------------------
+# Step 13: re-ATTACH under the same alias works (slot freed). Fresh
+# catalog — old t2 is gone.
+statement ok
+ATTACH DATABASE ':memory:' AS aux
+
+statement error
+SELECT x FROM aux.t2
+
+statement ok
+CREATE TABLE aux.t3(z INTEGER)
+
+statement ok
+INSERT INTO aux.t3 VALUES(7)
+
+query I nosort
+SELECT z FROM aux.t3
+----
+7
+
+# Step 14: main is unaffected by aux activity.
+query IT nosort
+SELECT a, b FROM t1 ORDER BY a
+----
+1
+one
+2
+two

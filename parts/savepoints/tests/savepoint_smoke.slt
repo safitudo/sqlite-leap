@@ -1,0 +1,208 @@
+# Savepoint statement smoke.
+# Specifies the SAVEPOINT / RELEASE / ROLLBACK TO surface against the
+# storage savepoint stack. Pins map to:
+#   parts/parser/parts/savepoint-stmt/master.md (pins 1, 4, 7, 9)
+#   parts/storage/parts/savepoints/master.md    (pins S1, S4, S5, S5b, S12, S13)
+#   parts/vdbe/parts/opcodes-savepoint/master.md (pins O1, O4, O5, O6)
+#
+# Language-neutral; targets Rust + C + Zig + Go + Python via slt_runner.
+#
+# NOTE: At time of authoring, slt_runner accepts SAVEPOINT / RELEASE /
+# ROLLBACK as no-ops (slt_runner.rs:541-542). Records that depend on
+# real ROLLBACK TO discard semantics will FAIL until the runner wires
+# dispatch_savepoint_stmt() through to a SavepointStore. The failing
+# baseline IS the wire-in checklist.
+
+# ----- Setup target table ----------------------------------------------
+statement ok
+CREATE TABLE t (id INTEGER PRIMARY KEY, v INTEGER)
+
+# ----- Baseline insert (no savepoint involved) -------------------------
+statement ok
+INSERT INTO t VALUES (1, 10)
+
+query II rowsort
+SELECT id, v FROM t
+----
+1
+10
+
+# ----- 3-level nested SAVEPOINTs with ROLLBACK TO middle ---------------
+# Pin S1 / O1: each SAVEPOINT pushes a frame; pin S5b: ROLLBACK TO mid
+# discards writes since mid AND keeps the mid frame on the stack.
+statement ok
+SAVEPOINT outer
+
+statement ok
+INSERT INTO t VALUES (2, 20)
+
+statement ok
+SAVEPOINT mid
+
+statement ok
+INSERT INTO t VALUES (3, 30)
+
+statement ok
+SAVEPOINT inner
+
+statement ok
+INSERT INTO t VALUES (4, 40)
+
+# Roll back to mid: rows 3 and 4 must vanish, row 2 survives.
+statement ok
+ROLLBACK TO mid
+
+query II rowsort
+SELECT id, v FROM t
+----
+1
+10
+2
+20
+
+# ----- RELEASE preserves writes (pin S4 / O4) --------------------------
+# Releasing 'mid' merges its surviving writes into 'outer'. No row
+# changes visible to SELECT — the savepoint stack collapses but the
+# writes that were never rolled back stay.
+statement ok
+RELEASE mid
+
+query II rowsort
+SELECT id, v FROM t
+----
+1
+10
+2
+20
+
+# Now release 'outer'. With the implicit transaction model (pin S2),
+# this commits the implicit BEGIN; pin S4.
+statement ok
+RELEASE outer
+
+query II rowsort
+SELECT id, v FROM t
+----
+1
+10
+2
+20
+
+# ----- ROLLBACK TO discards writes since savepoint (pin S5b / O5) ------
+statement ok
+SAVEPOINT s1
+
+statement ok
+INSERT INTO t VALUES (5, 50)
+
+statement ok
+INSERT INTO t VALUES (6, 60)
+
+statement ok
+ROLLBACK TO s1
+
+query II rowsort
+SELECT id, v FROM t
+----
+1
+10
+2
+20
+
+# Frame s1 stays on the stack per pin S5b — a second ROLLBACK TO must
+# still succeed (idempotent against an empty delta).
+statement ok
+ROLLBACK TO s1
+
+statement ok
+RELEASE s1
+
+# ----- BEGIN; SAVEPOINT s1; INSERT; ROLLBACK TO s1; COMMIT round-trip -
+# Pin S3: explicit BEGIN means RELEASE does NOT auto-commit; the COMMIT
+# at the end performs the commit.
+statement ok
+BEGIN
+
+statement ok
+SAVEPOINT s1
+
+statement ok
+INSERT INTO t VALUES (7, 70)
+
+statement ok
+ROLLBACK TO s1
+
+statement ok
+RELEASE s1
+
+statement ok
+COMMIT
+
+# Row (7,70) was rolled back before COMMIT — must not be present.
+query II rowsort
+SELECT id, v FROM t
+----
+1
+10
+2
+20
+
+# ----- Savepoint name reuse + invalidation when outer ROLLBACK fires --
+# Pin S5: duplicate names — ROLLBACK TO matches the INNERMOST frame.
+# Pin S13: after the outer frame is rolled back and released, the inner
+# 'dup' frame is gone; a follow-up RELEASE dup must surface NotFound
+# rather than silently no-op.
+statement ok
+SAVEPOINT dup
+
+statement ok
+INSERT INTO t VALUES (8, 80)
+
+statement ok
+SAVEPOINT dup
+
+statement ok
+INSERT INTO t VALUES (9, 90)
+
+# ROLLBACK TO dup hits the INNER dup; row 9 vanishes, row 8 stays,
+# inner dup frame remains on stack (pin S5b).
+statement ok
+ROLLBACK TO dup
+
+query II rowsort
+SELECT id, v FROM t
+----
+1
+10
+2
+20
+8
+80
+
+# Roll back to OUTER dup now would also hit the inner first per pin S5
+# (innermost wins). Release inner first, then roll back outer.
+statement ok
+RELEASE dup
+
+statement ok
+ROLLBACK TO dup
+
+# After outer rollback, row 8 is gone too.
+query II rowsort
+SELECT id, v FROM t
+----
+1
+10
+2
+20
+
+statement ok
+RELEASE dup
+
+# Pin S13 / O6: RELEASE of a name not on the stack must error, not
+# silently succeed. Both 'dup' frames are now gone.
+statement error
+RELEASE dup
+
+statement error
+ROLLBACK TO dup

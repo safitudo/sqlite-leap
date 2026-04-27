@@ -29,10 +29,20 @@
 
   "functions": {
     "compile_insert": {
-      "doc": "Compile a parsed INSERT statement into a VDBE opcode sequence, given a TableSchema for the target table. For each row in stmt.rows, compile its values (via compile_expr), then emit an InsertRow opcode followed by Next/Halt housekeeping. If `stmt.columns` is empty, every row must supply exactly schema.columns.len() values (schema order). If `stmt.columns` is non-empty, every row must match that arity, and the emitted InsertRow carries borrowed `column_names`. Probe scope: no constraint checks, no DEFAULT substitution, no OR-conflict, no RETURNING — the compiler only emits the happy path.",
+      "doc": "Compile a parsed INSERT statement into a VDBE opcode sequence, given a TableSchema for the target table. Convenience wrapper that delegates to `compile_insert_with_source` with `source_schema = None`. Use this when the INSERT body is VALUES-form (no SELECT subquery). For each row in stmt.rows, compile its values (via compile_expr), then emit an InsertRow opcode followed by Next/Halt housekeeping. If `stmt.columns` is empty, every row must supply exactly schema.columns.len() values (schema order). If `stmt.columns` is non-empty, every row must match that arity, and the emitted InsertRow carries borrowed `column_names`. Probe scope: no constraint checks, no DEFAULT substitution, no OR-conflict, no RETURNING — the compiler only emits the happy path.",
       "params": [
         { "name": "stmt",   "type": { "borrow": "InsertStmt" } },
         { "name": "schema", "type": { "borrow": "TableSchema" } }
+      ],
+      "returns": { "result": { "ok": "CompileInsertOk", "err": "CompileError" } }
+    },
+
+    "compile_insert_with_source": {
+      "doc": "Extended INSERT entry point: accepts an optional `source_schema` describing the table that an `INSERT INTO dest SELECT ... FROM src` form reads from. When `source_schema` is `None`, behaves exactly like `compile_insert` (VALUES-form). When `source_schema` is `Some(src)`, the compiler emits a two-cursor program that opens `dest` write-side, opens `src` read-side, scans `src`, and appends each row into `dest` via InsertRow. Required by callers that prepare statements without committing to a body shape ahead of time (prepared.rs, the C ABI, the connection pool, the SLT runner, the library bench). Probe scope: same exclusions as `compile_insert`; the SELECT body is restricted to a bare `SELECT * FROM <src>` for now (any richer SELECT must round-trip through the SELECT compiler — out of this leaf's scope).",
+      "params": [
+        { "name": "stmt",          "type": { "borrow": "InsertStmt" } },
+        { "name": "schema",        "type": { "borrow": "TableSchema" } },
+        { "name": "source_schema", "type": { "option": { "borrow": "TableSchema" } } }
       ],
       "returns": { "result": { "ok": "CompileInsertOk", "err": "CompileError" } }
     }

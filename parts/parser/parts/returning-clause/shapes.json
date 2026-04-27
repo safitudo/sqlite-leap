@@ -1,0 +1,33 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/parser/parts/returning-clause",
+
+  "imports": {
+    "Token":        "/parts/parser/parts/tokenizer",
+    "TokenKind":    "/parts/parser/parts/tokenizer",
+    "ParseError":   "/parts/parser/parts/expr",
+    "ResultColumn": "/parts/parser/parts/insert-stmt"
+  },
+
+  "types": {
+    "ReturningParseOk": {
+      "kind": "record",
+      "doc": "Successful parse of a (possibly absent) RETURNING clause: the list of result columns (empty if no clause was present) and the index of the next token after the clause.",
+      "fields": {
+        "items": { "list": "ResultColumn" },
+        "next":  "u32"
+      }
+    }
+  },
+
+  "functions": {
+    "parse_returning_opt": {
+      "doc": "Parse an optional `RETURNING <result_column> [, ...]` tail. If the token at `start` is not `KwReturning`, return an empty list and the unchanged index. Otherwise consume the keyword, parse one-or-more comma-separated result columns (Star / TableStar / Expr-with-optional-alias), and return them along with the position of the first token past the clause. Used by insert-stmt, delete-stmt, and update-stmt.",
+      "params": [
+        { "name": "tokens", "type": { "borrow": { "list": "Token" } } },
+        { "name": "start",  "type": "u32" }
+      ],
+      "returns": { "result": { "ok": "ReturningParseOk", "err": "ParseError" } }
+    }
+  }
+}

@@ -33,10 +33,11 @@
 
     "ColumnDef": {
       "kind": "record",
-      "doc": "One column declaration in a CREATE TABLE column list. The type-name is optional (SQLite admits typeless columns); when present it is the raw token text concatenated with spaces (e.g. `VARCHAR`, `DOUBLE PRECISION`, or `INT`). Multi-token type names admit one space-separated `Ident` sequence; parameterized type names like `VARCHAR(255)` are deferred.",
+      "doc": "One column declaration in a CREATE TABLE column list. The type-name is optional (SQLite admits typeless columns); when present it is the raw token text concatenated with spaces (e.g. `VARCHAR`, `DOUBLE PRECISION`, or `INT`). Multi-token type names admit one space-separated `Ident` sequence. Parameterized type names like `VARCHAR(30)` or `DECIMAL(10, 2)` are admitted; the integer arguments are captured in `type_params` (zero, one, or two entries). The type-name string itself does NOT include the parens; downstream consumers that don't care about width treat ColumnDef as if `type_params` was empty (CAST normalization pattern).",
       "fields": {
         "name":        "string",
         "type_name":   { "option": "string" },
+        "type_params": { "list": "u32" },
         "constraints": { "list": "ColumnConstraint" }
       }
     },
@@ -60,7 +61,7 @@
 
     "CreateTableStmt": {
       "kind": "record",
-      "doc": "Parsed CREATE TABLE statement. Covers `CREATE TABLE [IF NOT EXISTS] <name> ( <col_def> [, <col_def>]* [, <table_constraint>]* ) [WITHOUT ROWID|STRICT [, WITHOUT ROWID|STRICT]]`. Schema-qualified names, temp tables, AS-SELECT form, and parameterized type names are deferred.",
+      "doc": "Parsed CREATE TABLE statement. Covers `CREATE TABLE [IF NOT EXISTS] <name> ( <col_def> [, <col_def>]* [, <table_constraint>]* ) [WITHOUT ROWID|STRICT [, WITHOUT ROWID|STRICT]]`. Schema-qualified names, temp tables, and AS-SELECT form are deferred. Parameterized type names (`VARCHAR(30)`, `DECIMAL(10,2)`) are admitted — see ColumnDef.type_params.",
       "fields": {
         "name":              "string",
         "if_not_exists":     "bool",
@@ -83,7 +84,7 @@
 
   "functions": {
     "parse_create_table": {
-      "doc": "Parse a `CREATE TABLE` statement. Token at `start` must be `KwCreate`. Delegates to parse_expr for `DEFAULT`, `CHECK`, and `GENERATED ALWAYS AS` expressions. Rejects deferred forms (`TEMP`, `AS SELECT`, schema-qualified names, parameterized type names, ON DELETE/UPDATE actions) with `deferred: <construct>` ParseError.",
+      "doc": "Parse a `CREATE TABLE` statement. Token at `start` must be `KwCreate`. Delegates to parse_expr for `DEFAULT`, `CHECK`, and `GENERATED ALWAYS AS` expressions. Admits parameterized type names (one or two integer args, captured in ColumnDef.type_params). Rejects deferred forms (`TEMP`, `AS SELECT`, schema-qualified names, ON DELETE/UPDATE actions) with `deferred: <construct>` ParseError.",
       "params": [
         { "name": "tokens", "type": { "borrow": { "list": "Token" } } },
         { "name": "start",  "type": "u32" }

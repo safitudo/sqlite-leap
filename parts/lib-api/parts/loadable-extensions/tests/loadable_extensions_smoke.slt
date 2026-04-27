@@ -1,0 +1,40 @@
+# loadable-extensions SLT smoke
+#
+# Surface today: src-rust/loadable_extensions.rs exposes a C ABI
+# (sqlite3_load_extension / sqlite3_enable_load_extension) for callers
+# linking against the cdylib. There is NO SQL surface — no
+# `load_extension()` scalar function, no `PRAGMA load_extension_enabled`.
+# This smoke records the SLT-visible bar: any SQL touching load_extension
+# is an unsupported-statement error today.
+
+# Control: a successful CREATE+INSERT+SELECT proves the smoke harness is
+# live before we probe the unsupported surface.
+statement ok
+CREATE TABLE probe(x INTEGER)
+
+statement ok
+INSERT INTO probe VALUES(1)
+
+query I nosort
+SELECT x FROM probe
+----
+1
+
+# load_extension(...) as a SELECT scalar — parser will accept the call
+# shape but the compiler has no scalar wired. Honest expectation: error.
+statement error
+SELECT load_extension('/nonexistent.so')
+
+# load_extension with two args (entry-point overload).
+statement error
+SELECT load_extension('/nonexistent.so', 'sqlite3_extension_init')
+
+# PRAGMA toggle for enable_load_extension — runner today no-ops PRAGMA,
+# so this is `statement ok` even though no real toggle happens. Documents
+# the silent-skip bar.
+statement ok
+PRAGMA load_extension_enabled = 1
+
+# Same for the negative.
+statement ok
+PRAGMA load_extension_enabled = 0

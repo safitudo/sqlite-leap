@@ -1,0 +1,84 @@
+# encryption (cipher / PRAGMA key) SLT smoke
+#
+# Real round-trip wiring as of 2026-04-27:
+#   - PRAGMA key='...' on a fresh database derives a fresh kdf_salt and
+#     master key (XChaCha20-Poly1305), then seals every row in every
+#     table under the per-row AEAD construction (rowid as page_no).
+#   - PRAGMA key with a matching passphrase re-derives the same master
+#     key (page-1 prefix is frozen at first PRAGMA key time, ENC1).
+#     All seals verify; reads continue to succeed.
+#   - PRAGMA key with a WRONG passphrase derives a state whose AEAD tag
+#     verification fails; the connection is marked enc_locked and all
+#     subsequent SELECT/INSERT/UPDATE/DELETE return an error until the
+#     correct key is re-supplied.
+#
+# This is the "wrong-key emulation of close+reopen" path. The Rust
+# target has no real on-disk pager today (storage.rs is in-memory only)
+# so a literal close-and-reopen cycle isn't expressible from SLT — the
+# wrong-key flip is the strongest assertion the in-memory architecture
+# admits. Spec gap pinned in the agent report.
+
+# Control: harness is live.
+statement ok
+CREATE TABLE secrets(id INTEGER, msg TEXT)
+
+statement ok
+INSERT INTO secrets VALUES(1, 'top-secret'), (2, 'mid-secret')
+
+query IT nosort
+SELECT id, msg FROM secrets ORDER BY id
+----
+1
+top-secret
+2
+mid-secret
+
+# Step 1: set passphrase. Seals every existing row.
+statement ok
+PRAGMA key = 'correct horse battery staple'
+
+# Step 2: writes after PRAGMA key — succeed; new row gets sealed too.
+statement ok
+INSERT INTO secrets VALUES(3, 'after-key')
+
+query IT nosort
+SELECT id, msg FROM secrets WHERE id >= 3 ORDER BY id
+----
+3
+after-key
+
+# Step 3: re-supply the SAME key. Seals re-verify. Reads succeed.
+statement ok
+PRAGMA key = 'correct horse battery staple'
+
+query I nosort
+SELECT count(*) FROM secrets
+----
+3
+
+# Step 4: WRONG key. Seal verification fails ⇒ connection locks.
+# Subsequent reads error out.
+statement ok
+PRAGMA key = 'totally-wrong-key-xxxxxxxx'
+
+statement error
+SELECT count(*) FROM secrets
+
+# Step 5: restoring the correct key unlocks the connection.
+statement ok
+PRAGMA key = 'correct horse battery staple'
+
+query I nosort
+SELECT count(*) FROM secrets
+----
+3
+
+query IT nosort
+SELECT id, msg FROM secrets ORDER BY id
+----
+1
+top-secret
+2
+mid-secret
+3
+after-key

@@ -1,0 +1,89 @@
+# R-tree smoke — proves the rtree vtab module wires into the SQL
+# surface: CREATE VIRTUAL TABLE … USING rtree(id, x0, x1, y0, y1),
+# INSERT bounding-boxes, SELECT spatial range queries, DROP.
+#
+# Surface under exercise:
+#   * CREATE VIRTUAL TABLE … USING rtree(id, x0, x1, y0, y1)  -- 2-D bbox
+#   * INSERT INTO bbox VALUES (rowid, x0, x1, y0, y1)         -- xUpdate Insert
+#   * SELECT id FROM bbox WHERE x0 >= ? AND x1 <= ?           -- xBestIndex
+#       routes Ge/Le on coord cols to the R-tree quadratic-split-backed
+#       leaf walk, expecting the BLOB-keyed shadow encoding to round-trip
+#       (per parts/rtree spec: Coord encoding + Node blob page layout).
+#   * DELETE rows by id (xUpdate Delete)
+#   * DROP TABLE
+#
+# Out of scope (gaps surfaced):
+#   * 3-D / 4-D rtree (this smoke fixes d=2)
+#   * MATCH against an rtree geom callback (rtree_i32 helpers)
+#   * Auxiliary columns + the +i32 vs i32 column-modifier syntax
+
+# --- 1) CREATE VIRTUAL TABLE -----------------------------------------
+
+statement ok
+CREATE VIRTUAL TABLE bbox USING rtree(id, x0, x1, y0, y1)
+
+# --- 2) Insert 6 bounding boxes -------------------------------------
+
+statement ok
+INSERT INTO bbox VALUES (1, 0.0, 1.0, 0.0, 1.0)
+
+statement ok
+INSERT INTO bbox VALUES (2, 1.0, 2.0, 1.0, 2.0)
+
+statement ok
+INSERT INTO bbox VALUES (3, 2.0, 3.0, 2.0, 3.0)
+
+statement ok
+INSERT INTO bbox VALUES (4, 0.5, 1.5, 0.5, 1.5)
+
+statement ok
+INSERT INTO bbox VALUES (5, 5.0, 6.0, 5.0, 6.0)
+
+statement ok
+INSERT INTO bbox VALUES (6, 10.0, 11.0, 10.0, 11.0)
+
+# --- 3) Containment query — find boxes inside [0,2] x [0,2] ---------
+
+query I nosort
+SELECT id FROM bbox WHERE x0 >= 0.0 AND x1 <= 2.0 AND y0 >= 0.0 AND y1 <= 2.0 ORDER BY id
+----
+1
+2
+4
+
+# --- 4) Disjoint query — empty result --------------------------------
+
+query I nosort
+SELECT id FROM bbox WHERE x0 >= 100.0 AND x1 <= 200.0
+----
+
+# --- 5) Hit on far corner --------------------------------------------
+
+query I nosort
+SELECT id FROM bbox WHERE x0 >= 9.0 AND x1 <= 12.0
+----
+6
+
+# --- 6) Delete + re-query -------------------------------------------
+
+statement ok
+DELETE FROM bbox WHERE id = 5
+
+query I nosort
+SELECT id FROM bbox WHERE x0 >= 4.0 AND x1 <= 7.0
+----
+
+# --- 7) Count remaining rows ----------------------------------------
+
+query I nosort
+SELECT COUNT(*) FROM bbox
+----
+5
+
+# --- 8) DROP --------------------------------------------------------
+
+statement ok
+DROP TABLE bbox
+
+statement error
+SELECT id FROM bbox

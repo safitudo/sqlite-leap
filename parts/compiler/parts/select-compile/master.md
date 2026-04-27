@@ -186,6 +186,36 @@ JOIN support is admitted in this part — see §JOINs below.
    num_aggregates, result_count }`
 - `compile_select(stmt, schema) -> result<CompileSelectOk, CompileError>`
   (imports `CompileError` from `/parts/compiler/parts/expr-compile`.)
+- `compile_select_with_schemas(stmt, schema, extra_schemas)` — adds a
+  name-keyed registry for sibling-table subquery resolution.
+- `compile_select_with_db(stmt, schema, db, extra_schemas)` — wires the
+  Database's table/view/PK catalog into the registry. Canonical entry
+  point for compilation against a live database (C ABI, connection
+  pool, slt-runner, lib-bench).
+- `compile_select_multi(stmt, schemas)` — multi-source FROM (cross /
+  inner / left joins). Falls back to single-schema `compile_select`
+  when `stmt.from` is None or a single `Named`.
+- `compile_select_compound(stmt, schemas)` — see §"Compound SELECT".
+
+### Leaf-internal scaffolding
+
+The following helpers are **not** part of the cross-target contract.
+They exist as intra-leaf scaffolding to share state across the
+recursive-subquery and correlated-scope codegen passes; each target
+implements them in whatever shape is idiomatic (struct + thread-local
+on Rust, a context handle threaded through helpers on C, etc.):
+
+- A `SubCtx`-equivalent — accumulates the prelude opcode prefix that
+  must run before the outer cursor loop opens, plus running buffer/
+  cursor/register/aggregate counters and a name-keyed schema registry
+  for inner SELECTs.
+- An `OuterFrame`-equivalent stack — a list of in-scope outer FROM
+  bindings (qualifier, table name, column name->index, scratch register
+  base) consulted when a correlated reference inside an inner SELECT
+  fails to resolve against the inner schema.
+
+Generators are free to name and shape these however the target
+language wants; they MUST NOT appear in `shapes.json`.
 
 ## Algorithm overview
 

@@ -37,8 +37,17 @@ Deferred (CompileError `"deferred: <construct>"`):
 
 - `CompileInsertOk { opcodes, num_registers, num_cursors, rows_affected }`
 - `compile_insert(stmt, schema) -> result<CompileInsertOk, CompileError>`
-  (imports `CompileError` from `/parts/compiler/parts/expr-compile`,
-  `TableSchema`/`ColumnSchema` from `/parts/compiler/parts/select-compile`).
+  — convenience wrapper for VALUES-form INSERT; delegates to
+  `compile_insert_with_source` with `source_schema = None`.
+- `compile_insert_with_source(stmt, schema, source_schema: option<&TableSchema>)
+  -> result<CompileInsertOk, CompileError>` — extended entry point that
+  also handles `INSERT INTO dest SELECT ... FROM src` (two-cursor scan
+  + per-row InsertRow). Used by `prepared`, the C ABI, the connection
+  pool, the SLT runner, and the library bench, none of which know the
+  body shape ahead of time.
+
+Both fns import `CompileError` from `/parts/compiler/parts/expr-compile`,
+`TableSchema`/`ColumnSchema` from `/parts/compiler/parts/select-compile`.
 
 ## Algorithm
 

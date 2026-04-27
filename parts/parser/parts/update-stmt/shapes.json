@@ -9,7 +9,8 @@
     "ParseError": "/parts/parser/parts/expr",
     "TableRef":   "/parts/parser/parts/select-stmt",
     "ResultColumn": "/parts/parser/parts/insert-stmt",
-    "OrAction":   "/parts/parser/parts/insert-stmt"
+    "OrAction":   "/parts/parser/parts/insert-stmt",
+    "parse_returning_opt": "/parts/parser/parts/returning-clause"
   },
 
   "types": {

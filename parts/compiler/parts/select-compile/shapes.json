@@ -14,7 +14,8 @@
     "Value":          "/parts/core",
     "Opcode":         "/parts/vdbe",
     "AggFuncKind":    "/parts/vdbe",
-    "CompileError":   "/parts/compiler/parts/expr-compile"
+    "CompileError":   "/parts/compiler/parts/expr-compile",
+    "Database":       "/parts/storage"
   },
 
   "types": {
@@ -55,6 +56,33 @@
       "params": [
         { "name": "stmt",   "type": { "borrow": "SelectStmt" } },
         { "name": "schema", "type": { "borrow": "TableSchema" } }
+      ],
+      "returns": { "result": { "ok": "CompileSelectOk", "err": "CompileError" } }
+    },
+    "compile_select_with_schemas": {
+      "doc": "Public entry point for SELECTs that may contain subqueries referencing tables OTHER than the FROM-primary. `extra_schemas` supplies metadata for any sibling table that an inner SELECT may name; the compiler installs them in a name-keyed registry consulted during inner-FROM resolution. Behaviorally equivalent to `compile_select` for queries with no subqueries — extra_schemas is then unused. The schema for `schema.name` is auto-registered alongside the extras. Used by examples and the slt-runner when a database catalog is not present.",
+      "params": [
+        { "name": "stmt",          "type": { "borrow": "SelectStmt" } },
+        { "name": "schema",        "type": { "borrow": "TableSchema" } },
+        { "name": "extra_schemas", "type": { "borrow": { "list": "TableSchema" } } }
+      ],
+      "returns": { "result": { "ok": "CompileSelectOk", "err": "CompileError" } }
+    },
+    "compile_select_with_db": {
+      "doc": "Public entry point that wires the compiler to a live `Database` catalog. Auto-derives a name->TableSchema registry from `db.tables` (skipping tables whose column_names are not yet populated), installs the view registry from `db.views` so that FROM resolution can materialize CREATE VIEW bodies, and installs a primary-key registry derived from each table's pk_col_name so single-table compiles can lower `WHERE pk = N` to SeekRowid. `extra_schemas` supplements the auto-derived registry for callers that want to inject ad-hoc schemas. Used by the C ABI, connection pool, lib_bench, and slt_runner — the canonical entry point when the compiler runs against a real Database.",
+      "params": [
+        { "name": "stmt",          "type": { "borrow": "SelectStmt" } },
+        { "name": "schema",        "type": { "borrow": "TableSchema" } },
+        { "name": "db",            "type": { "borrow": "Database" } },
+        { "name": "extra_schemas", "type": { "borrow": { "list": "TableSchema" } } }
+      ],
+      "returns": { "result": { "ok": "CompileSelectOk", "err": "CompileError" } }
+    },
+    "compile_select_multi": {
+      "doc": "Public entry point for SELECTs whose FROM clause names multiple distinct tables (cross product, comma-form, INNER JOIN ON/USING, LEFT JOIN). `schemas` supplies one entry per distinct named source in the FROM clause, in left-to-right order matching the flattened TableRef tree. Falls back to the single-schema `compile_select` path when `stmt.from` is None or a single Named source — callers can use this as a uniform entry point. Aggregation across multi-source FROM is supported (single-group and GROUP BY); DISTINCT and ORDER BY across the multi-source path are admitted in the single-table arm only.",
+      "params": [
+        { "name": "stmt",    "type": { "borrow": "SelectStmt" } },
+        { "name": "schemas", "type": { "borrow": { "list": "TableSchema" } } }
       ],
       "returns": { "result": { "ok": "CompileSelectOk", "err": "CompileError" } }
     },

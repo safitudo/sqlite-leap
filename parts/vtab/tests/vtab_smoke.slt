@@ -1,0 +1,101 @@
+# Vtab smoke — proves the eponymous vtab framework wires into the SQL
+# surface: CREATE VIRTUAL TABLE … USING <module>, basic SELECT against
+# the module's xBestIndex/xFilter/xColumn callback set, then DROP.
+#
+# Surface under exercise:
+#   * CREATE VIRTUAL TABLE … USING <mod>(args)
+#   * generate_series eponymous module: SELECT value FROM generate_series(1,5)
+#   * a "wholenumber" module covering xBestIndex unbounded-range rejection
+#   * DROP VIRTUAL TABLE
+#
+# Out of scope (gaps surfaced, not assertions here):
+#   * xUpdate / DML against a writable vtab (covered by parts/vtab/master pin 22)
+#   * SAVEPOINT / RELEASE / ROLLBACK TO across vtab boundaries
+#   * Two-phase commit ordering across multiple modified vtabs (Pin 19)
+
+# --- 1) CREATE VIRTUAL TABLE on a registered module -----------------
+
+statement ok
+CREATE VIRTUAL TABLE series USING generate_series(1, 5)
+
+# --- 2) Eponymous module: SELECT against xColumn --------------------
+
+query I nosort
+SELECT value FROM series
+----
+1
+2
+3
+4
+5
+
+# --- 3) xBestIndex constraint propagation (Eq) ----------------------
+
+query I nosort
+SELECT value FROM series WHERE value = 3
+----
+3
+
+# --- 4) xBestIndex range constraint propagation (Le, Ge) ------------
+
+query I nosort
+SELECT value FROM series WHERE value >= 2 AND value <= 4 ORDER BY value
+----
+2
+3
+4
+
+# --- 5) Eponymous-with-args invocation ------------------------------
+
+query I nosort
+SELECT value FROM generate_series(10, 12)
+----
+10
+11
+12
+
+# --- 6) Second module: wholenumber covering xBestIndex --------------
+
+statement ok
+CREATE VIRTUAL TABLE w USING wholenumber
+
+# wholenumber requires a usable upper-bound constraint; without one, the
+# planner must surface a runtime error per Pin 4 negotiation contract.
+statement error
+SELECT value FROM w
+
+# Bounded query: the usable Le/Lt constraint lets xBestIndex pick a
+# finite plan.
+query I nosort
+SELECT value FROM w WHERE value < 4
+----
+1
+2
+3
+
+# --- 7) DROP VIRTUAL TABLE ------------------------------------------
+
+statement ok
+DROP TABLE series
+
+statement ok
+DROP TABLE w
+
+# After DROP, the vtab name is no longer resolvable.
+statement error
+SELECT value FROM series
+
+# --- 8) ROUND-TRIP CREATE → DROP → CREATE ---------------------------
+
+statement ok
+CREATE VIRTUAL TABLE series2 USING generate_series(1, 3)
+
+query I nosort
+SELECT value FROM series2 ORDER BY value
+----
+1
+2
+3
+
+statement ok
+DROP TABLE series2

@@ -26,10 +26,20 @@
 
   "functions": {
     "compile_delete": {
-      "doc": "Compile `DELETE FROM t [WHERE expr]` into a VDBE opcode sequence. Opens a write cursor, rewinds, iterates rows; if WHERE is present, compiles it and branches past DeleteRow on false. After DeleteRow, Next to continue. Probe scope: no constraint cascade, no RETURNING, single-table only.",
+      "doc": "Compile `DELETE FROM t [WHERE expr]` into a VDBE opcode sequence. Opens a write cursor, rewinds, iterates rows; if WHERE is present, compiles it and branches past DeleteRow on false. After DeleteRow, Next to continue. If `stmt.using` is set, raises CompileError `\"deferred: DELETE USING\"` — callers that want to compile a USING-form DELETE must dispatch to `compile_delete_with_using` instead. Probe scope: no constraint cascade, no RETURNING, single-table only.",
       "params": [
         { "name": "stmt",   "type": { "borrow": "DeleteStmt" } },
         { "name": "schema", "type": { "borrow": "TableSchema" } }
+      ],
+      "returns": { "result": { "ok": "CompileDeleteOk", "err": "CompileError" } }
+    },
+
+    "compile_delete_with_using": {
+      "doc": "Compile `DELETE FROM t USING u [AS alias] [WHERE <expr>]` into a VDBE opcode sequence. Opens a write cursor on the target table and a read cursor on the USING table, scans the cross product, evaluates WHERE (which may reference columns from either table), and issues DeleteRow against the target whenever the predicate holds. Required by callers that admit DELETE-USING (slt_runner + smoke examples). Errors: `\"compile_delete_with_using: stmt has no USING clause\"` if `stmt.using` is None; `\"table name mismatch\"` if either supplied schema name diverges from the parsed names; `\"deferred: RETURNING with DELETE...USING\"` if `stmt.returning` is non-empty (RETURNING with USING is not in scope yet).",
+      "params": [
+        { "name": "stmt",          "type": { "borrow": "DeleteStmt" } },
+        { "name": "target_schema", "type": { "borrow": "TableSchema" } },
+        { "name": "using_schema",  "type": { "borrow": "TableSchema" } }
       ],
       "returns": { "result": { "ok": "CompileDeleteOk", "err": "CompileError" } }
     }

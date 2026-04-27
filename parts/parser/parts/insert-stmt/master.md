@@ -74,16 +74,11 @@ if KwUpdate: expect KwSet; assignments = col=expr[,col=expr]*;
 ParseError "expected NOTHING or UPDATE after DO"
 ```
 
-`parse_returning_opt`:
-```
-if not KwReturning: return []
-loop:
-    if Star: push Star; advance
-    elif Ident "." Star: push TableStar(table); advance 3
-    else: expr, i = parse_expr; alias = optional KwAs Ident; push Expr(expr, alias)
-    if Comma: continue else break
-return list
-```
+`parse_returning_opt` is owned by `/parts/parser/parts/returning-clause`
+and imported here. Insert-stmt invokes it at the tail of the parse and
+stores the result on `InsertStmt.returning`. See that part's master.md
+for the loop body and pins. Delete-stmt and update-stmt import the same
+fragment.
 
 ## Correctness pins
 

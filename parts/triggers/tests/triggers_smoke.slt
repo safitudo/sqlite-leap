@@ -1,0 +1,223 @@
+# Trigger smoke — proves CREATE TRIGGER / DROP TRIGGER + BEFORE/AFTER
+# trigger fire on INSERT/UPDATE/DELETE with OLD/NEW resolution and
+# multi-statement bodies via the runner-level dispatch wired in
+# slt_runner.rs.
+#
+# Out of scope (gaps surfaced, not assertions here):
+#   * RAISE(...)        — parser has no Raise Expr variant.
+#   * BEFORE-trigger    — we fire bodies, but cannot mutate the
+#     NEW-mutation       host's NEW image; covered by deferred case
+#                       that asserts shape-only behaviour.
+#   * INSTEAD OF on     — view-write path not in v1.
+#     views
+
+statement ok
+CREATE TABLE t (id INTEGER PRIMARY KEY, v INTEGER, label TEXT)
+
+statement ok
+CREATE TABLE log_t (seq INTEGER PRIMARY KEY, op TEXT, id INTEGER, old_v INTEGER, new_v INTEGER)
+
+statement ok
+CREATE TABLE chain (n INTEGER)
+
+# --- 1) AFTER INSERT writes to a log table --------------------------
+
+statement ok
+CREATE TRIGGER tr_ai_log AFTER INSERT ON t FOR EACH ROW BEGIN INSERT INTO log_t (op, id, old_v, new_v) VALUES ('AI', NEW.id, NULL, NEW.v); END
+
+statement ok
+INSERT INTO t (id, v, label) VALUES (1, 10, 'a')
+
+statement ok
+INSERT INTO t (id, v, label) VALUES (2, 20, 'b')
+
+query ITII nosort
+SELECT op, id, old_v, new_v FROM log_t ORDER BY id
+----
+AI
+1
+NULL
+10
+AI
+2
+NULL
+20
+
+# --- 2) AFTER UPDATE with OLD/NEW resolution ------------------------
+
+statement ok
+CREATE TRIGGER tr_au_log AFTER UPDATE ON t FOR EACH ROW BEGIN INSERT INTO log_t (op, id, old_v, new_v) VALUES ('AU', NEW.id, OLD.v, NEW.v); END
+
+statement ok
+UPDATE t SET v = 11 WHERE id = 1
+
+query ITII nosort
+SELECT op, id, old_v, new_v FROM log_t WHERE op = 'AU' ORDER BY id
+----
+AU
+1
+10
+11
+
+# --- 3) AFTER UPDATE OF specific column does NOT fire on other col --
+
+statement ok
+CREATE TRIGGER tr_au_v_only AFTER UPDATE OF v ON t FOR EACH ROW BEGIN INSERT INTO log_t (op, id, old_v, new_v) VALUES ('AUV', NEW.id, OLD.v, NEW.v); END
+
+statement ok
+UPDATE t SET label = 'aa' WHERE id = 1
+
+# AUV must NOT appear because v was not in the SET-list
+query I nosort
+SELECT count(*) FROM log_t WHERE op = 'AUV'
+----
+0
+
+statement ok
+UPDATE t SET v = 12 WHERE id = 1
+
+# Now AUV fires (and AU also fires)
+query I nosort
+SELECT count(*) FROM log_t WHERE op = 'AUV'
+----
+1
+
+# --- 4) AFTER DELETE with OLD only ----------------------------------
+
+statement ok
+CREATE TRIGGER tr_ad_log AFTER DELETE ON t FOR EACH ROW BEGIN INSERT INTO log_t (op, id, old_v, new_v) VALUES ('AD', OLD.id, OLD.v, NULL); END
+
+statement ok
+DELETE FROM t WHERE id = 2
+
+query ITII nosort
+SELECT op, id, old_v, new_v FROM log_t WHERE op = 'AD'
+----
+AD
+2
+20
+NULL
+
+# --- 5) Multi-statement trigger body (BEGIN ... END with two ops) ---
+
+statement ok
+CREATE TRIGGER tr_ai_multi AFTER INSERT ON t FOR EACH ROW BEGIN INSERT INTO log_t (op, id, old_v, new_v) VALUES ('M1', NEW.id, NULL, NEW.v); INSERT INTO log_t (op, id, old_v, new_v) VALUES ('M2', NEW.id, NULL, NEW.v); END
+
+statement ok
+INSERT INTO t (id, v, label) VALUES (3, 30, 'c')
+
+# Both M1 and M2 should be present, in body order.
+query TI nosort
+SELECT op, id FROM log_t WHERE op IN ('M1','M2') ORDER BY id, op
+----
+M1
+3
+M2
+3
+
+# --- 6) DROP TRIGGER stops further fires ----------------------------
+
+statement ok
+DROP TRIGGER tr_ai_multi
+
+statement ok
+INSERT INTO t (id, v, label) VALUES (4, 40, 'd')
+
+# After drop, no more M1/M2 entries beyond id=3.
+query I nosort
+SELECT count(*) FROM log_t WHERE op IN ('M1','M2') AND id = 4
+----
+0
+
+# DROP TRIGGER IF EXISTS on a missing name should succeed silently.
+statement ok
+DROP TRIGGER IF EXISTS no_such_trigger
+
+# --- 7) BEFORE INSERT trigger fires (writes to log even though it
+#         cannot mutate NEW in this runner) ---------------------------
+
+statement ok
+CREATE TRIGGER tr_bi_log BEFORE INSERT ON t FOR EACH ROW BEGIN INSERT INTO log_t (op, id, old_v, new_v) VALUES ('BI', NEW.id, NULL, NEW.v); END
+
+statement ok
+INSERT INTO t (id, v, label) VALUES (5, 50, 'e')
+
+# BI must precede AI in the log table by INSERT order:
+query TI nosort
+SELECT op, id FROM log_t WHERE id = 5 ORDER BY seq
+----
+BI
+5
+AI
+5
+
+# --- 8) BEFORE DELETE / BEFORE UPDATE both fire ---------------------
+
+statement ok
+CREATE TRIGGER tr_bd_log BEFORE DELETE ON t FOR EACH ROW BEGIN INSERT INTO log_t (op, id, old_v, new_v) VALUES ('BD', OLD.id, OLD.v, NULL); END
+
+statement ok
+CREATE TRIGGER tr_bu_log BEFORE UPDATE ON t FOR EACH ROW BEGIN INSERT INTO log_t (op, id, old_v, new_v) VALUES ('BU', OLD.id, OLD.v, NEW.v); END
+
+# An UPDATE on an existing row triggers BU (before) + AU (after).
+statement ok
+UPDATE t SET v = 99 WHERE id = 3
+
+query TI nosort
+SELECT op, id FROM log_t WHERE id = 3 AND op IN ('BU','AU') ORDER BY seq
+----
+BU
+3
+AU
+3
+
+# A DELETE triggers BD (before) + AD (after).
+statement ok
+DELETE FROM t WHERE id = 4
+
+query TI nosort
+SELECT op, id FROM log_t WHERE id = 4 AND op IN ('BD','AD') ORDER BY seq
+----
+BD
+4
+AD
+4
+
+# --- 9) Recursive trigger: insert into chain triggers another insert
+#         into chain (same trigger). Default recursive_triggers OFF
+#         means the second activation is silently skipped. -----------
+
+statement ok
+CREATE TRIGGER tr_chain_recurse AFTER INSERT ON chain FOR EACH ROW BEGIN INSERT INTO chain (n) VALUES (NEW.n + 1); END
+
+statement ok
+INSERT INTO chain (n) VALUES (1)
+
+# Without the guard this would loop unbounded. With the default
+# (pragma OFF) we expect exactly two rows: the original (n=1) and a
+# single recursion (n=2) before the guard kicks in.
+query I nosort
+SELECT count(*) FROM chain
+----
+2
+
+query I nosort
+SELECT max(n) FROM chain
+----
+2
+
+# --- 10) Cross-table cascade: trigger on chain inserts into log_t ---
+
+statement ok
+CREATE TRIGGER tr_chain_cascade AFTER INSERT ON chain FOR EACH ROW BEGIN INSERT INTO log_t (op, id, old_v, new_v) VALUES ('CHAIN', NEW.n, NULL, NEW.n); END
+
+statement ok
+INSERT INTO chain (n) VALUES (100)
+
+query TI nosort
+SELECT op, id FROM log_t WHERE op = 'CHAIN' ORDER BY id
+----
+CHAIN
+100
+CHAIN
+101

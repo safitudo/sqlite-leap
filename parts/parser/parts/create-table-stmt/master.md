@@ -107,8 +107,19 @@ parse_column_def(tokens, i):
         parts = []
         while tokens[i] == Ident:
             parts.push(tokens[i].text); i += 1
-        if tokens[i] == LParen: error("deferred: parameterized type name")
         type_name = Some(parts.join(' '))
+        type_params = []
+        if tokens[i] == LParen:
+            # Parameterized type: VARCHAR(30), DECIMAL(10, 2), etc.
+            # Admit one or two non-negative integer arguments. The
+            # type_name string does NOT include the parens; the integer
+            # arguments are captured separately on ColumnDef.type_params.
+            i += 1
+            require(tokens[i] == Integer); type_params.push(parse_int(tokens[i].text)); i += 1
+            if tokens[i] == Comma:
+                i += 1
+                require(tokens[i] == Integer); type_params.push(parse_int(tokens[i].text)); i += 1
+            require(tokens[i] == RParen); i += 1
     constraints = []
     loop:
         c = match tokens[i]:
@@ -126,7 +137,7 @@ parse_column_def(tokens, i):
                           (shorthand: `AS (...)` without `GENERATED ALWAYS`)
             else:         break
         constraints.push(c)
-    return { name, type_name, constraints }, i
+    return { name, type_name, type_params, constraints }, i
 
 parse_table_constraint(tokens, i):
     match tokens[i]:
@@ -186,13 +197,23 @@ case-insensitively (per pin 12).
 15. **Empty column list rejected** — `CREATE TABLE t ()` is a
     ParseError (`"expected column name"`).
 16. **Deferred constructs are explicit** — `TEMP`, `AS SELECT`,
-    `schema.t`, parameterized type, ON DELETE/UPDATE, DEFERRABLE
-    each emit a `deferred: <construct>` ParseError.
+    `schema.t`, ON DELETE/UPDATE, DEFERRABLE each emit a
+    `deferred: <construct>` ParseError. Parameterized type names
+    (`VARCHAR(30)`, `DECIMAL(10, 2)`) are NOT deferred — they are
+    admitted and captured in `ColumnDef.type_params` (see pin 19).
 17. **Expression errors propagate** — DEFAULT / CHECK / GENERATED
     expression failures bubble up as-is.
 18. **No inline tests, no invented helpers** — the file exports only
     `parse_create_table` plus the AST types declared in `shapes.json`
     and the per-clause sub-parsers (private, not exported).
+19. **Parameterized type capture** — `a VARCHAR(30)` parses to
+    `{ name: "a", type_name: Some("VARCHAR"), type_params: [30],
+    constraints: [] }`; `b DECIMAL(10, 2)` to `type_params: [10, 2]`.
+    The `type_name` string does NOT include the parens. Sibling
+    consumers that don't care about width (CAST normalization,
+    storage type-affinity) may treat ColumnDef as if `type_params`
+    were empty; consumers that DO care (re-emission, ALTER TABLE
+    cloning) round-trip the field.
 
 ## Regeneration envelope
 

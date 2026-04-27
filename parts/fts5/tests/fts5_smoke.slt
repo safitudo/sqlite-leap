@@ -1,0 +1,99 @@
+# FTS5 smoke — proves the fts5 vtab module wires into the SQL surface:
+# CREATE VIRTUAL TABLE … USING fts5(...), INSERT documents, SELECT
+# rowid FROM docs WHERE docs MATCH '...', BM25 ordering, snippet().
+#
+# Surface under exercise:
+#   * CREATE VIRTUAL TABLE … USING fts5(content)
+#   * CREATE VIRTUAL TABLE … USING fts5(title, body, tokenize='unicode61')
+#   * INSERT into the external-content shadow tables (xUpdate Insert)
+#   * `tbl MATCH '<query>'` filter (parser MATCH operator + xBestIndex
+#     routing of the MATCH constraint to the inverted index walk)
+#   * BM25 default ranking via implicit ORDER BY rank
+#   * snippet(tbl, col, '<', '>', '...', n) builtin auxiliary function
+#
+# Out of scope (gaps surfaced):
+#   * highlight() (mirrors snippet but no ellipsis/window logic)
+#   * `tbl MATCH 'col:term'` field-restricted queries
+#   * fts5vocab eponymous helper
+#   * AND/OR/NEAR/NOT query operator coverage beyond simple-term
+
+# --- 1) Single-column external-content table ------------------------
+
+statement ok
+CREATE VIRTUAL TABLE docs USING fts5(content)
+
+statement ok
+INSERT INTO docs (rowid, content) VALUES (1, 'the quick brown fox')
+
+statement ok
+INSERT INTO docs (rowid, content) VALUES (2, 'lazy dog naps in the sun')
+
+statement ok
+INSERT INTO docs (rowid, content) VALUES (3, 'quick dog quick fox')
+
+statement ok
+INSERT INTO docs (rowid, content) VALUES (4, 'silent night holy night')
+
+# --- 2) Single-term MATCH ------------------------------------------
+
+query I nosort
+SELECT rowid FROM docs WHERE docs MATCH 'quick' ORDER BY rowid
+----
+1
+3
+
+# --- 3) Term that hits one row ------------------------------------
+
+query I nosort
+SELECT rowid FROM docs WHERE docs MATCH 'lazy'
+----
+2
+
+# --- 4) Term that hits no row -------------------------------------
+
+query I nosort
+SELECT rowid FROM docs WHERE docs MATCH 'aardvark'
+----
+
+# --- 5) BM25 ordering — row 3 has 'quick' twice, should rank above 1
+
+query I nosort
+SELECT rowid FROM docs WHERE docs MATCH 'quick' ORDER BY rank
+----
+3
+1
+
+# --- 6) snippet() — simple call, default args style ---------------
+
+query T nosort
+SELECT snippet(docs, 0, '<', '>', '...', 8) FROM docs WHERE docs MATCH 'fox' ORDER BY rowid
+----
+the quick brown <fox>
+quick dog quick <fox>
+
+# --- 7) Multi-column table + tokenize option ----------------------
+
+statement ok
+CREATE VIRTUAL TABLE notes USING fts5(title, body, tokenize='unicode61')
+
+statement ok
+INSERT INTO notes (rowid, title, body) VALUES (1, 'rust programming', 'a fast safe language')
+
+statement ok
+INSERT INTO notes (rowid, title, body) VALUES (2, 'sqlite internals', 'btree pager wal vdbe')
+
+query I nosort
+SELECT rowid FROM notes WHERE notes MATCH 'pager'
+----
+2
+
+# --- 8) DROP --------------------------------------------------------
+
+statement ok
+DROP TABLE docs
+
+statement ok
+DROP TABLE notes
+
+statement error
+SELECT rowid FROM docs WHERE docs MATCH 'quick'

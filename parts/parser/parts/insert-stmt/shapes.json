@@ -8,7 +8,7 @@
     "Expr":       "/parts/parser/parts/expr",
     "ParseError": "/parts/parser/parts/expr",
     "SelectStmt": "/parts/parser/parts/select-stmt",
-    "ResultColumn": "/parts/parser/parts/select-stmt"
+    "parse_returning_opt": "/parts/parser/parts/returning-clause"
   },
 
   "types": {

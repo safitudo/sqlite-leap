@@ -94,4 +94,16 @@ does not skip; the storage implementation handles this correctly.
 
 - Line budget: **~150-250 lines** of Rust / **~250-400 lines** of C.
 - No dependencies beyond std.
-- Public items: `CompileDeleteOk`, `compile_delete`.
+- Public items: `CompileDeleteOk`, `compile_delete`,
+  `compile_delete_with_using`.
+
+`compile_delete_with_using(stmt, target_schema, using_schema)` is the
+two-table form. It opens a write cursor on `target_schema` and a read
+cursor on `using_schema`, scans the cross product, evaluates WHERE
+across the joined row, and DeleteRows on the target whenever the
+predicate holds. Used by `slt_runner` and smoke examples. Errors as
+declared in `shapes.json`: missing USING clause, table-name mismatch
+on either side, RETURNING with USING (deferred). `compile_delete`
+itself raises `"deferred: DELETE USING"` if invoked on a stmt where
+`stmt.using` is set, so callers that admit USING-form DELETE must
+dispatch to `compile_delete_with_using` explicitly.
