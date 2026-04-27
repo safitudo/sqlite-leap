@@ -1,6 +1,8 @@
 # sqlite-leap: one spec → 5 SQLite engines, with honest numbers
 
-**TL;DR.** I built a SQLite-compatible database engine from a single language-neutral specification that produces buildable engines in **C, Rust, Zig, Go, and Python** — five at once, from one spec. On real Linux x86_64, library-mode (in-process), the C target beats mainline SQLite on **in-memory SELECT throughput (1.64× faster)** and **INSERT throughput (1.81× faster)** — both numbers from `bench/results/2026-04-27-linux-postfix/raw.csv`, with both engines doing equivalent work in the bench harness. Leap *loses* parse-throughput on the same run (mainline ~56× faster). All five targets pass a 335-file Linux sample of the upstream `sqllogictest` corpus at 99.84–99.99% on a strict denominator. They write `.db` files that are byte-for-byte identical to mainline at two fixed-size fixtures and that mainline reads cleanly.
+**TL;DR.** I built a SQLite-compatible database engine from a single language-neutral specification that produces buildable engines in **C, Rust, Zig, Go, and Python** — five at once, from one spec. All five pass a 335-file Linux sample of the upstream `sqllogictest` corpus at 99.84–99.99% on a strict denominator. They write `.db` files that are byte-for-byte identical to mainline at two fixed-size fixtures and that mainline reads cleanly.
+
+**Performance numbers are temporarily withdrawn.** A reviewer caught that the lib-mode bench harness silently runs leap in pure RAM while passing `--db PATH` to mainline (which honors it and runs WAL-fsynced). The L4 INSERT 1.81× win was apples-to-vacuum and is retracted. The L3 SELECT 1.64× number is read-only-after-setup and less affected, but it shipped through the same harness and gets the same treatment until both sides do equivalent work. A re-measurement across all 5 targets × {parse, SELECT, INSERT} × {in-memory, file-backed} is in progress.
 
 This is a methodology proof, not a SQLite replacement. The point is that **specs and tests can be the product, with code as commodity output** — and the result is competitive, on some axes, with hand-written code from a 25-year-old project.
 
@@ -8,35 +10,24 @@ This post is deliberately honest about what *doesn't* beat mainline. An earlier 
 
 ---
 
-## Library-mode benchmarks — Linux x86_64 native
+## Library-mode benchmarks — withdrawn pending re-measurement
 
-Hardware: Ubuntu 22.04, 32 cores, glibc 2.35, rustc 1.89.0, gcc 11.4. Library-mode means both engines are linked into the same in-process driver and run the same workload — no CLI startup overhead, no shell parsing, no subprocess noise.
+The previous draft of this post claimed in-process wins on Linux x86_64: L3 SELECT 1.64× faster than mainline and L4 INSERT 1.81× faster. A reviewer caught a real harness asymmetry that invalidates both:
 
-Every number in the table below comes from one CSV: `bench/results/2026-04-27-linux-postfix/raw.csv`. If you're reviewing this post and want to verify, that's the file to grep. Older directories under `bench/results/` (e.g. `2026_04_27_post_T5_libmode/`, `2026-04-27-linux-x86_64/`) are pre-spec-promotion runs kept for diff and **do not match the headline**.
+- `bench/run-linux-libmode.sh` invokes both engines as `<lib_bench> <workload.sql> --time-setup --db /tmp/X.<target>`.
+- mainline's `bench/baselines/sqlite_lib_bench.c` parses `--db PATH` and calls `sqlite3_open(db_path, &db)` against a real file.
+- leap-c's `src-c/examples/lib_bench.c:577-581` only parses `--time-setup`. The `--db` argument is silently dropped, and `catalog_init()` calls `leap_storage_database_new()` — pure in-memory.
+- The L4 workload begins with `PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;`. Mainline honors those (real WAL, real fsync at COMMIT). leap classifies PRAGMA as STMT_NOOP and skips them.
 
-| Lane | leap-c | mainline | leap-c vs mainline | claim |
-|---|---:|---:|---:|---|
-| In-memory SELECT | 949 K queries/s | 580 K queries/s | **1.64× faster** | claimed |
-| INSERT throughput | 1.21 M inserts/s | 669 K inserts/s | **1.81× faster** | claimed |
-| Parse throughput (parse-only) | 2.65 K stmts/s | 148 K stmts/s | **mainline ~56× faster** | leap loses |
+So the L4 1.81× was leap-in-RAM versus mainline-WAL-fsynced-to-disk. The L3 SELECT comparison is read-only after setup and less affected (both engines reading from RAM at measurement time), but it shipped through the same harness and gets the same treatment until both sides do equivalent work.
 
-Both engines run the same statements in both winning lanes. The SELECT lane uses a primary-key lookup pattern; the INSERT lane runs 100K rows in batches wrapped by `BEGIN`/`COMMIT`. Both engines execute the transaction machinery on every batch — there is no "leap skips the transaction work" asymmetry.
+**The fix in flight:**
 
-**Parse is a clear leap loss.** On the same parse-only corpus, mainline is roughly **56× faster** than leap-c. Leap's tokenizer and Pratt parser are correct, not fast. I'm publishing it because it's measurable and because hiding losing lanes is what the earlier draft did wrong.
+1. Teach leap-c, leap-rust, leap-zig, leap-go, leap-python lib_bench to honor `--db PATH` (route through `leap_storage_open_database_at` — already exists at `src-c/storage/fileformat_lib.c:886` and the SLT runner uses it). Implement `PRAGMA journal_mode=WAL` and `PRAGMA synchronous=NORMAL` as real WAL switches in lib mode, not noops.
+2. Re-run on Linux x86_64. Publish the full matrix — 5 leap targets + mainline × {parse, SELECT, INSERT} × {in-memory, file-backed} = 36 cells. Every cell traces to a CSV row that names the binary and the mode.
+3. Whatever survives, survives. If file-backed L4 is a leap loss, it gets published as a leap loss.
 
-To reproduce on a Linux x86_64 box, clone the repo and run `bash bench/run-linux-libmode.sh`. The script writes `bench/results/<dated-dir>/raw.csv` with the lane,target,value rows.
-
-## How fragile are these numbers?
-
-Twenty-four hours before this post was drafted, leap was *losing every bench lane* — by 28× on parse, 200× on SELECT, 16× on INSERT. The end-of-day report from the day before names the structural reasons: no primary-key index in the in-memory store, a naive VDBE INSERT path that capped at ~40K inserts/s, and parser cold-cache effects.
-
-The swing came from three concrete changes:
-
-1. **SELECT got 200× faster** because the in-memory store now installs a primary-key index automatically when a `CREATE TABLE` declares an `INTEGER PRIMARY KEY` column. This detection is described in the spec — not hand-tuned in the harness — and every language target inherits it.
-2. **INSERT got 16× faster** from a combination of a prepared-statement cache and a leaner row-write path. The earlier version of this post flagged that the leap bench harness was treating `BEGIN`/`COMMIT`/`ROLLBACK` as no-ops while mainline ran the full transaction machinery — that asymmetry is now closed. Leap implements those statements as real snapshot-frame transactions on both the C and Rust targets, the bench harness exercises them, and mainline's bytecode runs as before. Both engines do equivalent transaction work per batch.
-3. **Parse changed what it measured.** The earlier "leap loses parse 28×" was a different bench mode (full parse + compile + plan). The new "1.75×" is a parse-only comparison. Both are valid; the headline does *not* claim a parse win.
-
-I'm leaving the wins above the fold because they're reproducible — anyone with a Linux x86_64 box can clone the repo, run one shell script, and regenerate the table. Independent re-verification on a second Linux machine is on the to-do list and will land before any number gets cited beyond this post.
+This is the third bench-table withdrawal in three drafts. Two earlier drafts shipped fabricated or asymmetric numbers; this one is the asymmetric harness. Until the matrix is filled, **the only quantitative perf claim worth citing in this post is L1 cold start on Mac arm64**, because it's a process-spawn bench, doesn't go through lib_bench, and doesn't depend on `--db` honoring. Everything else is on hold.
 
 ## Mac arm64 benchmarks (different machine, different methodology)
 
@@ -128,7 +119,7 @@ The hardest discipline is that specs must be **strictly language-neutral**. No `
 
 1. **One spec → 5 native engines.** Roughly 33K lines of language-neutral spec under `parts/` produce ~234K lines of buildable engine code across `src-c/`, `src-rust/`, `src-zig/`, `src-go/`, and `src-python/`. All five execute the SQL surface of the 335-file Linux sqllogictest sample at 99.84–99.99% on the strict denominator.
 2. **One spec → byte-identical on-disk format at fixed fixtures.** Two fixtures, 5/5 targets, SHA1 match, mainline integrity-check passes.
-3. **One spec → competitive perf on two of the lanes I committed to.** On Linux x86_64 in-process, leap-c is 1.64× faster than mainline on in-memory SELECT and 1.81× faster on INSERT (CSV: `bench/results/2026-04-27-linux-postfix/raw.csv`). Cold start is 1.72× faster on Mac arm64 (CSV: `bench/results/cold_start_5target/REPORT.md`). The remaining lanes (parse throughput, binary size, peak RSS) each have caveats large enough that I don't claim them as straight wins.
+3. **One Mac-only perf win that doesn't go through the broken harness.** Cold start on Mac arm64 is 1.72× faster than mainline (CSV: `bench/results/cold_start_5target/REPORT.md`). Linux validation pending. Lib-mode SELECT/INSERT/parse numbers are withdrawn until the harness is fixed (see §"Library-mode benchmarks — withdrawn pending re-measurement"). Binary size is 8.7× smaller but the comparison is leap-engine vs mainline-CLI-with-readline-and-ICU, so it's apples-to-oranges in leap's favor; an engine-only mainline build would close most of the gap. Peak RSS leap loses by 1.5%.
 4. **One spec → WASM build.** Via the Rust target's `wasm32-unknown-unknown`. The artifact is around 226 KB and runs the SELECT-expression smoke under Node.
 
 The structural flex — same spec, five languages, byte-identical disk format at fixed fixtures, real perf wins on two lanes — is what's worth looking at. I'm not claiming this beats SQLite. I'm claiming the methodology produces something that competes on its own turf in measurable, reproducible ways, and the gaps are concrete and listed.
@@ -144,7 +135,8 @@ The structural flex — same spec, five languages, byte-identical disk format at
 - **leap-rust is ~20% behind mainline on SELECT and INSERT** in lib-mode. leap-c is the bench leader; leap-rust is correctness-equivalent but slower.
 - **Linux validation** is on a single Ubuntu 22.04 box. Multi-distro CI is not yet wired.
 - **Advanced modules (foreign keys, triggers, savepoints, FTS5, R-tree, virtual tables, encryption, WAL recovery)** are Rust-first. JSON1 is the only module wired into all five targets. Spec promotion of the rest is in progress.
-- **186-file sqllogictest sample, not the full upstream corpus.** The full corpus is much larger.
+- **335-file Linux sqllogictest sample, not the full upstream corpus.** The full corpus is much larger.
+- **Python sqllogictest denominator differs from the other targets** (~0.92M total records vs ~1.4–1.5M for the others) because the Python runner buckets more files as SKIP. The Python percentage is computed against its own smaller base, so target-to-target percentage comparisons aren't direct.
 - **Two-fixture byte-identity, not random-shape byte-identity.**
 - **Not a production drop-in.** Soak testing, fuzzing across diverse workloads, and ABI-compatibility audits are ongoing. Treat this as a compatibility-tier implementation, not a drop-in `sqlite3.so`.
 

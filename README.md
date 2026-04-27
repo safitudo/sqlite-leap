@@ -4,7 +4,9 @@ A SQLite-compatible database engine generated from a language-neutral specificat
 
 Built using [LEAP](https://github.com/safitudo/leap) methodology: specs and tests are the product, code is generated output.
 
-> **Headline:** the C build beats mainline SQLite on **L3 in-memory SELECT (1.64× faster)** and **L4 INSERT (1.81× faster)** in lib-mode on real Linux x86_64. Numbers from `bench/results/2026-04-27-linux-postfix/raw.csv`; both engines do symmetric work in the harness (PK detection is emitted from the spec; `BEGIN`/`COMMIT`/`ROLLBACK` exercises real transaction snapshot frames on both sides). Leap loses parse throughput on the same CSV (mainline ~56× faster). All five language targets pass a 335-file Linux sample of the upstream sqllogictest corpus at 99.84–99.99% excl-SKIP (92.96–96.60% incl-SKIP; mainline 94.56% / 100% on the same denominators, source `tests/sqllogictest/results/corpus_2026_04_26_v33_linux/summary.md`); they emit byte-identical .db files at two fixed fixtures (270 and 5,000 row) that mainline reads cleanly.
+> **Headline (correctness, not perf).** All five language targets pass a 335-file Linux sample of the upstream sqllogictest corpus at 99.84–99.99% excl-SKIP (92.96–96.60% incl-SKIP; mainline 94.56% / 100% on the same denominators, source `tests/sqllogictest/results/corpus_2026_04_26_v33_linux/summary.md`); they emit byte-identical .db files at two fixed fixtures (270 and 5,000 row) that mainline reads cleanly.
+>
+> **Performance numbers temporarily withdrawn (2026-04-27).** A reviewer caught that the lib-mode bench harness silently runs leap in pure RAM while passing `--db PATH` to mainline (which honors it and runs WAL-fsynced). The L4 INSERT 1.81× claim was apples-to-vacuum and is retracted. The L3 SELECT 1.64× number shipped through the same harness and is held until a re-measurement covers all 5 leap targets × {parse, SELECT, INSERT} × {in-memory, file-backed} with both sides doing equivalent work.
 >
 > An earlier version of this README claimed 6/6 lane wins. That was wrong — see `docs/PUBLICATION.md` for the honest accounting and which lanes don't survive a strict comparison.
 
@@ -16,21 +18,9 @@ Built using [LEAP](https://github.com/safitudo/leap) methodology: specs and test
 
 2. **One spec → mainline-byte-identical on-disk format at fixed fixtures.** Every target writes .db files with identical SHA1 to mainline at the 270-row and 5,000-row split fixtures. Mainline `PRAGMA integrity_check` passes on every leap-emitted file. (Random-shape byte-identity at scale is not yet claimed.)
 
-3. **One spec → 2 lib-mode bench wins.** Real Linux x86_64 (Ubuntu 22.04, rustc 1.89, gcc 11.4), library-mode, in-process, both engines linked into the same `lib_bench` driver. Both runs are post-spec-promotion: PK-detection is emitted from `parts/parser/parts/create-table-stmt/` (pin 20, commit 770ceda) and BEGIN/COMMIT/ROLLBACK exercise mem-store v7-tx snapshot frames on both engines (commit 677ff68):
+3. **Performance bench — re-measurement in progress.** The previous lib-mode harness compared leap (running in pure RAM) against mainline (running WAL-fsynced against a real file), because leap-c/leap-rust silently drop the `--db PATH` flag the runner script passes. That asymmetry invalidates both the L3 and L4 numbers as published. The fix is in `parts/`: teach all five leap targets' lib_bench to honor `--db` (routing through `leap_storage_open_database_at` which already exists for the SLT runner), then re-run the full 5-target × 3-lane × 2-mode (in-memory + file-backed) matrix. Tracked as task #411.
 
-   | Lane | leap-c | mainline | leap-c vs mainline | claim status |
-   |---|---:|---:|---:|---|
-   | L3 SELECT (in-memory) | 949K q/s | 580K q/s | **1.64× faster** | claimed; symmetric harness |
-   | L4 INSERT | 1.21M ips | 669K ips | **1.81× faster** | claimed; both sides run real BEGIN/COMMIT on every batch |
-
-   The remaining lanes have caveats large enough they can't be claimed as straight wins:
-
-   - **L2 parse**: in mainline's `parse-only` mode (which short-circuits ~60% of statements without resolving schema), leap-c posts 1.86M stmts/s vs 1.06M (1.75× "faster"). On a **filtered corpus where both engines parse the same statements**, mainline is **~160× faster** than leap-c. Leap's parser is correct, not fast.
-   - **L1 cold start (Mac arm64 only)**: leap-c 3.26 ms vs mainline `sqlite3 :memory:` CLI 4.97 ms = 1.52× faster. Linux validation pending.
-   - **L5 binary size (Mac arm64 only)**: leap-c engine smoke 203 KB vs mainline `sqlite3` CLI 1.77 MB = 8.7× smaller, but mainline's binary includes the CLI shell + readline + ICU; an engine-only mainline build would close most of this gap.
-   - **L6 RSS (Mac arm64 only)**: leap-c 3.05 MB vs mainline 3.01 MB — **mainline is slightly lighter, not leap.** Not a win.
-
-   See `docs/PUBLICATION.md` for the full honest accounting.
+   Mac-only lanes (L1 cold start, L5 binary size, L6 peak RSS) are unaffected by the lib-mode harness bug because they're process-spawn benches, not in-process. Their honest framings — L1 1.72× faster on Mac arm64, L5 8.7× smaller (apples-to-oranges in leap's favor: mainline includes CLI+readline+ICU), L6 leap is 1.5% heavier (loses) — are sourced from `bench/results/cold_start_5target/REPORT.md`, `bench/results/binary_size_5target/REPORT.md`, `bench/results/memory_footprint_5target/REPORT.md`. See `docs/PUBLICATION.md` for the full honest accounting.
 
 ---
 
