@@ -1,0 +1,120 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/lib-api/parts/prepared-statement",
+
+  "imports": {
+    "Program":           "/parts/vdbe",
+    "VdbeState":         "/parts/vdbe",
+    "Value":             "/parts/core",
+    "RuntimeCondition":  "/parts/core",
+    "HaltStatus":        "/parts/core",
+    "Database":          "/parts/storage",
+    "ParseError":        "/parts/parser/parts/expr",
+    "CompileError":      "/parts/compiler/parts/expr-compile"
+  },
+
+  "types": {
+    "PreparedStatement": {
+      "kind": "record",
+      "doc": "A compiled SQL statement ready for repeated execution. `program` is the bytecode produced by the per-statement compiler. `arity` is the count of distinct anonymous `?` placeholders observed by the parser, equal to the max 1-based Param.idx in the parsed AST (0 if none). Targets MAY add target-private fields (e.g. a cached VdbeState for warm reuse) so long as the public observable behavior matches Pins 1-7 in master.md.",
+      "fields": {
+        "program": "Program",
+        "arity":   "u32"
+      }
+    },
+
+    "BoundParams": {
+      "kind": "record",
+      "doc": "Caller-side bind-parameter slot vector. Sized to a PreparedStatement's arity at construction; every slot is initialized to Value::Null. `bind` overwrites a single slot. The vector is positional; slot k (1-based) lives at `values[k-1]`. The vector is owned by the caller (or by the target's PreparedStatement wrapper) and copied into the per-step VdbeState by `step`.",
+      "fields": {
+        "values": { "list": "Value" }
+      }
+    },
+
+    "StepResult": {
+      "kind": "variant",
+      "doc": "Outcome of a `step` call. v1 emits Done at end of program (run-to-completion); the Row variant is reserved for the v1.1 pause-on-ResultRow iterator surface but is part of the v1 shape so target mappings don't need a wire-shape change at v1.1.",
+      "cases": {
+        "Row":   { "doc": "v1.1: a row is available; the caller reads it via the program's row_sink (or a target-specific row accessor) and calls step again." },
+        "Done":  { "doc": "Program reached Halt(Ok). For row-producing SELECTs, this means every row has been delivered via the row_sink. For INSERT/UPDATE/DELETE/DDL, this is the success terminator." },
+        "Error": { "fields": { "condition": "RuntimeCondition" }, "doc": "Program halted with an error condition." }
+      }
+    },
+
+    "PrepareError": {
+      "kind": "variant",
+      "doc": "Failure modes of `prepare`. ParseFailure wraps the parser's ParseError; CompileFailure wraps the per-statement compiler's CompileError. Targets render this as the canonical sum-of-errors (Rust enum, Go untagged, etc.).",
+      "cases": {
+        "ParseFailure":   { "fields": { "error": "ParseError" } },
+        "CompileFailure": { "fields": { "error": "CompileError" } }
+      }
+    },
+
+    "BindError": {
+      "kind": "variant",
+      "doc": "Failure modes of `bind`. SlotOutOfRange covers slot < 1 or slot > arity (slot is 1-based, see Pin 2). Targets MAY render the variant as a single-case error type carrying both fields if a wider error surface is unwanted.",
+      "cases": {
+        "SlotOutOfRange": { "fields": { "slot": "u32", "arity": "u32" } }
+      }
+    },
+
+    "StepError": {
+      "kind": "variant",
+      "doc": "Distinct from StepResult::Error so the lib-api surface can preserve a non-Result step return signature (e.g. an iterator yielding StepResult). For targets that prefer a Result-shaped step, StepError is the err alternative; for targets emitting StepResult directly, StepError is unused.",
+      "cases": {
+        "Runtime": { "fields": { "condition": "RuntimeCondition" } }
+      }
+    }
+  },
+
+  "constructors": {
+    "BoundParams": [
+      {
+        "name": "for_arity",
+        "params": [{ "name": "arity", "type": "u32" }],
+        "returns": "BoundParams",
+        "doc": "Construct a BoundParams vector sized to `arity`, initialized to `arity` copies of Value::Null. arity == 0 yields an empty vector. The returned vector pairs with a PreparedStatement of the same arity; mismatched pairings are a caller bug (no spec-side check; the per-step copy loop iterates 0..arity)."
+      }
+    ]
+  },
+
+  "functions": {
+    "prepare": {
+      "doc": "Parse, compile, and arity-determine a single SQL statement. The `db` borrow is used for schema-registry lookup at compile time (table / view / index name resolution). Returns Ok(stmt) on success; ParseFailure or CompileFailure on the corresponding error. Multi-statement input (semicolon-separated) is NOT admitted in v1: the function consumes the first statement and the parser surfaces an error if non-whitespace trails the statement terminator.",
+      "params": [
+        { "name": "db",  "type": { "borrow": "Database" } },
+        { "name": "sql", "type": "string" }
+      ],
+      "returns": { "result": { "ok": "PreparedStatement", "err": "PrepareError" } }
+    },
+
+    "bind": {
+      "doc": "Install `value` at slot (1-based) in the caller's BoundParams vector. Pins: see master.md Pin 2. Slot 0 or slot > stmt.arity yields Err(SlotOutOfRange); within range, the prior value (Null on first call, prior bound value on subsequent calls) is replaced.",
+      "params": [
+        { "name": "stmt",   "type": { "borrow": "PreparedStatement" } },
+        { "name": "params", "type": { "mut": "BoundParams" } },
+        { "name": "slot",   "type": "u32" },
+        { "name": "value",  "type": "Value" }
+      ],
+      "returns": { "result": { "ok": "unit", "err": "BindError" } }
+    },
+
+    "step": {
+      "doc": "Execute the prepared statement against `db` with the current `params`. Constructs a fresh VdbeState sized to the statement's program, calls set_params_arity(stmt.arity) + per-slot set_param to seed the bind-parameter slots from `params.values`, then calls execute_program. Returns StepResult::Done on Halt(Ok), StepResult::Error(cond) on a runtime condition. Row materialization happens via the program's row_sink callback (see master.md §Algorithm); the v1.1 pause-on-row surface will return StepResult::Row before completion. Caller is responsible for fresh-state semantics: each step constructs a new VdbeState; reuse + reset is achievable via a target-specific cached-state path that does NOT change observable behavior.",
+      "params": [
+        { "name": "stmt",   "type": { "borrow": "PreparedStatement" } },
+        { "name": "params", "type": { "borrow": "BoundParams" } },
+        { "name": "db",     "type": { "borrow": "Database" } }
+      ],
+      "returns": "StepResult"
+    },
+
+    "reset": {
+      "doc": "Discard per-step VdbeState (PC, cursors, aggregate / window slots, buffer slots). Bindings (the `params` vector) are PRESERVED; the next step starts from PC 0 with the same params. v1's spec-side reset is a no-op (since `step` allocates a fresh state every call) — the function exists to pin the contract and to give targets that DO cache a per-statement VdbeState a hook for the discard. Targets that don't cache state implement reset as () / no-op.",
+      "params": [
+        { "name": "stmt", "type": { "mut": "PreparedStatement" } }
+      ],
+      "returns": "unit"
+    }
+  }
+}

@@ -1,0 +1,93 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/compiler/parts/predicate-pushdown",
+
+  "imports": {
+    "SelectStmt":   "/parts/parser/parts/select-stmt",
+    "Expr":         "/parts/parser/parts/expr",
+    "TableSchema":  "/parts/compiler/parts/select-compile",
+    "Opcode":       "/parts/vdbe",
+    "IndexSpec":    "/parts/storage/parts/mem-store",
+    "IndexKind":    "/parts/storage/parts/mem-store",
+    "CompileError": "/parts/compiler/parts/expr-compile"
+  },
+
+  "types": {
+    "PointFetchOk": {
+      "kind": "record",
+      "doc": "Result of a successful predicate-pushdown match. Carries the same shape as the standard CompileSelectOk plus the (constant) num_aggregates = 0 — lifted into its own type so the call site at /parts/compiler/parts/select-compile reads as a discriminated short-circuit (`Some(point_fetch) | None → fall through`). Field semantics match CompileSelectOk; opcode_template_kind is the integer index into the rule registry (v1: only one rule, RowidPointFetch = 0) used for telemetry / debug prints.",
+      "fields": {
+        "opcodes":              { "list": "Opcode" },
+        "num_registers":        "u32",
+        "num_cursors":          "u32",
+        "num_aggregates":       "u32",
+        "result_count":         "u32",
+        "opcode_template_kind": "u32"
+      }
+    },
+
+    "PushdownTrigger": {
+      "kind": "variant",
+      "doc": "Closed enumeration of recognised push-down rules. v1 admits exactly one variant (RowidPointFetch); the variant exists as a placeholder for follow-ups that add additional rules (for example, range scans against an INTEGER PRIMARY KEY using <=, >=, BETWEEN; or unique-index point fetches once /parts/storage/parts/index lands).",
+      "cases": {
+        "RowidPointFetch": {
+          "doc": "WHERE clause is exactly `pk_col = expr` or `expr = pk_col` against an INTEGER PRIMARY KEY column, expr is row-independent, and the SELECT carries no DISTINCT / ORDER BY / LIMIT / OFFSET / GROUP BY / HAVING / compound. Lowers to OpenRead + key-expr compile + SeekRowid (miss → end) + Column reads + ResultRow + Close + Halt."
+        }
+      }
+    },
+
+    "EmitOp": {
+      "kind": "variant",
+      "doc": "A symbolic step in the v1 RowidPointFetch emit template. Generators consume this list in order to render the target-specific opcode sequence. The template is independent of label numbering — generators allocate fresh PC labels for `MissLabel` and `HaltLabel` and resolve them in a two-pass walk over the emitted opcode list. KeyExprCompile is a placeholder for the spliced output of the imported expr-compile call against the key_expr captured at recognition time.",
+      "cases": {
+        "OpenReadCursor":   { "doc": "Emit OpenRead { cursor: 0, table: schema.name }." },
+        "KeyExprCompile":   { "doc": "Splice in the opcode sequence produced by compile_expr against the recognised key_expr; result lands in reg_key (= ncol)." },
+        "SeekRowidByKey":   { "doc": "Emit SeekRowid { cursor: 0, rowid_reg: reg_key, jump_if_miss: MissLabel }." },
+        "ColumnReadAll":    { "doc": "For each column c in schema.columns, emit Column { cursor: 0, col_idx: c.index, dest_reg: c.index }." },
+        "ProjectionCompile":{ "doc": "Splice in the opcode sequence produced by expanding & compiling the projection list (Star / TableStar / Expr items) into contiguous registers starting at reg_key + 1. Records (proj_start, proj_count) for the trailing ResultRow." },
+        "EmitResultRow":    { "doc": "Emit ResultRow { start_reg: proj_start, count: proj_count }." },
+        "GotoHalt":         { "doc": "Emit Goto { target: HaltLabel }." },
+        "BindMissLabel":    { "doc": "Resolve MissLabel to the next PC. SeekRowid's miss-jump lands here." },
+        "CloseCursor":      { "doc": "Emit Close { cursor: 0 }. Idempotent. Emitted once on the hit path before the convergence point and once on the miss path; both lead into BindHaltLabel." },
+        "BindHaltLabel":    { "doc": "Resolve HaltLabel to the next PC." },
+        "EmitHalt":         { "doc": "Emit Halt." }
+      }
+    },
+
+    "RowidPointFetchTemplate": {
+      "kind": "record",
+      "doc": "The v1 emit-list template, recorded as data so the master.md prose and every target's mapping can cross-reference it. Generators MAY hard-code the equivalent emit sequence directly; this record exists to pin the canonical order. `steps` is the literal sequence that the emitter walks.",
+      "fields": {
+        "trigger": "PushdownTrigger",
+        "steps":   { "list": "EmitOp" }
+      }
+    }
+  },
+
+  "functions": {
+    "try_compile_point_fetch": {
+      "doc": "Recognise-and-emit. Returns Some(PointFetchOk) iff every Pin 1–6 in master.md holds for `stmt` against `schema`; returns None otherwise. None is the signal to /parts/compiler/parts/select-compile to fall through to its standard single-table emitter. The function MUST NOT mutate the schema or the stmt; it MUST NOT raise CompileError on a recogniser mismatch (mismatch is None, not an error). It MAY return Err only if the recogniser matches but the spliced compile_expr call against key_expr or the projection compile fails — that propagates through as a CompileError exactly as the standard emitter would.",
+      "params": [
+        { "name": "stmt",   "type": { "borrow": "SelectStmt" } },
+        { "name": "schema", "type": { "borrow": "TableSchema" } }
+      ],
+      "returns": { "result": { "ok": { "option": "PointFetchOk" }, "err": "CompileError" } }
+    },
+
+    "find_rowid_index": {
+      "doc": "Helper: given a TableSchema, return the first IndexSpec whose kind is Rowid, or None. v1 mem-store guarantees at most one such entry per table. Made a public helper so /parts/compiler/parts/select-compile and follow-up rules can share the lookup. Implementations consult schema's installed indexes list — the wiring from TableSchema (compiler-side) to MemTable.indexes (storage-side) lives in the schema-install path of select-compile.",
+      "params": [
+        { "name": "schema", "type": { "borrow": "TableSchema" } }
+      ],
+      "returns": { "option": { "borrow": "IndexSpec" } }
+    },
+
+    "is_row_independent": {
+      "doc": "Helper: structural walk over `expr` returning true iff the AST contains zero Col references and zero Star / TableStar references and zero Subquery / Exists / InSubquery nodes. Bind parameters (Param), literals, Cast, Unary, Binary, and Call (whose args are themselves row-independent) are admitted. Public helper so follow-up rules can reuse the predicate.",
+      "params": [
+        { "name": "expr", "type": { "borrow": "Expr" } }
+      ],
+      "returns": "bool"
+    }
+  }
+}

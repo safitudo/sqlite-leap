@@ -1,0 +1,271 @@
+# Corpus run 2026-04-25 post-unary+qualifier (Rust)
+
+Files sampled: 186
+Binary: /Users/stanislav/code/sqlite-leap/src-rust/target/release/examples/slt_runner
+Per-file timeout: 60s
+
+## Aggregate (record-level)
+
+- PASS:  879023
+- FAIL:  590248
+- DEFER: 89200
+- TOTAL: 1558471
+- PASS rate: 56.40%
+
+## File-level pass-rate distribution
+
+- >95%: 4
+- 50-95%: 102
+- <50%: 79
+- no-records: 1
+
+## Top 20 DEFER reasons
+
+- 28795	parse: <pos> unexpected token after SELECT statement
+- 9996	compile: deferred: qualified column ref `cor0.col0` in SELECT
+- 9958	compile: deferred: qualified column ref `cor0.col2` in SELECT
+- 9899	compile: deferred: qualified column ref `cor0.col1` in SELECT
+- 8039	compile: projection references column not in GROUP BY
+- 4738	statement: unsupported leading kw "<s>"
+- 3287	compile: INSERT from SELECT requires source schema
+- 1126	compile: aggregate without FROM is unsupported
+- 926	compile: deferred: function call MIN_distinct
+- 877	compile: deferred: function call SUM_distinct
+- 864	compile: deferred: function call MAX_distinct
+- 466	compile: non-aggregate column in projection of aggregate query
+- 406	compile: deferred: function call AVG_distinct
+- 277	compile: HAVING references column not in GROUP BY
+- 269	compile: deferred: DISTINCT across JOIN sources
+- 186	parse: <pos> deferred: parenthesized table-ref / subquery in FROM
+- 89	compile: unknown table: t2 (schema is for t1)
+- 85	compile: unknown table: t6 (schema is for t1)
+- 80	compile: unknown table: t7 (schema is for t1)
+- 79	compile: unknown table: t4 (schema is for t1)
+
+## Top 20 FAIL reasons
+
+- 99006	hash mismatch: count got=<n> expected=<n>, md5 got=d41d8cd98f00b204e9800998ecf8427e expected=e20b902b49a98b1a05ed62804c7...
+- 33698	got(<n>)=[] expected(<n>)=["<s>", "<s>"]
+- 30331	got(<n>)=[] expected(<n>)=["<s>", "<s>", "<s>", "<s>"]
+- 30216	got(<n>)=[] expected(<n>)=["<s>", "<s>", "<s>", "<s>", "<s>", "<s>"]
+- 29912	got(<n>)=[] expected(<n>)=["<s>", "<s>", "<s>", "<s>", "<s>", "<s>", "<s>", "<s>"]
+- 28075	got(<n>)=[] expected(<n>)=["<s>"]
+- 17403	got(<n>)=[] expected(<n>)=["<s>", "<s>", "<s>"]
+- 15786	got(<n>)=[] expected(<n>)=["<s>", "<s>", "<s>", "<s>", "<s>"]
+- 13961	got(<n>)=[] expected(<n>)=["<s>", "<s>", "<s>", "<s>", "<s>", "<s>", "<s>"]
+- 9832	hash mismatch: count got=<n> expected=<n>, md5 got=d41d8cd98f00b204e9800998ecf8427e expected=9d3557642e57f7f03e636d9ae90...
+- 6932	got(<n>)=["<s>", "<s>", "<s>", "<s>", "<s>", "<s>", "<s>", "<s>"] expected(<n>)=[]
+- 4962	got(<n>)=["<s>"] expected(<n>)=["<s>"]
+- 3119	got(<n>)=["<s>", "<s>", "<s>"] expected(<n>)=[]
+- 2736	hash mismatch: count got=<n> expected=<n>, md5 got=d41d8cd98f00b204e9800998ecf8427e expected=0b2f3ce47428ebec5f2931eddc8...
+- 2458	hash mismatch: count got=<n> expected=<n>, md5 got=e20b902b49a98b1a05ed62804c757f94 expected=9d3557642e57f7f03e636d9ae90...
+- 2264	hash mismatch: count got=<n> expected=<n>, md5 got=d41d8cd98f00b204e9800998ecf8427e expected=22e400a2ddbb013acf2a5852d6a...
+- 2148	hash mismatch: count got=<n> expected=<n>, md5 got=d41d8cd98f00b204e9800998ecf8427e expected=771a06029c003358acd302c0ec9...
+- 2120	hash mismatch: count got=<n> expected=<n>, md5 got=d41d8cd98f00b204e9800998ecf8427e expected=a09f741e1007d9cc99c658732e9...
+- 2112	hash mismatch: count got=<n> expected=<n>, md5 got=d41d8cd98f00b204e9800998ecf8427e expected=7c052a6f22ec636843783dd115b...
+- 2025	got(<n>)=["<s>", "<s>", "<s>"] expected(<n>)=["<s>", "<s>", "<s>"]
+
+## Timeouts
+
+- select4.test
+- select5.test
+- random/expr/slt_good_0.test
+- random/expr/slt_good_111.test
+- random/expr/slt_good_18.test
+- random/expr/slt_good_31.test
+- random/expr/slt_good_45.test
+- random/expr/slt_good_59.test
+- random/expr/slt_good_72.test
+- random/expr/slt_good_86.test
+
+## Crashes / panics
+
+
+## Per-file detail (rel, pass%, pass, fail, defer, status)
+
+- index/view/10/slt_good_0.test	n/a	0	0	0	OK
+- evidence/slt_lang_replace.test	0.0%	0	5	8	OK
+- random/groupby/slt_good_0.test	24.0%	2398	17	7597	OK
+- evidence/slt_lang_createtrigger.test	24.0%	6	0	19	OK
+- random/groupby/slt_good_13.test	26.0%	827	5	2350	OK
+- evidence/in1.test	26.6%	57	0	157	OK
+- select2.test	28.0%	289	742	0	OK
+- index/orderby_nosort/10/slt_good_6.test	28.8%	2893	7156	4	OK
+- index/orderby_nosort/10/slt_good_4.test	32.0%	3217	6832	4	OK
+- random/groupby/slt_good_2.test	32.6%	3259	35	6718	OK
+- index/orderby_nosort/10/slt_good_0.test	33.4%	3353	6696	4	OK
+- index/orderby_nosort/10/slt_good_1.test	34.1%	3431	6616	4	OK
+- index/orderby_nosort/10/slt_good_3.test	34.9%	3503	6544	4	OK
+- random/groupby/slt_good_1.test	35.3%	3536	20	6456	OK
+- index/orderby_nosort/10/slt_good_2.test	36.3%	3648	6400	4	OK
+- select3.test	37.0%	1241	2110	0	OK
+- evidence/slt_lang_update.test	37.0%	10	6	11	OK
+- index/orderby/10/slt_good_6.test	38.3%	3852	6192	4	OK
+- index/orderby/10/slt_good_8.test	38.8%	3903	6144	4	OK
+- index/orderby/10/slt_good_0.test	38.8%	3905	6144	4	OK
+- index/commute/10/slt_good_0.test	38.9%	3902	6128	4	OK
+- index/view/10/slt_good_3.test	39.1%	1269	688	1291	OK
+- index/commute/10/slt_good_3.test	39.6%	3972	6056	4	OK
+- index/view/10/slt_good_7.test	39.7%	1171	608	1171	OK
+- index/orderby/10/slt_good_16.test	39.8%	3998	6048	4	OK
+- index/commute/10/slt_good_1.test	39.8%	3994	6032	4	OK
+- index/commute/10/slt_good_14.test	39.9%	4004	6024	4	OK
+- index/orderby/10/slt_good_9.test	40.3%	4046	6000	4	OK
+- index/orderby/10/slt_good_11.test	40.3%	4049	6000	4	OK
+- index/orderby/10/slt_good_14.test	40.3%	4049	6000	4	OK
+- index/view/10/slt_good_6.test	40.3%	1510	748	1491	OK
+- index/view/10/slt_good_5.test	40.4%	2925	1428	2884	OK
+- index/view/10/slt_good_2.test	40.5%	2612	1264	2571	OK
+- index/orderby_nosort/10/slt_good_5.test	40.7%	4092	5956	4	OK
+- index/commute/10/slt_good_16.test	40.7%	4084	5944	4	OK
+- index/orderby/10/slt_good_18.test	40.8%	4097	5952	4	OK
+- index/commute/10/slt_good_2.test	41.0%	4111	5922	4	OK
+- index/view/10/slt_good_4.test	41.0%	3092	1440	3004	OK
+- random/expr/slt_good_31.test	41.2%	169	6	235	TIMEOUT
+- index/commute/10/slt_good_12.test	41.6%	4171	5856	4	OK
+- index/commute/10/slt_good_11.test	41.7%	4180	5848	4	OK
+- random/groupby/slt_good_3.test	41.7%	4174	74	5764	OK
+- index/orderby/10/slt_good_7.test	41.7%	4192	5856	4	OK
+- index/orderby/10/slt_good_25.test	41.7%	4193	5856	4	OK
+- index/orderby/10/slt_good_17.test	41.7%	4194	5856	4	OK
+- index/commute/10/slt_good_13.test	41.7%	4188	5840	4	OK
+- random/expr/slt_good_0.test	42.6%	319	9	421	TIMEOUT
+- random/expr/slt_good_72.test	42.6%	142	2	189	TIMEOUT
+- index/orderby/10/slt_good_2.test	42.7%	4287	5760	4	OK
+- index/orderby/10/slt_good_23.test	42.7%	4289	5760	4	OK
+- index/commute/10/slt_good_8.test	42.8%	4292	5736	4	OK
+- random/expr/slt_good_111.test	42.9%	137	4	178	TIMEOUT
+- random/expr/slt_good_59.test	43.0%	129	3	168	TIMEOUT
+- index/orderby/10/slt_good_13.test	43.1%	4335	5712	4	OK
+- index/orderby/10/slt_good_3.test	43.1%	4335	5712	4	OK
+- index/orderby/10/slt_good_22.test	43.1%	4336	5712	4	OK
+- index/orderby/10/slt_good_1.test	43.1%	4338	5712	4	OK
+- index/view/10/slt_good_1.test	43.2%	194	84	171	OK
+- index/commute/10/slt_good_10.test	43.4%	1849	2408	4	OK
+- index/commute/10/slt_good_5.test	43.5%	4364	5664	4	OK
+- index/orderby/10/slt_good_19.test	43.6%	4384	5664	4	OK
+- index/orderby/10/slt_good_21.test	43.6%	4385	5664	4	OK
+- index/orderby/10/slt_good_12.test	44.1%	4433	5616	4	OK
+- index/commute/10/slt_good_4.test	44.2%	4434	5592	4	OK
+- random/expr/slt_good_45.test	44.4%	122	1	152	TIMEOUT
+- index/orderby_nosort/10/slt_good_11.test	44.5%	4476	5572	4	OK
+- index/orderby/10/slt_good_24.test	44.6%	4479	5568	4	OK
+- index/orderby/10/slt_good_5.test	45.0%	4527	5520	4	OK
+- index/commute/10/slt_good_7.test	45.2%	4534	5496	4	OK
+- index/commute/10/slt_good_15.test	46.0%	4610	5416	4	OK
+- index/orderby/10/slt_good_4.test	46.0%	4624	5424	4	OK
+- index/commute/10/slt_good_9.test	46.3%	4646	5384	4	OK
+- index/commute/10/slt_good_17.test	46.4%	4651	5376	4	OK
+- random/expr/slt_good_18.test	46.9%	256	7	283	TIMEOUT
+- index/orderby/10/slt_good_15.test	47.4%	4768	5280	4	OK
+- index/commute/10/slt_good_6.test	47.5%	4768	5264	4	OK
+- index/orderby/10/slt_good_20.test	47.9%	4816	5232	4	OK
+- random/expr/slt_good_86.test	48.2%	160	3	169	TIMEOUT
+- index/orderby_nosort/10/slt_good_8.test	49.6%	4986	5064	4	OK
+- index/orderby/10/slt_good_10.test	49.8%	5007	5040	4	OK
+- select4.test	51.3%	1055	0	1000	TIMEOUT
+- index/orderby_nosort/10/slt_good_31.test	51.6%	5188	4860	4	OK
+- evidence/slt_lang_aggfunc.test	51.9%	41	2	36	OK
+- index/in/10/slt_good_4.test	52.7%	5291	4743	4	OK
+- index/in/10/slt_good_0.test	52.8%	5297	4734	4	OK
+- index/in/10/slt_good_2.test	53.1%	5327	4704	4	OK
+- index/orderby_nosort/10/slt_good_13.test	53.2%	5351	4698	4	OK
+- index/in/10/slt_good_5.test	53.5%	5375	4659	4	OK
+- index/in/10/slt_good_3.test	53.6%	5377	4656	4	OK
+- index/orderby_nosort/10/slt_good_10.test	54.3%	5453	4594	4	OK
+- index/in/10/slt_good_1.test	54.3%	5445	4587	4	OK
+- index/orderby_nosort/10/slt_good_7.test	54.3%	5458	4590	4	OK
+- index/commute/10/slt_good_19.test	54.3%	5451	4576	4	OK
+- index/commute/10/slt_good_18.test	54.4%	5462	4568	4	OK
+- index/orderby_nosort/10/slt_good_18.test	55.4%	5564	4482	4	OK
+- index/orderby_nosort/10/slt_good_14.test	56.1%	5644	4404	4	OK
+- index/orderby_nosort/10/slt_good_24.test	57.0%	5730	4320	4	OK
+- index/orderby_nosort/10/slt_good_38.test	57.5%	5782	4266	4	OK
+- index/orderby_nosort/10/slt_good_26.test	57.5%	5783	4266	4	OK
+- index/commute/10/slt_good_21.test	57.9%	5808	4218	4	OK
+- index/orderby_nosort/10/slt_good_23.test	58.1%	5835	4212	4	OK
+- index/orderby_nosort/10/slt_good_39.test	58.1%	5836	4212	4	OK
+- index/commute/10/slt_good_22.test	58.8%	5901	4128	4	OK
+- index/orderby_nosort/10/slt_good_12.test	59.1%	5943	4104	4	OK
+- index/orderby_nosort/10/slt_good_21.test	59.1%	5944	4104	4	OK
+- index/orderby_nosort/10/slt_good_36.test	59.1%	5944	4104	4	OK
+- index/orderby_nosort/10/slt_good_27.test	59.2%	5949	4098	4	OK
+- index/orderby_nosort/10/slt_good_33.test	59.7%	5996	4050	4	OK
+- index/orderby_nosort/10/slt_good_16.test	59.7%	5999	4050	4	OK
+- index/orderby_nosort/10/slt_good_9.test	59.7%	6007	4044	4	OK
+- index/orderby_nosort/10/slt_good_17.test	60.2%	6050	3996	4	OK
+- index/orderby_nosort/10/slt_good_25.test	60.2%	6052	3996	4	OK
+- index/orderby_nosort/10/slt_good_22.test	60.2%	6054	3996	4	OK
+- index/orderby_nosort/10/slt_good_37.test	60.7%	6106	3942	4	OK
+- index/orderby_nosort/10/slt_good_35.test	61.3%	6157	3888	4	OK
+- index/orderby_nosort/10/slt_good_15.test	61.3%	6162	3888	4	OK
+- evidence/slt_lang_dropview.test	61.5%	8	2	3	OK
+- index/commute/10/slt_good_29.test	61.6%	6180	3848	4	OK
+- index/commute/10/slt_good_33.test	61.6%	6182	3848	4	OK
+- index/commute/10/slt_good_24.test	61.8%	6197	3832	4	OK
+- index/orderby_nosort/10/slt_good_19.test	61.8%	6215	3834	4	OK
+- index/commute/10/slt_good_28.test	61.8%	6205	3824	4	OK
+- index/commute/10/slt_good_31.test	62.0%	6221	3808	4	OK
+- index/commute/10/slt_good_20.test	62.2%	6236	3792	4	OK
+- index/orderby_nosort/10/slt_good_29.test	62.3%	6266	3780	4	OK
+- index/commute/10/slt_good_23.test	62.4%	6261	3768	4	OK
+- index/commute/10/slt_good_25.test	62.6%	6274	3752	4	OK
+- index/orderby_nosort/10/slt_good_30.test	62.9%	6322	3726	4	OK
+- index/orderby_nosort/10/slt_good_34.test	62.9%	6322	3726	4	OK
+- index/commute/10/slt_good_32.test	63.2%	6340	3688	4	OK
+- index/orderby_nosort/10/slt_good_28.test	63.4%	6376	3672	4	OK
+- index/orderby_nosort/10/slt_good_32.test	63.4%	6376	3672	4	OK
+- index/commute/10/slt_good_27.test	63.4%	6365	3664	4	OK
+- index/commute/10/slt_good_30.test	63.5%	6372	3656	4	OK
+- index/commute/10/slt_good_34.test	63.8%	6404	3624	4	OK
+- index/commute/10/slt_good_26.test	65.3%	6547	3480	4	OK
+- index/orderby_nosort/10/slt_good_20.test	65.6%	6593	3456	4	OK
+- select1.test	65.7%	677	354	0	OK
+- random/groupby/slt_good_12.test	66.7%	6674	1315	2023	OK
+- index/between/1/slt_good_0.test	66.9%	6706	3312	4	OK
+- random/select/slt_good_111.test	67.8%	6790	304	2917	OK
+- random/select/slt_good_39.test	68.8%	6891	289	2830	OK
+- random/select/slt_good_52.test	69.1%	6918	273	2819	OK
+- random/select/slt_good_66.test	69.2%	6928	262	2822	OK
+- random/select/slt_good_25.test	70.5%	7062	252	2698	OK
+- random/select/slt_good_8.test	71.9%	7199	220	2593	OK
+- random/groupby/slt_good_10.test	72.3%	7234	1494	1284	OK
+- random/groupby/slt_good_11.test	72.7%	7282	1537	1193	OK
+- index/random/10/slt_good_12.test	73.9%	7414	1930	689	OK
+- evidence/slt_lang_createview.test	73.9%	17	2	4	OK
+- evidence/slt_lang_dropindex.test	75.0%	6	2	0	OK
+- evidence/slt_lang_droptable.test	75.0%	9	3	0	OK
+- index/random/10/slt_good_14.test	75.1%	7529	1853	649	OK
+- index/random/10/slt_good_10.test	75.5%	7576	1899	559	OK
+- index/random/10/slt_good_11.test	75.8%	7600	1812	619	OK
+- index/random/10/slt_good_9.test	75.8%	7607	1810	614	OK
+- random/aggregates/slt_good_25.test	75.9%	7597	1162	1253	OK
+- index/random/10/slt_good_8.test	76.3%	7654	1759	619	OK
+- random/aggregates/slt_good_69.test	76.3%	7639	1143	1230	OK
+- index/random/10/slt_good_13.test	76.3%	7655	1793	584	OK
+- random/aggregates/slt_good_0.test	76.4%	7649	1192	1171	OK
+- random/aggregates/slt_good_4.test	76.4%	7653	1168	1191	OK
+- index/random/10/slt_good_0.test	76.5%	7670	1753	609	OK
+- random/aggregates/slt_good_112.test	76.5%	7655	1144	1213	OK
+- index/random/10/slt_good_7.test	76.5%	7670	1827	534	OK
+- index/random/10/slt_good_6.test	76.6%	7690	1820	524	OK
+- random/aggregates/slt_good_83.test	76.6%	7674	1175	1163	OK
+- random/aggregates/slt_good_54.test	76.7%	7679	1172	1161	OK
+- index/random/10/slt_good_1.test	76.7%	7699	1756	579	OK
+- index/random/10/slt_good_4.test	76.9%	7713	1696	624	OK
+- random/select/slt_good_0.test	76.9%	7697	153	2162	OK
+- random/aggregates/slt_good_127.test	77.0%	7712	1158	1142	OK
+- index/random/10/slt_good_2.test	77.6%	7791	1689	554	OK
+- index/random/10/slt_good_5.test	78.1%	7832	1768	434	OK
+- index/random/10/slt_good_3.test	78.2%	7850	1735	449	OK
+- evidence/slt_lang_droptrigger.test	81.8%	9	0	2	OK
+- index/delete/10/slt_good_0.test	83.1%	8914	1348	468	OK
+- index/delete/10/slt_good_5.test	83.2%	8617	1292	444	OK
+- index/delete/10/slt_good_2.test	83.3%	7818	1164	408	OK
+- index/delete/10/slt_good_1.test	83.3%	8978	1316	480	OK
+- index/delete/10/slt_good_3.test	83.6%	8413	1192	460	OK
+- index/delete/10/slt_good_4.test	83.9%	8895	1204	500	OK
+- evidence/in2.test	100.0%	53	0	0	OK
+- evidence/slt_lang_reindex.test	100.0%	6	0	0	OK
+- select5.test	100.0%	753	0	0	TIMEOUT
+- random/select/slt_good_125.test	100.0%	12	0	0	OK

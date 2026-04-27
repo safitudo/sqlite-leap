@@ -1,0 +1,14 @@
+src-rust/target
+src-zig/zig-out
+src-zig/.zig-cache
+src-c/build
+src-go/bin
+src-go/pkg
+__pycache__
+*.pyc
+.DS_Store
+*.db
+*.db-journal
+*.db-wal
+.leap-stage
+bench/results/*/raw_*.csv

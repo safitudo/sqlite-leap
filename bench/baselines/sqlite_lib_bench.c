@@ -115,14 +115,60 @@ static int run_one(sqlite3 *db, const char *sql) {
 }
 
 int main(int argc, char **argv) {
-    if (argc < 2) { fprintf(stderr, "usage: %s <workload.sql> [--time-setup] [--db PATH]\n", argv[0]); return 2; }
-    const char *path = argv[1];
+    if (argc < 2) { fprintf(stderr, "usage: %s <workload.sql> [--time-setup] [--db PATH]\n              %s --prepared 'INSERT INTO t(a,b) VALUES(?, ?)' --rows N [--db PATH]\n", argv[0], argv[0]); return 2; }
     int time_setup = 0;
     const char *db_path = ":memory:";
-    for (int i = 2; i < argc; i++) {
+    const char *prepared_sql = NULL;
+    long rows = 100000;
+    for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--time-setup") == 0) time_setup = 1;
         else if (strcmp(argv[i], "--db") == 0 && i + 1 < argc) { db_path = argv[++i]; }
+        else if (strcmp(argv[i], "--prepared") == 0 && i + 1 < argc) { prepared_sql = argv[++i]; }
+        else if (strcmp(argv[i], "--rows") == 0 && i + 1 < argc) { rows = atol(argv[++i]); }
     }
+    /* Prepared mode: compile once, step N times with bound params.
+     * Auto-creates a 2-col table `t(a INTEGER, b TEXT)` matching the
+     * leap_sqlite lib_bench --prepared workload shape. */
+    if (prepared_sql) {
+        sqlite3 *db = NULL;
+        if (sqlite3_open(db_path, &db) != SQLITE_OK) {
+            fprintf(stderr, "open: %s\n", sqlite3_errmsg(db));
+            return 2;
+        }
+        char *err = NULL;
+        if (sqlite3_exec(db, "CREATE TABLE t(a INTEGER, b TEXT);", NULL, NULL, &err) != SQLITE_OK) {
+            fprintf(stderr, "create: %s\n", err ? err : "?"); return 2;
+        }
+        sqlite3_stmt *stmt = NULL;
+        if (sqlite3_prepare_v2(db, prepared_sql, -1, &stmt, NULL) != SQLITE_OK) {
+            fprintf(stderr, "prepare: %s\n", sqlite3_errmsg(db)); return 2;
+        }
+        int nparam = sqlite3_bind_parameter_count(stmt);
+        long errs = 0;
+        char buf[32];
+        double t0 = now_s();
+        for (long i = 0; i < rows; i++) {
+            sqlite3_reset(stmt);
+            for (int p = 1; p <= nparam; p++) {
+                if ((p - 1) % 2 == 0) {
+                    sqlite3_bind_int64(stmt, p, (sqlite3_int64)i);
+                } else {
+                    int blen = snprintf(buf, sizeof buf, "v%ld", i);
+                    sqlite3_bind_text(stmt, p, buf, blen, SQLITE_TRANSIENT);
+                }
+            }
+            int rc = sqlite3_step(stmt);
+            if (rc != SQLITE_DONE && rc != SQLITE_ROW) errs++;
+        }
+        double elapsed = now_s() - t0;
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        long qps = elapsed > 0 ? (long)((double)rows / elapsed) : 0;
+        printf("elapsed_seconds=%.6f statements=%ld errors=%ld qps=%ld\n",
+               elapsed, rows, errs, qps);
+        return 0;
+    }
+    const char *path = argv[1];
 
     size_t srclen;
     char *src = slurp(path, &srclen);

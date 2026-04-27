@@ -19,12 +19,32 @@
 
     "MemTable": {
       "kind": "record",
-      "doc": "One named table: its name, optional column-name list (for UPDATE name→index resolution), the rows in insertion order, and a parallel rowids vector (v5). Column arity is whatever the caller stored — the VDBE resolves columns by index supplied by the Column opcode. If column_names is empty, UPDATE by name will fail with SchemaMissing; INSERT/SELECT/DELETE do not consult column_names. rowids[i] is the SQLite-style 1-based rowid of rows[i]; cursor_insert_row appends rows[i].len()+1 by default but accepts an explicit-rowid path when column_names contains a 'rowid' entry.",
+      "doc": "One named table: its name, optional column-name list (for UPDATE name→index resolution), the rows in insertion order, and a parallel rowids vector (v5). Column arity is whatever the caller stored — the VDBE resolves columns by index supplied by the Column opcode. If column_names is empty, UPDATE by name will fail with SchemaMissing; INSERT/SELECT/DELETE do not consult column_names. rowids[i] is the SQLite-style 1-based rowid of rows[i]; cursor_insert_row appends rows[i].len()+1 by default but accepts an explicit-rowid path when column_names contains a 'rowid' entry. v7-pp: indexes is a (possibly empty) list of IndexSpec entries describing per-table indexes available to the planner. v1 only ever emits a single `Rowid` index (corresponding to the table's INTEGER PRIMARY KEY column, when the schema declares one). `Unique` and `NonUnique` are reserved for follow-up parts (storage/index, btree-backed) and MUST NOT be populated by mem-store callers in v1. The field is optional in the sense that v1 callers that don't install an INTEGER PRIMARY KEY MAY leave it as the empty list; existing callers that don't yet emit an indexes field continue to round-trip via target-side default-empty initialization.",
       "fields": {
         "name":         "string",
         "column_names": { "list": "string" },
         "rows":         { "list": { "list": "Value" } },
-        "rowids":       { "list": "i64" }
+        "rowids":       { "list": "i64" },
+        "indexes":      { "list": "IndexSpec" }
+      }
+    },
+
+    "IndexKind": {
+      "kind": "variant",
+      "doc": "v7-pp: classifies an index. Only `Rowid` is honored by v1 mem-store; the other two are placeholders for the storage/index and storage/btree parts. The compiler's predicate-pushdown rule (see /parts/compiler/parts/predicate-pushdown) consults a `Rowid` entry to recognise an INTEGER PRIMARY KEY table.",
+      "cases": {
+        "Rowid":     { "doc": "The table's INTEGER PRIMARY KEY column. The single column entry in `IndexSpec.columns` is the 0-based column index of that PK column. SeekRowid (parts/vdbe/parts/opcodes-rows) takes a value of that column and positions the cursor at the matching row." },
+        "Unique":    { "doc": "Reserved for follow-up. v1 mem-store MUST NOT emit this kind." },
+        "NonUnique": { "doc": "Reserved for follow-up. v1 mem-store MUST NOT emit this kind." }
+      }
+    },
+
+    "IndexSpec": {
+      "kind": "record",
+      "doc": "v7-pp: declares one index over a MemTable. `kind` discriminates the index family (see IndexKind). `columns` is the list of 0-based column indices that form the index key; for `Rowid` exactly one entry is permitted (the INTEGER PRIMARY KEY column). For v1 mem-store, the only legal shape is `IndexSpec { kind: Rowid, columns: [pk_col_index] }` and at most one such entry per MemTable.",
+      "fields": {
+        "kind":    "IndexKind",
+        "columns": { "list": "u32" }
       }
     },
 

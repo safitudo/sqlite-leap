@@ -87,7 +87,9 @@
         "Exists":   { "doc": "α15: `EXISTS (SELECT ...)`. Value is 1 if the inner SELECT emits at least one row, else 0. `negated=true` flips. `NOT EXISTS` is parsed as `Unary(Not, Exists{negated:false})` rather than `Exists{negated:true}` — the parser leaves negation handling to the existing Unary Not path. Compiler currently clean-stops with 'deferred: EXISTS subquery'.",
                      "fields": { "select": "SelectStmt", "negated": "bool" } },
         "InSubquery": { "doc": "α15: `expr IN (SELECT ...)` / `expr NOT IN (SELECT ...)`. Compiles by materializing the inner SELECT into a buffer then linear-scanning per outer row. Compiler currently clean-stops with 'deferred: IN subquery'.",
-                     "fields": { "lhs": "Expr", "select": "SelectStmt", "negated": "bool" } }
+                     "fields": { "lhs": "Expr", "select": "SelectStmt", "negated": "bool" } },
+        "Param": { "doc": "Bind-parameter placeholder. v1 admits the SQLite anonymous form `?` only; named (`:name`, `@name`, `$name`) and explicitly-numbered (`?N`) forms are deferred. The parser numbers anonymous `?` placeholders sequentially, **1-based**, in left-to-right source order. `idx` is that 1-based slot index; the same SQL text always parses to the same idx assignment. v1 admits `?` inside any expression position the grammar otherwise admits an expression — WHERE, ON, HAVING, projection, INSERT VALUES tuple cells, UPDATE SET right-hand side, scalar arguments to function calls. v1 does NOT admit `?` in: table-name positions, column-name positions, ORDER BY positional integer, LIMIT/OFFSET integer literal positions (parser expects an IntLit there), CTE definitions, type names. The compiler lowers `Expr::Param { idx }` to `OpcodeCore::BindParam { slot: idx, dest_reg: <fresh> }` followed by reads of dest_reg. See /parts/lib-api/parts/prepared-statement for binding semantics.",
+                     "fields": { "idx": "u32" } }
       }
     },
 

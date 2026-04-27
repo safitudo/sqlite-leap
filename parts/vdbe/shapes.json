@@ -385,6 +385,37 @@
         "doc": "α20 compound-SELECT EXCEPT support. As buffer_intersect but a row of srcs[0] qualifies iff it is absent from every other source. Result is sorted + dedup'd. Source slots are not mutated."
       },
       {
+        "name": "params_len",
+        "receiver": "borrow",
+        "params": [],
+        "returns": "u32",
+        "doc": "Number of bind-parameter slots currently held by the state. 0 for a freshly constructed state; equals the number of values most recently installed via set_params or, equivalently, the prepared statement's arity once bind has been called for every slot. BindParam reads slot k from the slot-vector at index k-1; 1-based. See /parts/lib-api/parts/prepared-statement."
+      },
+      {
+        "name": "get_param",
+        "receiver": "borrow",
+        "params": [{ "name": "slot", "type": "u32" }],
+        "returns": { "borrow": "Value" },
+        "doc": "Borrow the value bound at slot (1-based). Panics if slot is 0 or > params_len() — well-formed programs check via BindParam's own bound check first. Returns Null if the caller bound a Null OR never bound this slot (the slot vector is initialized to all-Null by set_params_arity)."
+      },
+      {
+        "name": "set_param",
+        "receiver": "mut",
+        "params": [
+          { "name": "slot",  "type": "u32" },
+          { "name": "value", "type": "Value" }
+        ],
+        "returns": "unit",
+        "doc": "Install value at slot (1-based) in the bind-parameter vector. Slot must be in [1, params_len()]. Caller is the lib-api `bind` function; see /parts/lib-api/parts/prepared-statement. Replaces any prior binding at the slot. The binding survives `reset` and is cleared only by `set_params_arity` (a fresh prepared-statement install) or state destruction."
+      },
+      {
+        "name": "set_params_arity",
+        "receiver": "mut",
+        "params": [{ "name": "arity", "type": "u32" }],
+        "returns": "unit",
+        "doc": "Resize the bind-parameter slot vector to `arity` and initialize every slot to `Value::Null`. Called by the lib-api when wiring a prepared statement into a state. Idempotent for the same arity (every slot is reset to Null). For arity = 0 the vector becomes empty and any subsequent BindParam Halts."
+      },
+      {
         "name": "buffer_union",
         "receiver": "mut",
         "params": [

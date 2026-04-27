@@ -1,0 +1,431 @@
+{
+  "files_sampled": 186,
+  "total_pass": 1375331,
+  "total_fail": 169498,
+  "total_defer": 13224,
+  "total_records": 1558053,
+  "pass_pct": 88.27241435304191,
+  "file_buckets": {
+    ">95%": 87,
+    "50-95%": 87,
+    "<50%": 11,
+    "no-records": 1
+  },
+  "top_defer": [
+    [
+      "compile: deferred: compound SELECT with CTE or derived FROM",
+      3130
+    ],
+    [
+      "compile: projection references column not in GROUP BY",
+      3043
+    ],
+    [
+      "compile: aggregate without FROM is unsupported",
+      1086
+    ],
+    [
+      "compile: deferred: function call MIN_distinct",
+      996
+    ],
+    [
+      "compile: deferred: function call SUM_distinct",
+      961
+    ],
+    [
+      "compile: deferred: function call MAX_distinct",
+      960
+    ],
+    [
+      "compile: non-aggregate column in projection of aggregate query",
+      490
+    ],
+    [
+      "compile: deferred: function call AVG_distinct",
+      452
+    ],
+    [
+      "compile: HAVING references column not in GROUP BY",
+      346
+    ],
+    [
+      "compile: deferred: DISTINCT across JOIN sources",
+      272
+    ],
+    [
+      "parse: <pos> deferred: parenthesized table-ref / subquery in FROM",
+      197
+    ],
+    [
+      "compile: unknown table: t2 (schema is for t1)",
+      89
+    ],
+    [
+      "compile: unknown table: t6 (schema is for t1)",
+      85
+    ],
+    [
+      "compile: unknown table: t7 (schema is for t1)",
+      80
+    ],
+    [
+      "compile: unknown table: t4 (schema is for t1)",
+      79
+    ],
+    [
+      "compile: deferred: IN subquery",
+      74
+    ],
+    [
+      "compile: unknown table: t8 (schema is for t1)",
+      74
+    ],
+    [
+      "compile: unknown table: t3 (schema is for t1)",
+      72
+    ],
+    [
+      "compile: unknown table: t9 (schema is for t1)",
+      71
+    ],
+    [
+      "parse: <pos> expected '<s>' after IN",
+      70
+    ],
+    [
+      "compile: unknown table: t5 (schema is for t1)",
+      70
+    ],
+    [
+      "compile: deferred: star projection in aggregate query",
+      41
+    ],
+    [
+      "compile: unknown table: t3 (schema is for t2)",
+      34
+    ],
+    [
+      "compile: unknown table: t8 (schema is for t2)",
+      31
+    ],
+    [
+      "compile: unknown table: t4 (schema is for t2)",
+      31
+    ],
+    [
+      "compile: unknown table: t7 (schema is for t2)",
+      29
+    ],
+    [
+      "compile: unknown table: t9 (schema is for t2)",
+      28
+    ],
+    [
+      "statement: unsupported leading kw \"<s>\"",
+      25
+    ],
+    [
+      "compile: unknown table: t9 (schema is for t3)",
+      25
+    ],
+    [
+      "compile: unknown table: t8 (schema is for t3)",
+      23
+    ],
+    [
+      "compile: unknown table: t6 (schema is for t2)",
+      22
+    ],
+    [
+      "compile: unknown table: t5 (schema is for t2)",
+      20
+    ],
+    [
+      "compile: unknown table: t6 (schema is for t3)",
+      18
+    ],
+    [
+      "compile: unknown table: t4 (schema is for t3)",
+      16
+    ],
+    [
+      "parse: <pos> deferred: TRIGGER",
+      11
+    ],
+    [
+      "compile: unknown table: t6 (schema is for t4)",
+      11
+    ],
+    [
+      "parse: <pos> unexpected token after SELECT statement",
+      10
+    ],
+    [
+      "compile: unknown table: t7 (schema is for t3)",
+      10
+    ],
+    [
+      "compile: unknown table: t9 (schema is for t5)",
+      9
+    ],
+    [
+      "compile: unknown table: t8 (schema is for t6)",
+      9
+    ],
+    [
+      "compile: unknown table: t8 (schema is for t4)",
+      9
+    ],
+    [
+      "compile: deferred: function call sum_distinct",
+      7
+    ],
+    [
+      "compile: unknown table: t7 (schema is for t4)",
+      7
+    ],
+    [
+      "compile: unknown table: t8 (schema is for t7)",
+      7
+    ],
+    [
+      "compile: unknown table: t7 (schema is for t5)",
+      7
+    ],
+    [
+      "compile: unknown table: t5 (schema is for t4)",
+      7
+    ],
+    [
+      "parse: <pos> deferred: blob literal",
+      6
+    ],
+    [
+      "compile: deferred: function call total_distinct",
+      6
+    ],
+    [
+      "compile: unknown table: t1 (schema is for )",
+      6
+    ],
+    [
+      "compile: unknown table: t9 (schema is for t4)",
+      6
+    ]
+  ],
+  "top_fail": [
+    [
+      "got(<n>)=[\"<s>\", \"<s>\", \"<s>\", \"<s>\", \"<s>\", \"<s>\", \"<s>\", \"<s>\"] expected(<n>)=[]",
+      28563
+    ],
+    [
+      "hash mismatch: count got=<n> expected=<n>, md5 got=e20b902b49a98b1a05ed62804c757f94 expected=9d3557642e57f7f03e636d9ae90...",
+      12290
+    ],
+    [
+      "got(<n>)=[\"<s>\"] expected(<n>)=[\"<s>\"]",
+      5479
+    ],
+    [
+      "got(<n>)=[\"<s>\", \"<s>\", \"<s>\", \"<s>\", \"<s>\", \"<s>\"] expected(<n>)=[\"<s>\", \"<s>\", \"<s>\", \"<s>\", \"<s>\", \"<s>\"]",
+      3926
+    ],
+    [
+      "got(<n>)=[\"<s>\", \"<s>\", \"<s>\"] expected(<n>)=[]",
+      3457
+    ],
+    [
+      "got(<n>)=[] expected(<n>)=[\"<s>\", \"<s>\", \"<s>\"]",
+      3444
+    ],
+    [
+      "got(<n>)=[\"<s>\", \"<s>\", \"<s>\"] expected(<n>)=[\"<s>\", \"<s>\", \"<s>\"]",
+      3166
+    ],
+    [
+      "got(<n>)=[\"<s>\", \"<s>\", \"<s>\", \"<s>\"] expected(<n>)=[\"<s>\", \"<s>\", \"<s>\", \"<s>\"]",
+      2926
+    ],
+    [
+      "got(<n>)=[\"<s>\", \"<s>\", \"<s>\", \"<s>\", \"<s>\", \"<s>\", \"<s>\", \"<s>\"] expected(<n>)=[\"<s>\", \"<s>\", \"<s>\", \"<s>\", \"<s>\", \"<s>...",
+      2617
+    ],
+    [
+      "hash mismatch: count got=<n> expected=<n>, md5 got=2f8e5bef97f41cd641eafba46c99a49d expected=ee724f9f159f8cdef185b42c43b...",
+      2250
+    ],
+    [
+      "hash mismatch: count got=<n> expected=<n>, md5 got=f40a1ef6542491a0f490c50802955a8e expected=fd5ef87ee372019414f0b3de2d9...",
+      2150
+    ],
+    [
+      "hash mismatch: count got=<n> expected=<n>, md5 got=69ea35c77af3760266d28e7abca05b5f expected=41188ae9f1de9f62c029b0ba1e6...",
+      2075
+    ],
+    [
+      "hash mismatch: count got=<n> expected=<n>, md5 got=287c225018dcf5275d60795ef673033b expected=665eeefca657f1f6c2d4f2ba683...",
+      2000
+    ],
+    [
+      "hash mismatch: count got=<n> expected=<n>, md5 got=376a57a72b63bbd0b53390c7ee72216a expected=ac073ee6ea28ef0ed712cb7c239...",
+      1975
+    ],
+    [
+      "hash mismatch: count got=<n> expected=<n>, md5 got=337cd209751d7466f9299dacb931e8a3 expected=ba461e878c0df14081008c4853f...",
+      1975
+    ],
+    [
+      "hash mismatch: count got=<n> expected=<n>, md5 got=71417f66dacbe609cdaf87bc08ead392 expected=7dc4dd9c0c522fd8ec56cbc3352...",
+      1925
+    ],
+    [
+      "hash mismatch: count got=<n> expected=<n>, md5 got=5e032107196401cca1537b9751b4c8ee expected=8ca6df9c70d079e5ab6cd37f1b8...",
+      1900
+    ],
+    [
+      "hash mismatch: count got=<n> expected=<n>, md5 got=ad83d9e8c98bba415a9cc63216fa118d expected=334fdacd4e4077c559d8a994a19...",
+      1900
+    ],
+    [
+      "hash mismatch: count got=<n> expected=<n>, md5 got=5c9572d3bc769612a87538e282badbec expected=4e79c738594e6c32a451b73e423...",
+      1900
+    ],
+    [
+      "hash mismatch: count got=<n> expected=<n>, md5 got=10322895bc733a92319f81453dbfa7fe expected=b2de979ec08d0ccefae9e814c61...",
+      1875
+    ],
+    [
+      "hash mismatch: count got=<n> expected=<n>, md5 got=8c03d8bc68978de9cb1cfeab31b3e897 expected=18e881d0519dea2d16b72630a18...",
+      1875
+    ],
+    [
+      "hash mismatch: count got=<n> expected=<n>, md5 got=efbd3c7dcd524b8e5a7ac0ff665c4d2b expected=4489461d3189f4bad5a97addbf2...",
+      1875
+    ],
+    [
+      "hash mismatch: count got=<n> expected=<n>, md5 got=9a2858609288eb1a302f0a9838b4d4af expected=c7cf98c5c3e8106179060a4c674...",
+      1875
+    ],
+    [
+      "hash mismatch: count got=<n> expected=<n>, md5 got=8b3f0907e9af0c672a686d2e31574197 expected=be81ef940378e9856f997b76bd7...",
+      1850
+    ],
+    [
+      "hash mismatch: count got=<n> expected=<n>, md5 got=9003cd84b3ceed4984f6b3ec56c14ab9 expected=9d88223741eaf4864dd05243683...",
+      1825
+    ],
+    [
+      "hash mismatch: count got=<n> expected=<n>, md5 got=7d879b3dce8bdd50c3694ae3b45ff41d expected=c6fe5324095bc9ece8f2375d3f9...",
+      1825
+    ],
+    [
+      "hash mismatch: count got=<n> expected=<n>, md5 got=141f241599ad4d3bd158e72fde57ac7c expected=78487ddc79833d38a5ab39a0981...",
+      1825
+    ],
+    [
+      "hash mismatch: count got=<n> expected=<n>, md5 got=2e2352da559188a7b47dd0446a7350e3 expected=d8fe70d94ed7429b98cb87b725e...",
+      1800
+    ],
+    [
+      "hash mismatch: count got=<n> expected=<n>, md5 got=5d49cc1f8dea7c61057efd58b04167a8 expected=e6bb916b9a6c68de39a5a9e5cf1...",
+      1800
+    ],
+    [
+      "hash mismatch: count got=<n> expected=<n>, md5 got=9450c60ae45c2a048a168cafd074de70 expected=7498563d8adaf267407406c5a67...",
+      1750
+    ],
+    [
+      "hash mismatch: count got=<n> expected=<n>, md5 got=43be4fc079f00312e0388fd1e7b41bd6 expected=561cf5abdbc1affd51cc16e0265...",
+      1725
+    ],
+    [
+      "hash mismatch: count got=<n> expected=<n>, md5 got=02372058a6257f2baf27a233f4ae9275 expected=df58bd920fa5bb8073dbe2713be...",
+      1725
+    ],
+    [
+      "hash mismatch: count got=<n> expected=<n>, md5 got=8dbbb24b6ab581e03c413765b89b568d expected=6309afce65cd7148e78a9fd321b...",
+      1700
+    ],
+    [
+      "hash mismatch: count got=<n> expected=<n>, md5 got=bd32e12c3a2eb9e1c6b95fb72f397639 expected=7ca0b325cfcd85b8ea023142643...",
+      1700
+    ],
+    [
+      "hash mismatch: count got=<n> expected=<n>, md5 got=6f07f79710643bfb1f1d41826957c270 expected=d0d143ef7831cba4153cd8c7141...",
+      1675
+    ],
+    [
+      "hash mismatch: count got=<n> expected=<n>, md5 got=77ae578f9f7513b505a7a2af2444cebc expected=8c51d1dd174dc466cfb50dd81ca...",
+      1625
+    ],
+    [
+      "hash mismatch: count got=<n> expected=<n>, md5 got=9f71eca6cdf3a030ff73b6f37337bc1b expected=ee02ab8ed39f75e7761a6c8f8ce...",
+      1600
+    ],
+    [
+      "got(<n>)=[] expected(<n>)=[\"<s>\"]",
+      1594
+    ],
+    [
+      "got(<n>)=[\"<s>\"] expected(<n>)=[]",
+      1585
+    ],
+    [
+      "hash mismatch: count got=<n> expected=<n>, md5 got=6b76328c659b6c27e9a697436f7afcf8 expected=1ab62678a4596ddc0bcbdd36b3f...",
+      1575
+    ],
+    [
+      "hash mismatch: count got=<n> expected=<n>, md5 got=35467060329910ed46493a6a7ab979a9 expected=3d1fc15e5f7a97021fba6032641...",
+      1400
+    ],
+    [
+      "hash mismatch: count got=<n> expected=<n>, md5 got=d41d8cd98f00b204e9800998ecf8427e expected=b833e3a3ba082b2c0028b4cd08f...",
+      1130
+    ],
+    [
+      "got(<n>)=[\"<s>\", \"<s>\"] expected(<n>)=[\"<s>\", \"<s>\"]",
+      873
+    ],
+    [
+      "hash mismatch: count got=<n> expected=<n>, md5 got=1545dbae6984d5a7242371e4fc8003a6 expected=95ffe0f363ac316e7624bba07a1...",
+      840
+    ],
+    [
+      "got(<n>)=[\"<s>\", \"<s>\", \"<s>\", \"<s>\", \"<s>\", \"<s>\", \"<s>\"] expected(<n>)=[\"<s>\", \"<s>\", \"<s>\", \"<s>\", \"<s>\", \"<s>\", \"<s>...",
+      705
+    ],
+    [
+      "hash mismatch: count got=<n> expected=<n>, md5 got=934df18c8a062661426e7562f3c2a8b4 expected=ac998e26c75569947e3ceb7889a...",
+      700
+    ],
+    [
+      "got(<n>)=[\"<s>\", \"<s>\", \"<s>\"] expected(<n>)=[\"<s>\", \"<s>\"]",
+      670
+    ],
+    [
+      "hash mismatch: count got=<n> expected=<n>, md5 got=d5087ae64fcd2cadc52d24c7a2dbcbfb expected=5f3ca2abf5295159ebbb76e35ab...",
+      630
+    ],
+    [
+      "hash mismatch: count got=<n> expected=<n>, md5 got=d41d8cd98f00b204e9800998ecf8427e expected=c6c0a4111b36d04dbc811a11e4d...",
+      630
+    ],
+    [
+      "hash mismatch: count got=<n> expected=<n>, md5 got=d41d8cd98f00b204e9800998ecf8427e expected=75c998aa53ac83218cbf2feb962...",
+      621
+    ]
+  ],
+  "timeouts": [
+    "select4.test",
+    "select5.test",
+    "random/expr/slt_good_0.test",
+    "random/expr/slt_good_111.test",
+    "random/expr/slt_good_18.test",
+    "random/expr/slt_good_31.test",
+    "random/expr/slt_good_45.test",
+    "random/expr/slt_good_59.test",
+    "random/expr/slt_good_72.test",
+    "random/expr/slt_good_86.test"
+  ],
+  "crashes": []
+}

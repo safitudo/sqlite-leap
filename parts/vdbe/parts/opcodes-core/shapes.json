@@ -46,6 +46,10 @@
         "ResultRow": {
           "fields": { "start_reg": "Register", "count": "u32" },
           "doc": "Signal the outer loop to emit a row from registers [start_reg .. start_reg+count). count == 0 is ill-formed -> Halt(Error(OpcodeIllegal))."
+        },
+        "BindParam": {
+          "fields": { "slot": "u32", "dest_reg": "Register" },
+          "doc": "Read the bind-parameter value at slot (1-based) into regs[dest_reg]. Reads `state.params[slot-1]` (clone) into the register. If slot is 0 or > state.params.len(), Halt(Error(OpcodeIllegal)) — the compiler's prepare phase pins arity so a well-formed program never trips this. If the slot is unbound at the time of execute (caller never invoked bind for slot, or invoked reset which preserves bindings but the original execute had fewer bound), the value is `Value::Null` (matches SQLite's `sqlite3_bind_null`-by-default convention). See /parts/lib-api/parts/prepared-statement and /parts/compiler/parts/predicate-pushdown (which does not emit BindParam directly — predicate-pushdown applies before BindParam lowering) for context."
         }
       }
     }
