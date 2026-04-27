@@ -1,0 +1,240 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "storage/fts5-index",
+  "doc": "On-disk inverted index for FTS5. Lives entirely in shadow tables managed by the regular b-tree storage layer; this part owns the segment / doclist byte format embedded in t_data blobs and the iterators consumed by the query layer.",
+  "imports": {
+    "Rowid":            "parts/core",
+    "Value":            "parts/core",
+    "RuntimeCondition": "parts/core",
+    "PageNo":           "parts/storage/parts/file-format",
+    "BTreeHandle":      "parts/storage/parts/btree",
+    "Fts5TableConfig":  "parts/scalar-builtins/parts/fts5",
+    "Fts5TokenStream":  "parts/storage/parts/fts5-tokenizer"
+  },
+  "types": {
+    "Fts5IndexHandle": {
+      "kind": "opaque",
+      "doc": "Live handle for a single FTS5 index. Wraps the open btree handles for t_data / t_idx / t_content / t_docsize / t_config and the cached structure record. Callers MUST treat as opaque; representation is target-private."
+    },
+    "SegId": {
+      "kind": "alias",
+      "of":   "u32",
+      "doc":  "Per-table segment identifier. Monotonically increasing across the lifetime of the index; reused only after the segment has merged out of every level."
+    },
+    "StructureRecord": {
+      "kind": "record",
+      "doc": "Decoded form of t_data row id=10. Authoritative listing of every live segment.",
+      "fields": {
+        "write_counter":  "u64",
+        "levels":         { "list": "StructureLevel" }
+      }
+    },
+    "StructureLevel": {
+      "kind": "record",
+      "fields": {
+        "merge":     "u32",
+        "segments":  { "list": "SegmentDesc" }
+      }
+    },
+    "SegmentDesc": {
+      "kind": "record",
+      "fields": {
+        "segid":            "SegId",
+        "leaves_end_pgno":  "PageNo",
+        "pgno_first":       "PageNo",
+        "pgno_last":        "PageNo"
+      }
+    },
+    "DetailLevel": {
+      "kind": "variant",
+      "doc": "Mirror of Fts5DetailLevel from the query part — duplicated here so the index can decode without depending on the query part.",
+      "cases": {
+        "Full":   { "fields": {} },
+        "Column": { "fields": {} },
+        "None":   { "fields": {} }
+      }
+    },
+    "Posting": {
+      "kind": "record",
+      "doc": "One unit yielded by Fts5PostingIter. col / pos absent under detail=column and detail=none.",
+      "fields": {
+        "rowid": "Rowid",
+        "col":   { "option": "u32" },
+        "pos":   { "option": "u32" }
+      }
+    },
+    "Fts5PostingIter": {
+      "kind": "opaque",
+      "doc": "Iterator yielding postings for one term, prefix, or phrase. Yields rowids in ascending order. Ownership: borrows the Fts5IndexHandle for its lifetime."
+    },
+    "Fts5PrefixIndexLengths": {
+      "kind": "alias",
+      "of": { "list": "u32" },
+      "doc": "List of prefix-index lengths configured for the table. Empty list = no prefix indexes."
+    },
+    "DocSizeRecord": {
+      "kind": "record",
+      "doc": "One row of t_docsize decoded.",
+      "fields": {
+        "rowid":          "Rowid",
+        "tokens_per_col": { "list": "u32" }
+      }
+    },
+    "Fts5SegmentLeafHeader": {
+      "kind": "record",
+      "doc": "On-disk segment-leaf framing. The cell-array of (term_record) follows; described in master.md prose because variable framing.",
+      "fields": {
+        "page_header_size": "varint_be",
+        "n_term_records":   "varint_be",
+        "term_records":     { "codec": { "name": "Fts5TermRecordSequence", "decodes": { "list": "Fts5TermRecord" } } }
+      }
+    },
+    "Fts5TermRecord": {
+      "kind": "record",
+      "fields": {
+        "term_len":     "varint_be",
+        "term_bytes":   { "list_sized_by": { "elem": "u8", "length_field": "term_len" } },
+        "doclist_len":  "varint_be",
+        "doclist_bytes":{ "list_sized_by": { "elem": "u8", "length_field": "doclist_len" } }
+      }
+    },
+    "Fts5IndexCondition": {
+      "kind": "variant",
+      "doc": "Closed set of failure conditions raised by this part.",
+      "cases": {
+        "Fts5ShadowCollision":   { "fields": { "name": "str" } },
+        "Fts5StructureCorrupt":  { "fields": { "msg": "str" } },
+        "Fts5SegmentCorrupt":    { "fields": { "segid": "SegId" } },
+        "Fts5IntegrityError":    { "fields": { "msg": "str" } },
+        "Fts5ContentlessDelete": { "fields": {} },
+        "Fts5DetailNoneNear":    { "fields": {} }
+      }
+    }
+  },
+  "methods": {
+    "Fts5IndexHandle": [
+      {
+        "name": "open",
+        "doc":  "Open an existing FTS5 index by table name. Reads t_config and the structure record into memory.",
+        "params": [
+          { "name": "btree", "type": { "borrow": "BTreeHandle" } },
+          { "name": "table", "type": "str" }
+        ],
+        "returns": { "result": { "ok": "Fts5IndexHandle", "err": "Fts5IndexCondition" } }
+      },
+      {
+        "name": "create",
+        "doc":  "Provision the shadow tables for a new FTS5 index from a parsed config.",
+        "params": [
+          { "name": "btree",  "type": { "mut": "BTreeHandle" } },
+          { "name": "config", "type": { "borrow": "Fts5TableConfig" } }
+        ],
+        "returns": { "result": { "ok": "Fts5IndexHandle", "err": "Fts5IndexCondition" } }
+      },
+      {
+        "name": "insert_row",
+        "doc":  "Insert a row's tokenized content. column_streams is one tokenized stream per indexed column in declaration order.",
+        "receiver": "mut",
+        "params": [
+          { "name": "rowid",          "type": "Rowid" },
+          { "name": "column_streams", "type": { "list": "Fts5TokenStream" } }
+        ],
+        "returns": { "result": { "ok": "unit", "err": "Fts5IndexCondition" } }
+      },
+      {
+        "name": "delete_row",
+        "doc":  "Tombstone a rowid. Errors with Fts5ContentlessDelete in contentless mode.",
+        "receiver": "mut",
+        "params": [
+          { "name": "rowid", "type": "Rowid" }
+        ],
+        "returns": { "result": { "ok": "unit", "err": "Fts5IndexCondition" } }
+      },
+      {
+        "name": "posting_iter_term",
+        "doc":  "Open an iterator yielding postings for the exact term.",
+        "receiver": "borrow",
+        "params": [
+          { "name": "term", "type": { "list": "u8" } }
+        ],
+        "returns": { "result": { "ok": "Fts5PostingIter", "err": "Fts5IndexCondition" } }
+      },
+      {
+        "name": "posting_iter_prefix",
+        "doc":  "Open an iterator yielding postings for every term sharing the byte prefix.",
+        "receiver": "borrow",
+        "params": [
+          { "name": "prefix", "type": { "list": "u8" } }
+        ],
+        "returns": { "result": { "ok": "Fts5PostingIter", "err": "Fts5IndexCondition" } }
+      },
+      {
+        "name": "posting_iter_phrase",
+        "doc":  "Open an iterator yielding postings (rowid, col, first_pos) of adjacent occurrences of the token sequence in the same column. Errors under detail=none.",
+        "receiver": "borrow",
+        "params": [
+          { "name": "tokens", "type": { "list": { "list": "u8" } } }
+        ],
+        "returns": { "result": { "ok": "Fts5PostingIter", "err": "Fts5IndexCondition" } }
+      },
+      {
+        "name": "row_dl",
+        "doc":  "Total token count for a row (sum across indexed columns). Returns 0 when columnsize=0.",
+        "receiver": "borrow",
+        "params": [
+          { "name": "rowid", "type": "Rowid" }
+        ],
+        "returns": "u32"
+      },
+      {
+        "name": "total_rows",
+        "receiver": "borrow",
+        "params": [],
+        "returns": "u64"
+      },
+      {
+        "name": "n_rows_with",
+        "doc":  "Number of rows whose doclist contains the given term. Used by IDF.",
+        "receiver": "borrow",
+        "params": [
+          { "name": "term", "type": { "list": "u8" } }
+        ],
+        "returns": "u64"
+      },
+      {
+        "name": "integrity_check",
+        "doc":  "Walk every segment, verify term ordering, doclist parses, structure-record consistency.",
+        "receiver": "borrow",
+        "params": [],
+        "returns": { "result": { "ok": "unit", "err": "Fts5IndexCondition" } }
+      }
+    ],
+    "Fts5PostingIter": [
+      {
+        "name": "next",
+        "doc":  "Advance to the next posting. Returns absent when the stream is exhausted.",
+        "receiver": "mut",
+        "params": [],
+        "returns": { "result": { "ok": { "option": "Posting" }, "err": "Fts5IndexCondition" } }
+      },
+      {
+        "name": "seek_rowid",
+        "doc":  "Skip forward to the smallest posting with rowid ≥ target. Used by AND-merge to skip large gaps.",
+        "receiver": "mut",
+        "params": [
+          { "name": "target", "type": "Rowid" }
+        ],
+        "returns": { "result": { "ok": "unit", "err": "Fts5IndexCondition" } }
+      }
+    ]
+  },
+  "constants": {
+    "FTS5_STRUCTURE_ROWID":   { "type": "u32", "value": 10 },
+    "FTS5_DEFAULT_PGSZ":      { "type": "u32", "value": 1024 },
+    "FTS5_DEFAULT_CRISIS":    { "type": "u32", "value": 16 },
+    "FTS5_LAYOUT_VERSION":    { "type": "str", "value": "4" },
+    "FTS5_POS_TERMINATOR":    { "type": "u8",  "value": 0 },
+    "FTS5_POS_COLUMN_SWITCH": { "type": "u8",  "value": 1 },
+    "FTS5_POS_TOMBSTONE":     { "type": "u8",  "value": 2 }
+  }
+}

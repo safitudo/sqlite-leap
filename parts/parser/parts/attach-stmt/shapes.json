@@ -1,0 +1,42 @@
+{
+  "$schema": "../../../../../schema/shape.schema.json",
+  "owner": "/parts/parser/parts/attach-stmt",
+
+  "imports": {
+    "Expr":       "/parts/parser/parts/expr",
+    "ParseError": "/parts/parser/parts/expr",
+    "Token":      "/parts/parser/parts/tokenizer"
+  },
+
+  "types": {
+    "AttachStmt": {
+      "kind": "record",
+      "doc": "Parsed ATTACH statement. db_expr is the filename / URI expression (Expr); schema_name is the OWNED logical alias under which the new database is bound; key_expr is an optional encryption-key expression (v1: parsed but the executor raises EncryptionNotSupported when present and non-empty at runtime).",
+      "fields": {
+        "db_expr":     "Expr",
+        "schema_name": "string",
+        "key_expr":    { "option": "Expr" }
+      }
+    },
+
+    "AttachParseOk": {
+      "kind": "record",
+      "doc": "Successful parse: the ATTACH AST plus the index of the next unread token (typically the statement terminator or Eof).",
+      "fields": {
+        "stmt": "AttachStmt",
+        "next": "u32"
+      }
+    }
+  },
+
+  "functions": {
+    "parse_attach": {
+      "doc": "Parse an ATTACH statement starting at tokens[start]. Consumes the ATTACH keyword, optional DATABASE keyword, the db expression via parse_expr, the AS keyword, the schema-name identifier (rejecting reserved 'main' and 'temp' case-insensitively), and an optional KEY expression. Stops BEFORE the statement terminator. Returns ParseError on any malformed prefix; expression errors propagate as-is from parse_expr.",
+      "params": [
+        { "name": "tokens", "type": { "borrow": { "list": "Token" } } },
+        { "name": "start",  "type": "u32" }
+      ],
+      "returns": { "result": { "ok": "AttachParseOk", "err": "ParseError" } }
+    }
+  }
+}

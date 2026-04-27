@@ -1,0 +1,20 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/compiler/parts/savepoints",
+
+  "imports": {
+    "SavepointStmt":   "/parts/parser/parts/savepoint-stmt",
+    "Program":         "/parts/vdbe",
+    "OpcodeSavepoint": "/parts/vdbe/parts/opcodes-savepoint"
+  },
+
+  "functions": {
+    "compile_savepoint": {
+      "doc": "Compile a SavepointStmt into a Program. The Program is exactly two opcodes: one OpcodeSavepoint variant followed by Halt(Ok). No registers, no cursors. Compile-time errors are not raised; every well-formed SavepointStmt compiles. Runtime errors (unknown name, stack overflow) are raised by the VDBE opcode handler at execution time.",
+      "params": [
+        { "name": "stmt", "type": { "borrow": "SavepointStmt" } }
+      ],
+      "returns": "Program"
+    }
+  }
+}

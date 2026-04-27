@@ -408,6 +408,96 @@ database header `page_size`. Mismatch → reset WAL.
 emit only what `shapes.json` declares plus what this spec
 explicitly requires.
 
+## fsync discipline by synchronous level
+
+The fsync calls in `wal_commit`, `wal_checkpoint`, and the
+file-format atomic-rename commit are gated by the connection's
+`SyncLevel` (defined in
+`parts/compiler/parts/statements/pragma/master.md` §Synchronous
+semantics, pins S1..S6).
+
+The matrix below is **normative**: targets MUST consult
+`connection_get_synchronous(state)` at each site and skip or
+issue the fsync per the table.
+
+| Site                                  | OFF | NORMAL | FULL | EXTRA |
+|---------------------------------------|-----|--------|------|-------|
+| WAL frame append (interior frame)     |  no |   no   |  no  |  no   |
+| WAL commit-frame write (`wal_commit`) |  no |   no   |  yes |  yes  |
+| WAL checkpoint (`wal_checkpoint`)     |  no |  yes   |  yes |  yes  |
+| Directory fsync after WAL replace     |  no |   no   |  no  |  yes  |
+| File-format atomic-rename commit      |  no |  yes   |  yes |  yes  |
+| File-format parent-dir fsync          |  no |   no   |  no  |  yes  |
+
+**W15. NORMAL gates per-commit fsync off, checkpoint fsync on.**
+At `NORMAL` the WAL accumulates frames into the page-cache /
+OS-buffer layer between checkpoints; only the checkpoint pays an
+fsync. This matches mainline's WAL-mode default. Pin W9 is
+relaxed under `NORMAL`: the "fsync once per commit" obligation
+applies only when the connection's level is FULL or EXTRA.
+
+**W16. FULL fsyncs the WAL on every commit.** At `FULL` (or
+EXTRA), `wal_commit` MUST call fsync after writing the commit
+frame, consistent with the original W9 pin.
+
+**W17. EXTRA additionally fsyncs the directory.** At `EXTRA`,
+after a WAL replacement (file-format atomic rename) or
+checkpoint, the parent directory of the WAL file is fsynced so
+the WAL file's metadata is durable across an OS crash. At lower
+levels this fsync is skipped.
+
+**W18. OFF skips all fsyncs.** At `OFF`, `wal_commit`,
+`wal_checkpoint`, the file-format atomic-rename commit, and the
+directory fsync ALL become no-ops. Durability is delegated to
+the OS page cache; an OS crash may lose committed transactions
+or corrupt the database. This matches mainline `synchronous=OFF`
+semantics.
+
+## Multi-process coordination
+
+The reader/writer/checkpointer protocols above describe a
+**single-process** WAL session. Two OS processes opening the same
+database in WAL mode must agree on `(mx_frame, wal_index, salts,
+n_backfill)` even though each has its own `WalState` value. That
+agreement is delegated to a sibling part:
+**`parts/storage/parts/wal-shm/`** — the wal-index shared-memory
+file `{db_path}-shm`, with byte-range lock protocols on it.
+
+In a multi-process build, a `WalState` is a thin process-local
+view; the authoritative `mx_frame`, the page→frame hash table,
+and the read-mark slots all live in the shm file and are consulted
+under named locks (WRITE, CHECKPOINT, RECOVER, READ(0..4)).
+
+Lock-acquisition responsibilities (delegated to wal-shm):
+
+- `wal_open` opens shm; if shm is missing/stale, shm_recover
+  rebuilds it from WAL frames (the WAL is authoritative;
+  shm is volatile coordination state).
+- `wal_begin_write` acquires EXCLUSIVE on WRITE via
+  `shm_writer_begin`.
+- `wal_commit` updates the shm header (both copies, with a barrier
+  between) AFTER the WAL fsync has completed; releases WRITE.
+- `wal_open` for a reader claims a READ(k) slot and pins
+  `read_marks[k]` to its mx_frame.
+- `wal_checkpoint` acquires EXCLUSIVE on CHECKPOINT and clamps
+  `n_backfill` to the slowest active reader's mark.
+
+The shm file is **NOT part of the durable on-disk contract**: pin
+W11 (mainline-readable) and pin W12 (mainline-writable) require
+only that the WAL itself round-trip; mainline always rebuilds shm
+from WAL on first open. Pin SHM1 in wal-shm restates this.
+
+A **single-process build** that knows it is the sole opener may
+elide wal-shm entirely and use the in-process `wal_index` field
+of `WalState`. A **multi-process build** routes every `wal_index`
+read and update through wal-shm. The decision is a target build
+flag, not a spec branch: the function-level surface defined here
+remains the same.
+
+See `parts/storage/parts/wal-shm/master.md` for the shm file
+layout, the eight named locks, the read-mark protocol, and pins
+SHM1..SHM22.
+
 ## Phase pins
 
 - **Phase W0** — spec only (this part). `shapes.json` declares

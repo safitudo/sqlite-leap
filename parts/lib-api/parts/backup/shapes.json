@@ -1,0 +1,103 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/lib-api/parts/backup",
+
+  "imports": {
+    "Database":          "/parts/storage",
+    "RuntimeCondition":  "/parts/core",
+    "BackupEngine":      "/parts/storage/parts/backup-engine"
+  },
+
+  "constants": {
+    "STEP_ALL": {
+      "type": "i32",
+      "value": -1,
+      "doc": "Sentinel for backup_step's n_pages parameter meaning 'copy every remaining page in this call'. Mainline parity with sqlite3_backup_step's nPage = -1. Targets render the constant in their idiomatic form (Rust pub const, C #define, Go const, Zig pub const, Python module-level)."
+    }
+  },
+
+  "types": {
+    "BackupHandle": {
+      "kind": "record",
+      "doc": "Public handle returned by backup_init and consumed by step / finish / remaining / pagecount. Wraps a BackupEngine plus the abstract obligation to keep the source and destination Database references alive for the handle's lifetime. Targets render the two borrows idiomatically (Rust holds &Database, C holds raw handle pointers, Python holds object references). The handle MUST NOT outlive either Database; spec-side this is an obligation, not a checkable invariant.",
+      "fields": {
+        "engine": "BackupEngine"
+      }
+    },
+
+    "BackupStepResult": {
+      "kind": "variant",
+      "doc": "Outcome of a single backup_step. Ok means more pages remain to be copied (or the call was a no-op for n_pages=0); the caller MAY issue another step. Done means every page has been copied AND the destination commit has been finalized; the caller's next call must be finish. Error wraps a RuntimeCondition; whether the error is recoverable (caller retries step) or terminal (caller proceeds to finish) is determined by the condition's classification.",
+      "cases": {
+        "Ok":    { "doc": "Progress was made (or n_pages was 0); more pages remain or a restart was triggered." },
+        "Done":  { "doc": "Every page copied; destination committed; caller proceeds to finish." },
+        "Error": { "fields": { "condition": "RuntimeCondition" }, "doc": "The step failed; condition classifies whether retry is admissible." }
+      }
+    },
+
+    "BackupInitError": {
+      "kind": "variant",
+      "doc": "Failure modes of backup_init. SameDatabase is raised when source and destination resolve to the same (Database, schema-name) pair (Pin B1). UnknownSchema is raised when either schema name does not resolve in its respective Database. PageSizeMismatch is raised when the destination already contains a database with a page size differing from the source's (Pin B7). EngineOpen wraps a lower-level lock-acquisition failure surfaced by the storage layer.",
+      "cases": {
+        "SameDatabase":     { "doc": "src and dst resolve to the same (Database, schema-name) pair." },
+        "UnknownSchema":    { "fields": { "side": "string", "schema_name": "string" }, "doc": "side is 'src' or 'dst'; schema_name is the unresolved name." },
+        "PageSizeMismatch": { "fields": { "src_page_size": "u32", "dst_page_size": "u32" } },
+        "EngineOpen":       { "fields": { "condition": "RuntimeCondition" } }
+      }
+    },
+
+    "BackupFinishError": {
+      "kind": "variant",
+      "doc": "Failure modes of backup_finish. v1 admits no failure cases at the spec layer (see master.md §Algorithm); the variant exists so targets that surface a target-specific I/O failure during dst rollback have a place to put it. Targets that have nothing to report MAY render finish as returning unit instead of Result<unit, BackupFinishError>.",
+      "cases": {
+        "RollbackIo": { "fields": { "condition": "RuntimeCondition" }, "doc": "An I/O condition fired while rolling back the destination." }
+      }
+    }
+  },
+
+  "functions": {
+    "backup_init": {
+      "doc": "Open a backup handle copying the schema named src_name within src_db into the schema named dst_name within dst_db. v1 admits 'main' for both names; other names are admitted by the shape and resolved by the storage layer. Pin B1 forbids backup-to-self. Pin B7 fixes the page-size handshake. After init, pagecount(handle) reflects the source's page count and remaining(handle) equals pagecount(handle) (Pin B10).",
+      "params": [
+        { "name": "dst_db",   "type": { "mut":    "Database" } },
+        { "name": "dst_name", "type": "string" },
+        { "name": "src_db",   "type": { "borrow": "Database" } },
+        { "name": "src_name", "type": "string" }
+      ],
+      "returns": { "result": { "ok": "BackupHandle", "err": "BackupInitError" } }
+    },
+
+    "backup_step": {
+      "doc": "Copy up to n_pages source pages into the destination. n_pages == STEP_ALL means 'every remaining page in this call'. n_pages == 0 is a no-op (Pin B12). Returns Ok if more pages remain, Done if the backup is complete, Error(condition) on a per-page or per-snapshot failure. Restart-on-source-write (Pin B4) is signalled by the public accessors (pagecount/remaining), NOT by an Error variant.",
+      "params": [
+        { "name": "handle",  "type": { "mut": "BackupHandle" } },
+        { "name": "n_pages", "type": "i32" }
+      ],
+      "returns": "BackupStepResult"
+    },
+
+    "backup_finish": {
+      "doc": "Release the handle. If the engine state is Completed (the most recent step returned Done), this releases storage handles and locks. Otherwise, the destination is rolled back to its pre-init state and locks are released. Idempotent: calling finish on an already-finished handle is a no-op (Pin B9). Targets MAY render finish as consuming the handle (Rust's by-value); the spec admits both consuming and non-consuming renderings.",
+      "params": [
+        { "name": "handle", "type": { "mut": "BackupHandle" } }
+      ],
+      "returns": { "result": { "ok": "unit", "err": "BackupFinishError" } }
+    },
+
+    "backup_remaining": {
+      "doc": "Pages in the source that have not yet been copied in the current pass. Decreases monotonically as step makes progress within a pass; on a Pin B4 restart, jumps back up to the new pagecount. Valid immediately after init (Pin B10). O(1) read.",
+      "params": [
+        { "name": "handle", "type": { "borrow": "BackupHandle" } }
+      ],
+      "returns": "u32"
+    },
+
+    "backup_pagecount": {
+      "doc": "Total pages in the source as of the most recently observed source snapshot. Refreshed at every step entry that observes a source-write since the prior observation (Pin B4). Valid immediately after init (Pin B10). O(1) read.",
+      "params": [
+        { "name": "handle", "type": { "borrow": "BackupHandle" } }
+      ],
+      "returns": "u32"
+    }
+  }
+}

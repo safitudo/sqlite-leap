@@ -1,0 +1,155 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "storage/fts5-tokenizer",
+  "doc": "Built-in FTS5 tokenizers: unicode61 (default), ascii (byte-level), porter (stemming wrapper). Owns the Fts5Tokenizer / Fts5TokenStream surface consumed by the index and query parts. Determinism across targets is a hard correctness gate.",
+  "imports": {
+    "RuntimeCondition": "parts/core"
+  },
+  "types": {
+    "Fts5Tokenizer": {
+      "kind": "opaque",
+      "doc": "An immutable tokenizer instance. Built from a name + arg list. Cheap to clone; safe to call from any context."
+    },
+    "Fts5TokenStream": {
+      "kind": "opaque",
+      "doc": "Pull iterator yielding Fts5Token records in document order. Borrows its source text — caller MUST keep the text alive for the stream's lifetime."
+    },
+    "Fts5Token": {
+      "kind": "record",
+      "doc": "One token. `bytes` is the folded form persisted to the index; (start, end) are byte offsets into the original input.",
+      "fields": {
+        "bytes": { "list": "u8" },
+        "start": "u32",
+        "end":   "u32"
+      }
+    },
+    "Fts5TokenMode": {
+      "kind": "variant",
+      "doc": "Tokenization mode. v1: Document and Query produce identical streams for every built-in tokenizer; the distinction is reserved for future synonym support.",
+      "cases": {
+        "Document": { "fields": {} },
+        "Query":    { "fields": {} }
+      }
+    },
+    "Fts5BuiltinKind": {
+      "kind": "variant",
+      "cases": {
+        "Unicode61": { "fields": {} },
+        "Ascii":     { "fields": {} },
+        "Porter":    { "fields": {} }
+      }
+    },
+    "Unicode61Args": {
+      "kind": "record",
+      "doc": "Parsed unicode61 argument set. `categories_add` and `categories_drop` accumulate +CC / -CC modifiers. `tokenchars` and `separators` carry the literal-character overrides.",
+      "fields": {
+        "remove_diacritics": "u8",
+        "categories_add":    { "list": "str" },
+        "categories_drop":   { "list": "str" },
+        "tokenchars":        "str",
+        "separators":        "str"
+      }
+    },
+    "AsciiArgs": {
+      "kind": "record",
+      "fields": {
+        "tokenchars": "str",
+        "separators": "str"
+      }
+    },
+    "PorterArgs": {
+      "kind": "record",
+      "doc": "Recursive porter (porter wrapping porter) is rejected at create time, so `base_kind` is constrained to Unicode61 or Ascii.",
+      "fields": {
+        "base_kind":      "Fts5BuiltinKind",
+        "base_unicode61": { "option": "Unicode61Args" },
+        "base_ascii":     { "option": "AsciiArgs" }
+      }
+    },
+    "Fts5TokenizerCondition": {
+      "kind": "variant",
+      "cases": {
+        "Fts5UnknownTokenizer":   { "fields": { "name": "str" } },
+        "Fts5TokenizerArgError":  { "fields": { "msg":  "str" } },
+        "Fts5RemoveDiacritics2":  { "fields": {} },
+        "Fts5TokenizerWarning":   { "fields": { "msg":  "str" } }
+      }
+    }
+  },
+  "methods": {
+    "Fts5Tokenizer": [
+      {
+        "name": "create",
+        "doc":  "Build a tokenizer from a `tokenize=` value string already split into [name, arg0, arg1, …].",
+        "params": [
+          { "name": "name", "type": "str" },
+          { "name": "args", "type": { "list": "str" } }
+        ],
+        "returns": { "result": { "ok": "Fts5Tokenizer", "err": "Fts5TokenizerCondition" } }
+      },
+      {
+        "name": "tokenize",
+        "doc":  "Open a token stream over `text`. The stream borrows `text`; caller must keep it alive.",
+        "receiver": "borrow",
+        "params": [
+          { "name": "text", "type": "str" },
+          { "name": "mode", "type": "Fts5TokenMode" }
+        ],
+        "returns": "Fts5TokenStream"
+      },
+      {
+        "name": "name",
+        "doc":  "Stable lowercase name of the tokenizer family (unicode61 / ascii / porter). Used by the index part to persist into t_config.",
+        "receiver": "borrow",
+        "params": [],
+        "returns": "str"
+      },
+      {
+        "name": "args",
+        "doc":  "Round-trip the original argument list. Used to persist the exact tokenize= value into t_config so a query-time re-create produces an identical tokenizer.",
+        "receiver": "borrow",
+        "params": [],
+        "returns": { "list": "str" }
+      }
+    ],
+    "Fts5TokenStream": [
+      {
+        "name": "next",
+        "doc":  "Advance and return the next token; absent when exhausted.",
+        "receiver": "mut",
+        "params": [],
+        "returns": { "option": "Fts5Token" }
+      }
+    ]
+  },
+  "functions": {
+    "porter_stem_ascii": {
+      "doc": "Apply Porter (1980) Steps 1a/1b/1c/2/3/4/5a/5b to a pure-ASCII lowercase word. Words shorter than 3 chars or containing any byte ≥ 0x80 must NOT call this — caller filters first. Pure function; same input → same output on every target.",
+      "params": [
+        { "name": "word", "type": { "list": "u8" } }
+      ],
+      "returns": { "list": "u8" }
+    },
+    "unicode61_fold": {
+      "doc": "Apply Unicode-6.1 case-folding (and optional NFKD-strip when remove_diacritics≥1) to one input code point. Output is a sequence of one or more code points (full case folding can expand).",
+      "params": [
+        { "name": "cp",                "type": "u32" },
+        { "name": "remove_diacritics", "type": "u8" }
+      ],
+      "returns": { "list": "u32" }
+    },
+    "unicode61_is_token_char": {
+      "doc": "Return true iff the code point is a token character under unicode61's default classification (L*, N*, Co), as modified by `categories_add` / `categories_drop` / `tokenchars` / `separators`.",
+      "params": [
+        { "name": "cp",   "type": "u32" },
+        { "name": "args", "type": { "borrow": "Unicode61Args" } }
+      ],
+      "returns": "bool"
+    }
+  },
+  "constants": {
+    "FTS5_TOKENIZER_UNICODE_VERSION": { "type": "str", "value": "6.1" },
+    "FTS5_PORTER_MIN_LEN":            { "type": "u32", "value": 3 },
+    "FTS5_DEFAULT_REMOVE_DIACRITICS": { "type": "u8",  "value": 0 }
+  }
+}

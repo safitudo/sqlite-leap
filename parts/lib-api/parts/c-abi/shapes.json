@@ -1,0 +1,297 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/lib-api/parts/c-abi",
+  "imports": {
+    "PreparedStatement": "/parts/lib-api/parts/prepared-statement",
+    "BoundParams": "/parts/lib-api/parts/prepared-statement",
+    "StepResult": "/parts/lib-api/parts/prepared-statement",
+    "Value": "/parts/core",
+    "Database": "/parts/storage",
+    "RuntimeCondition": "/parts/vdbe"
+  },
+  "types": {
+    "ResultCode": {
+      "kind": "alias",
+      "of": "i32",
+      "doc": "ABI-stable integer return code. See master.md result-code table; values are frozen and equal mainline SQLite's. SQLITE_OK=0, SQLITE_ROW=100, SQLITE_DONE=101."
+    },
+    "ColumnTypeCode": {
+      "kind": "alias",
+      "of": "i32",
+      "doc": "ABI-stable column-type code returned by sqlite3_column_type. INTEGER=1, FLOAT=2, TEXT=3, BLOB=4, NULL=5."
+    },
+    "OpenFlags": {
+      "kind": "alias",
+      "of": "u32",
+      "doc": "Bit-flag set for sqlite3_open_v2: READONLY=1, READWRITE=2, CREATE=4, URI=0x40, MEMORY=0x80, NOMUTEX=0x8000, FULLMUTEX=0x10000."
+    },
+    "TextEncoding": {
+      "kind": "variant",
+      "doc": "Text encoding tag. v1 admits Utf8 only; Utf16Le/Utf16Be reserved for follow-up.",
+      "variants": {
+        "Utf8": {},
+        "Utf16Le": {},
+        "Utf16Be": {}
+      }
+    },
+    "ThreadingMode": {
+      "kind": "variant",
+      "doc": "Connection threading discipline. See master.md 'Threading model'.",
+      "variants": {
+        "SingleThread": {},
+        "MultiThread": {},
+        "Serialized": {}
+      }
+    },
+    "Sqlite3": {
+      "kind": "opaque",
+      "doc": "Opaque connection handle. Wraps a Database plus the most-recent error code+message, the changes counter, the last insert rowid, the busy-timeout milliseconds, the threading mode, and a list of outstanding statement handles (for sqlite3_close busy detection)."
+    },
+    "Sqlite3Stmt": {
+      "kind": "opaque",
+      "doc": "Opaque prepared-statement handle. Wraps a PreparedStatement, BoundParams, the column-name vector, the per-column materialization-buffer slots, the most-recent step's mapped ResultCode, and a back-reference to its owning Sqlite3."
+    },
+    "ExecCallback": {
+      "kind": "alias",
+      "of": "opaque-callback",
+      "doc": "C-ABI callback invoked once per row by sqlite3_exec. Signature in C: int (*)(void* ctx, int n_col, char** col_text, char** col_name). Non-zero return aborts and surfaces SQLITE_ABORT."
+    }
+  },
+  "constants": {
+    "SQLITE_OK":            { "type": "ResultCode", "value": 0 },
+    "SQLITE_ERROR":         { "type": "ResultCode", "value": 1 },
+    "SQLITE_ABORT":         { "type": "ResultCode", "value": 4 },
+    "SQLITE_BUSY":          { "type": "ResultCode", "value": 5 },
+    "SQLITE_LOCKED":        { "type": "ResultCode", "value": 6 },
+    "SQLITE_NOMEM":         { "type": "ResultCode", "value": 7 },
+    "SQLITE_READONLY":      { "type": "ResultCode", "value": 8 },
+    "SQLITE_INTERRUPT":     { "type": "ResultCode", "value": 9 },
+    "SQLITE_IOERR":         { "type": "ResultCode", "value": 10 },
+    "SQLITE_CORRUPT":       { "type": "ResultCode", "value": 11 },
+    "SQLITE_NOTFOUND":      { "type": "ResultCode", "value": 12 },
+    "SQLITE_FULL":          { "type": "ResultCode", "value": 13 },
+    "SQLITE_CANTOPEN":      { "type": "ResultCode", "value": 14 },
+    "SQLITE_PROTOCOL":      { "type": "ResultCode", "value": 15 },
+    "SQLITE_EMPTY":         { "type": "ResultCode", "value": 16 },
+    "SQLITE_SCHEMA":        { "type": "ResultCode", "value": 17 },
+    "SQLITE_TOOBIG":        { "type": "ResultCode", "value": 18 },
+    "SQLITE_CONSTRAINT":    { "type": "ResultCode", "value": 19 },
+    "SQLITE_MISMATCH":      { "type": "ResultCode", "value": 20 },
+    "SQLITE_MISUSE":        { "type": "ResultCode", "value": 21 },
+    "SQLITE_NOLFS":         { "type": "ResultCode", "value": 22 },
+    "SQLITE_AUTH":          { "type": "ResultCode", "value": 23 },
+    "SQLITE_FORMAT":        { "type": "ResultCode", "value": 24 },
+    "SQLITE_RANGE":         { "type": "ResultCode", "value": 25 },
+    "SQLITE_NOTADB":        { "type": "ResultCode", "value": 26 },
+    "SQLITE_ROW":           { "type": "ResultCode", "value": 100 },
+    "SQLITE_DONE":          { "type": "ResultCode", "value": 101 },
+
+    "SQLITE_INTEGER":       { "type": "ColumnTypeCode", "value": 1 },
+    "SQLITE_FLOAT":         { "type": "ColumnTypeCode", "value": 2 },
+    "SQLITE_TEXT":          { "type": "ColumnTypeCode", "value": 3 },
+    "SQLITE_BLOB":          { "type": "ColumnTypeCode", "value": 4 },
+    "SQLITE_NULL":          { "type": "ColumnTypeCode", "value": 5 },
+
+    "SQLITE_OPEN_READONLY":  { "type": "OpenFlags", "value": 1 },
+    "SQLITE_OPEN_READWRITE": { "type": "OpenFlags", "value": 2 },
+    "SQLITE_OPEN_CREATE":    { "type": "OpenFlags", "value": 4 },
+    "SQLITE_OPEN_URI":       { "type": "OpenFlags", "value": 64 },
+    "SQLITE_OPEN_MEMORY":    { "type": "OpenFlags", "value": 128 },
+    "SQLITE_OPEN_NOMUTEX":   { "type": "OpenFlags", "value": 32768 },
+    "SQLITE_OPEN_FULLMUTEX": { "type": "OpenFlags", "value": 65536 }
+  },
+  "functions": {
+    "sqlite3_open": {
+      "params": [
+        { "name": "filename", "type": "string" },
+        { "name": "db_out",   "type": { "out": "Sqlite3" } }
+      ],
+      "returns": "ResultCode",
+      "doc": "Pin 6 — equivalent to open_v2(filename, &db, READWRITE|CREATE, NULL). Always writes db_out (sentinel handle on failure)."
+    },
+    "sqlite3_open_v2": {
+      "params": [
+        { "name": "filename", "type": "string" },
+        { "name": "db_out",   "type": { "out": "Sqlite3" } },
+        { "name": "flags",    "type": "OpenFlags" },
+        { "name": "vfs",      "type": { "optional": "string" } }
+      ],
+      "returns": "ResultCode"
+    },
+    "sqlite3_close": {
+      "params": [ { "name": "db", "type": { "optional": "Sqlite3" } } ],
+      "returns": "ResultCode",
+      "doc": "Pin 7 — returns SQLITE_BUSY if any unfinalized stmt; null db is no-op SQLITE_OK."
+    },
+    "sqlite3_close_v2": {
+      "params": [ { "name": "db", "type": { "optional": "Sqlite3" } } ],
+      "returns": "ResultCode",
+      "doc": "Pin 7 — defers destruction; always SQLITE_OK."
+    },
+    "sqlite3_exec": {
+      "params": [
+        { "name": "db",         "type": "Sqlite3" },
+        { "name": "sql",        "type": "string" },
+        { "name": "callback",   "type": { "optional": "ExecCallback" } },
+        { "name": "ctx",        "type": "opaque-pointer" },
+        { "name": "errmsg_out", "type": { "out": { "optional": "string" } } }
+      ],
+      "returns": "ResultCode",
+      "doc": "Pin 23."
+    },
+    "sqlite3_prepare_v2": {
+      "params": [
+        { "name": "db",       "type": "Sqlite3" },
+        { "name": "sql",      "type": "string" },
+        { "name": "n_byte",   "type": "i32" },
+        { "name": "stmt_out", "type": { "out": "Sqlite3Stmt" } },
+        { "name": "tail_out", "type": { "out": { "optional": "string" } } }
+      ],
+      "returns": "ResultCode",
+      "doc": "Pin 8, Pin 9."
+    },
+    "sqlite3_step": {
+      "params": [ { "name": "stmt", "type": "Sqlite3Stmt" } ],
+      "returns": "ResultCode",
+      "doc": "Pin 3, Pin 10, Pin 24."
+    },
+    "sqlite3_reset": {
+      "params": [ { "name": "stmt", "type": "Sqlite3Stmt" } ],
+      "returns": "ResultCode",
+      "doc": "Pin 11, Pin 12."
+    },
+    "sqlite3_finalize": {
+      "params": [ { "name": "stmt", "type": { "optional": "Sqlite3Stmt" } } ],
+      "returns": "ResultCode",
+      "doc": "Pin 13."
+    },
+
+    "sqlite3_column_count": {
+      "params": [ { "name": "stmt", "type": "Sqlite3Stmt" } ],
+      "returns": "i32",
+      "doc": "Pin 16."
+    },
+    "sqlite3_column_type": {
+      "params": [ { "name": "stmt", "type": "Sqlite3Stmt" }, { "name": "i", "type": "i32" } ],
+      "returns": "ColumnTypeCode",
+      "doc": "Pin 18."
+    },
+    "sqlite3_column_int": {
+      "params": [ { "name": "stmt", "type": "Sqlite3Stmt" }, { "name": "i", "type": "i32" } ],
+      "returns": "i32"
+    },
+    "sqlite3_column_int64": {
+      "params": [ { "name": "stmt", "type": "Sqlite3Stmt" }, { "name": "i", "type": "i32" } ],
+      "returns": "i64"
+    },
+    "sqlite3_column_double": {
+      "params": [ { "name": "stmt", "type": "Sqlite3Stmt" }, { "name": "i", "type": "i32" } ],
+      "returns": "f64"
+    },
+    "sqlite3_column_text": {
+      "params": [ { "name": "stmt", "type": "Sqlite3Stmt" }, { "name": "i", "type": "i32" } ],
+      "returns": { "optional": "string" },
+      "doc": "Pin 19. Pointer is statement-owned, valid until next step/reset/finalize or another column conversion on the same column."
+    },
+    "sqlite3_column_blob": {
+      "params": [ { "name": "stmt", "type": "Sqlite3Stmt" }, { "name": "i", "type": "i32" } ],
+      "returns": { "optional": "bytes" }
+    },
+    "sqlite3_column_bytes": {
+      "params": [ { "name": "stmt", "type": "Sqlite3Stmt" }, { "name": "i", "type": "i32" } ],
+      "returns": "i32"
+    },
+    "sqlite3_column_name": {
+      "params": [ { "name": "stmt", "type": "Sqlite3Stmt" }, { "name": "i", "type": "i32" } ],
+      "returns": { "optional": "string" },
+      "doc": "Pin 16 — pointer stable for stmt lifetime."
+    },
+
+    "sqlite3_bind_int": {
+      "params": [ { "name": "stmt", "type": "Sqlite3Stmt" }, { "name": "slot", "type": "i32" }, { "name": "v", "type": "i32" } ],
+      "returns": "ResultCode"
+    },
+    "sqlite3_bind_int64": {
+      "params": [ { "name": "stmt", "type": "Sqlite3Stmt" }, { "name": "slot", "type": "i32" }, { "name": "v", "type": "i64" } ],
+      "returns": "ResultCode"
+    },
+    "sqlite3_bind_double": {
+      "params": [ { "name": "stmt", "type": "Sqlite3Stmt" }, { "name": "slot", "type": "i32" }, { "name": "v", "type": "f64" } ],
+      "returns": "ResultCode"
+    },
+    "sqlite3_bind_text": {
+      "params": [
+        { "name": "stmt", "type": "Sqlite3Stmt" },
+        { "name": "slot", "type": "i32" },
+        { "name": "v",    "type": { "optional": "string" } },
+        { "name": "n",    "type": "i32" },
+        { "name": "destructor", "type": "opaque-pointer", "doc": "SQLITE_STATIC=0, SQLITE_TRANSIENT=-1, or destructor fn pointer." }
+      ],
+      "returns": "ResultCode",
+      "doc": "Pin 14, Pin 15."
+    },
+    "sqlite3_bind_blob": {
+      "params": [
+        { "name": "stmt", "type": "Sqlite3Stmt" },
+        { "name": "slot", "type": "i32" },
+        { "name": "v",    "type": { "optional": "bytes" } },
+        { "name": "n",    "type": "i32" },
+        { "name": "destructor", "type": "opaque-pointer" }
+      ],
+      "returns": "ResultCode"
+    },
+    "sqlite3_bind_null": {
+      "params": [ { "name": "stmt", "type": "Sqlite3Stmt" }, { "name": "slot", "type": "i32" } ],
+      "returns": "ResultCode"
+    },
+    "sqlite3_bind_parameter_count": {
+      "params": [ { "name": "stmt", "type": "Sqlite3Stmt" } ],
+      "returns": "i32",
+      "doc": "Pin 8."
+    },
+
+    "sqlite3_errmsg": {
+      "params": [ { "name": "db", "type": "Sqlite3" } ],
+      "returns": "string",
+      "doc": "Pin 21 — non-null; defaults to 'not an error'."
+    },
+    "sqlite3_errcode": {
+      "params": [ { "name": "db", "type": "Sqlite3" } ],
+      "returns": "ResultCode"
+    },
+    "sqlite3_extended_errcode": {
+      "params": [ { "name": "db", "type": "Sqlite3" } ],
+      "returns": "ResultCode",
+      "doc": "v1 returns the same code as sqlite3_errcode (no extended-code mapping yet)."
+    },
+    "sqlite3_changes": {
+      "params": [ { "name": "db", "type": "Sqlite3" } ],
+      "returns": "i32",
+      "doc": "Pin 20."
+    },
+    "sqlite3_last_insert_rowid": {
+      "params": [ { "name": "db", "type": "Sqlite3" } ],
+      "returns": "i64",
+      "doc": "Pin 20."
+    },
+    "sqlite3_busy_timeout": {
+      "params": [ { "name": "db", "type": "Sqlite3" }, { "name": "ms", "type": "i32" } ],
+      "returns": "ResultCode",
+      "doc": "Pin 22."
+    },
+
+    "sqlite3_malloc": {
+      "params": [ { "name": "n", "type": "i32" } ],
+      "returns": "opaque-pointer",
+      "doc": "Memory ownership section — caller-owned buffer."
+    },
+    "sqlite3_realloc": {
+      "params": [ { "name": "p", "type": "opaque-pointer" }, { "name": "n", "type": "i32" } ],
+      "returns": "opaque-pointer"
+    },
+    "sqlite3_free": {
+      "params": [ { "name": "p", "type": "opaque-pointer" } ],
+      "returns": "void"
+    }
+  }
+}

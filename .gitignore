@@ -54,3 +54,6 @@ bench/results/binary_size_5target/c/
 bench/results/binary_size_5target/go/
 bench/results/binary_size_5target/rust/
 bench/results/binary_size_5target/zig/
+
+# Agent staging output (worktree-orchestration pattern)
+.claude/agent-output/

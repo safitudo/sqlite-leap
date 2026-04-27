@@ -1,0 +1,76 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/storage/parts/triggers",
+
+  "imports": {
+    "CreateTriggerStmt": "/parts/parser/parts/create-trigger-stmt",
+    "Database":          "/parts/storage/parts/mem-store",
+    "StorageCondition":  "/parts/core"
+  },
+
+  "types": {
+    "TriggerEntry": {
+      "kind": "record",
+      "doc": "One registered trigger. Holds the parsed CREATE TRIGGER AST plus a monotonic creation ordinal that defines firing order across the database, plus an enabled flag reserved for a future PRAGMA disable_triggers (always true in v1). The AST is owned by the registry; lookups return borrowed references that stay valid for the duration of one DML compilation.",
+      "fields": {
+        "stmt":             "CreateTriggerStmt",
+        "creation_ordinal": "u64",
+        "enabled":          "bool"
+      }
+    }
+  },
+
+  "functions": {
+    "register_trigger": {
+      "doc": "Insert a trigger definition into the database registry and write the corresponding sqlite_master / sqlite_schema row. Increments the per-database creation counter. Raises StorageCondition::TriggerAlreadyExists if a trigger of this name exists and `stmt.if_not_exists == false`; with if_not_exists=true the second registration is a no-op. Raises StorageCondition::InvalidTriggerName on empty name and StorageCondition::TooManyTriggers above MAX_TRIGGERS_PER_DATABASE.",
+      "params": [
+        { "name": "db",   "type": { "mut": "Database" } },
+        { "name": "stmt", "type": "CreateTriggerStmt" }
+      ],
+      "returns": { "result": { "ok": "unit", "err": "StorageCondition" } }
+    },
+
+    "unregister_trigger": {
+      "doc": "Remove the trigger of the given name from the registry and from sqlite_master. With `if_exists = false`, missing names raise StorageCondition::TriggerNotFound; with if_exists=true, missing names return Ok (no-op).",
+      "params": [
+        { "name": "db",        "type": { "mut": "Database" } },
+        { "name": "name",      "type": { "borrow": "string" } },
+        { "name": "if_exists", "type": "bool" }
+      ],
+      "returns": { "result": { "ok": "unit", "err": "StorageCondition" } }
+    },
+
+    "list_triggers_for_table": {
+      "doc": "Return a borrowed list of CreateTriggerStmt references for every registered trigger whose target table equals `table` (name-exact). Order is creation order (mainline-compatible firing order). The storage layer holds the connection's compile mutex for the lifetime of the borrow.",
+      "params": [
+        { "name": "db",    "type": { "borrow": "Database" } },
+        { "name": "table", "type": { "borrow": "string" } }
+      ],
+      "returns": { "borrow": { "list": "CreateTriggerStmt" } }
+    },
+
+    "list_all_triggers": {
+      "doc": "Return a borrowed list of every registered trigger in the database, in creation order. Used by introspection helpers (PRAGMA trigger_list and the schema dumper).",
+      "params": [
+        { "name": "db", "type": { "borrow": "Database" } }
+      ],
+      "returns": { "borrow": { "list": "CreateTriggerStmt" } }
+    },
+
+    "drop_table_cascade": {
+      "doc": "Remove every trigger whose `stmt.table` matches `table` (name-exact). Called by the storage layer's DROP TABLE path after the table itself is removed but before the transaction commits. Returns the count of removed triggers (zero if none matched). Each removed entry's sqlite_master row is also deleted.",
+      "params": [
+        { "name": "db",    "type": { "mut": "Database" } },
+        { "name": "table", "type": { "borrow": "string" } }
+      ],
+      "returns": "u32"
+    }
+  },
+
+  "constants": {
+    "MAX_TRIGGERS_PER_DATABASE": {
+      "type": "u32",
+      "value": 65535
+    }
+  }
+}

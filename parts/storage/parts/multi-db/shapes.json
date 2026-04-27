@@ -1,0 +1,164 @@
+{
+  "$schema": "../../../../../schema/shape.schema.json",
+  "owner": "/parts/storage/parts/multi-db",
+
+  "imports": {
+    "Pager":     "/parts/storage/parts/pager",
+    "WalState":  "/parts/storage/parts/wal"
+  },
+
+  "constants": {
+    "MAX_ATTACHED_DBS":          { "type": "u32", "value": 10 },
+    "MAIN_SLOT":                 { "type": "u32", "value": 0  },
+    "TEMP_SLOT":                 { "type": "u32", "value": 1  },
+    "MASTER_JOURNAL_MAGIC":      { "type": "u32", "value": 2591293616 },
+    "MASTER_JOURNAL_SUFFIX_LEN": { "type": "u32", "value": 11 }
+  },
+
+  "types": {
+    "MultiDbError": {
+      "kind": "record",
+      "doc": "Single failure channel for multi-database catalog operations. The `kind` field is one of the named conditions listed in master.md pin 15; `message` is human-readable for tests and logs. Targets map MultiDbError to their idiomatic error type while preserving the discriminant.",
+      "fields": {
+        "kind":    "string",
+        "message": "string"
+      }
+    },
+
+    "SchemaIdx": {
+      "kind": "alias",
+      "of":   "u32",
+      "doc":  "Index of a slot in the catalog's current slot list. NOT stable across catalog_detach (slots above a removed slot compact downward). Callers MUST re-resolve via catalog_resolve at statement boundaries; see master.md pin 11."
+    },
+
+    "AttachSeq": {
+      "kind": "alias",
+      "of":   "u64",
+      "doc":  "Monotone never-reused index assigned to a slot at catalog_attach time. Used to determine the unqualified-resolution walk order. A fresh attach after a detach gets a fresh AttachSeq strictly greater than any previously issued value."
+    },
+
+    "SchemaSlot": {
+      "kind": "opaque",
+      "doc":  "One catalog slot. Owns its own Pager and WalState (the WAL is absent for memory-only schemas). External callers must not introspect; constructors are gated through the catalog."
+    },
+
+    "DbCatalog": {
+      "kind": "opaque",
+      "doc":  "Per-connection multi-database catalog. Owns the slot list, the master-journal state machine, and a per-connection RNG for master-journal naming. Single-threaded ownership: targets that wrap multiple connections must instantiate one DbCatalog per connection."
+    },
+
+    "BusySnapshot": {
+      "kind": "record",
+      "doc":  "Executor-supplied open-cursor / open-statement count per slot. Used by catalog_detach to enforce the busy-guard (master.md pin 12). Index by SchemaIdx; entries beyond the current slot list are ignored.",
+      "fields": {
+        "open_cursors_per_slot": { "list": "u32" }
+      }
+    },
+
+    "CommitOutcome": {
+      "kind": "record",
+      "doc":  "Returned by catalog_commit. dirty_slot_count is how many slots took part in the commit; used_master_journal indicates whether the 2PC path ran (true iff dirty_slot_count >= 2); master_journal_path is present only on the 2PC path and is the absolute path to the journal file that was created and then unlinked.",
+      "fields": {
+        "dirty_slot_count":     "u32",
+        "used_master_journal":  "bool",
+        "master_journal_path":  { "option": "string" }
+      }
+    }
+  },
+
+  "constructors": {
+    "DbCatalog": [
+      {
+        "name": "catalog_open_main",
+        "doc":  "Open or create the main database at main_path; bind a fresh anonymous TEMP schema in slot 1. Drives master-journal recovery if a stale `<main_path>-mj*` file is present. Returns the catalog with two slots ready for unqualified resolution.",
+        "params": [
+          { "name": "main_path", "type": "string" }
+        ],
+        "returns": { "result": { "ok": "DbCatalog", "err": "MultiDbError" } }
+      }
+    ]
+  },
+
+  "methods": {
+    "DbCatalog": [
+      {
+        "name": "catalog_attach",
+        "doc":  "Open db_path as a fresh slot under schema_name. Validations in order: (1) catalog must be idle (no in-flight transaction); (2) schema_name (case-folded) must not already exist; (3) slot count < MAX_ATTACHED_DBS; (4) db_path must be openable. On success, a Pager and a WalState are constructed for the new slot, attach_seq is assigned monotonically, and the slot is appended.",
+        "params": [
+          { "name": "self",        "type": { "borrow_mut": "DbCatalog" } },
+          { "name": "db_path",     "type": "string" },
+          { "name": "schema_name", "type": "string" }
+        ],
+        "returns": { "result": { "ok": "unit", "err": "MultiDbError" } }
+      },
+      {
+        "name": "catalog_detach",
+        "doc":  "Remove the slot named schema_name. Validations in order: (1) catalog must be idle; (2) schema_name must NOT be 'main' or 'temp'; (3) slot must exist; (4) busy.open_cursors_per_slot[idx] MUST be 0. On success: checkpoint the slot's WAL, close it, close the pager, drop the slot. Slots with higher index compact down; attach_seq does not change for survivors.",
+        "params": [
+          { "name": "self",        "type": { "borrow_mut": "DbCatalog" } },
+          { "name": "schema_name", "type": "string" },
+          { "name": "busy",        "type": { "borrow": "BusySnapshot" } }
+        ],
+        "returns": { "result": { "ok": "unit", "err": "MultiDbError" } }
+      },
+      {
+        "name": "catalog_resolve",
+        "doc":  "Look up the SchemaIdx of schema_name (case-folded ASCII compare). Returns SchemaNotFound if not bound. Result is valid until the next catalog_detach.",
+        "params": [
+          { "name": "self",        "type": { "borrow": "DbCatalog" } },
+          { "name": "schema_name", "type": "string" }
+        ],
+        "returns": { "result": { "ok": "SchemaIdx", "err": "MultiDbError" } }
+      },
+      {
+        "name": "catalog_walk_unqualified",
+        "doc":  "Return SchemaIdx values in the canonical unqualified-resolution order: main (slot 0), temp (slot 1), then attached slots ordered by AttachSeq ascending. Used by /parts/compiler/parts/qualified-names to drive first-hit-wins lookup.",
+        "params": [
+          { "name": "self", "type": { "borrow": "DbCatalog" } }
+        ],
+        "returns": { "list": "SchemaIdx" }
+      },
+      {
+        "name": "catalog_begin",
+        "doc":  "Mark the catalog as in-transaction. write_txn = true reserves the writer for every slot lazily on first write; false opens a read-snapshot. Subsequent catalog_attach is rejected until commit / rollback.",
+        "params": [
+          { "name": "self",      "type": { "borrow_mut": "DbCatalog" } },
+          { "name": "write_txn", "type": "bool" }
+        ],
+        "returns": { "result": { "ok": "unit", "err": "MultiDbError" } }
+      },
+      {
+        "name": "catalog_commit",
+        "doc":  "Commit the in-flight transaction. If exactly one slot is dirty, single-slot fast path: commit that pager / WAL directly. If two or more are dirty, run the master-journal 2PC: allocate `<main_path>-mj<8hex>` from the catalog RNG, write absolute paths of every dirty slot's per-slot journal, fsync, commit each per-slot journal in turn, then unlink the master journal. Returns CommitOutcome describing what ran. On I/O failure mid-2PC the master journal stays on disk and the next catalog_open_main runs recovery.",
+        "params": [
+          { "name": "self", "type": { "borrow_mut": "DbCatalog" } }
+        ],
+        "returns": { "result": { "ok": "CommitOutcome", "err": "MultiDbError" } }
+      },
+      {
+        "name": "catalog_rollback",
+        "doc":  "Roll back the in-flight transaction across every dirty slot. Idempotent if no transaction is in progress.",
+        "params": [
+          { "name": "self", "type": { "borrow_mut": "DbCatalog" } }
+        ],
+        "returns": "unit"
+      },
+      {
+        "name": "catalog_slot_count",
+        "doc":  "Return the number of currently-bound slots, including main and temp. In the range [2, MAX_ATTACHED_DBS].",
+        "params": [
+          { "name": "self", "type": { "borrow": "DbCatalog" } }
+        ],
+        "returns": "u32"
+      },
+      {
+        "name": "catalog_close",
+        "doc":  "Close every slot's WAL (checkpointing first per /spec/durability.spec.md), close every pager, and free the catalog. Idempotent.",
+        "params": [
+          { "name": "self", "type": { "borrow_mut": "DbCatalog" } }
+        ],
+        "returns": "unit"
+      }
+    ]
+  }
+}

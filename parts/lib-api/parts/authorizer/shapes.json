@@ -1,0 +1,141 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/lib-api/parts/authorizer",
+
+  "imports": {
+    "Database":     "/parts/storage",
+    "CompileError": "/parts/compiler/parts/expr-compile"
+  },
+
+  "types": {
+    "AuthVerdict": {
+      "kind": "variant",
+      "doc": "Application's per-action policy decision returned from the authorizer callback. See master.md Pins 5-7. Numeric codes (Ok=0, Deny=1, Ignore=2) match mainline SQLite's published constants for FFI-friendliness; targets MAY but need not expose the integer form.",
+      "cases": {
+        "Ok":     { "doc": "Permit the action; compiler emits standard opcodes." },
+        "Deny":   { "doc": "Refuse; prepare raises CompileError::AuthDenied carrying the offending action." },
+        "Ignore": { "doc": "Permit but neutralize: Read becomes register-Null; Update on a column drops that column's SET; for non-Read/non-Update codes, treated as Ok (Pin 6)." }
+      }
+    },
+
+    "TransactionOp": {
+      "kind": "variant",
+      "doc": "Sub-discriminator for AuthAction::Transaction, mirroring the SQLite c3ref/c_alter_table.html sub-codes for action 22.",
+      "cases": {
+        "Begin":    {},
+        "Commit":   {},
+        "Rollback": {},
+        "Release":  { "doc": "Savepoint release; v1 admits the variant for forward-compat though savepoints are deferred." }
+      }
+    },
+
+    "AuthAction": {
+      "kind": "variant",
+      "doc": "One candidate operation the per-statement compiler is about to admit. The variant shape covers the closed set of 30 v1 action codes (master.md §Action-code table). Targets MAY collapse payload-shape duplicates (CreateIndex/CreateTempIndex etc.) into a single case + a temp-flag if the target language is friendlier with that representation, so long as the observable callback signature still distinguishes the codes (Pin 4).",
+      "cases": {
+        "CreateIndex":       { "fields": { "schema": "string", "index_name": "string", "table_name": "string" } },
+        "CreateTable":       { "fields": { "schema": "string", "table_name": "string" } },
+        "CreateTempIndex":   { "fields": { "schema": "string", "index_name": "string", "table_name": "string" } },
+        "CreateTempTable":   { "fields": { "schema": "string", "table_name": "string" } },
+        "CreateTempTrigger": { "fields": { "schema": "string", "trigger_name": "string", "table_name": "string" } },
+        "CreateTempView":    { "fields": { "schema": "string", "view_name": "string" } },
+        "CreateTrigger":     { "fields": { "schema": "string", "trigger_name": "string", "table_name": "string" } },
+        "CreateView":        { "fields": { "schema": "string", "view_name": "string" } },
+        "Delete":            { "fields": { "schema": "string", "table_name": "string" } },
+        "DropIndex":         { "fields": { "schema": "string", "index_name": "string", "table_name": "string" } },
+        "DropTable":         { "fields": { "schema": "string", "table_name": "string" } },
+        "DropTempIndex":     { "fields": { "schema": "string", "index_name": "string", "table_name": "string" } },
+        "DropTempTable":     { "fields": { "schema": "string", "table_name": "string" } },
+        "DropTempTrigger":   { "fields": { "schema": "string", "trigger_name": "string", "table_name": "string" } },
+        "DropTempView":      { "fields": { "schema": "string", "view_name": "string" } },
+        "DropTrigger":       { "fields": { "schema": "string", "trigger_name": "string", "table_name": "string" } },
+        "DropView":          { "fields": { "schema": "string", "view_name": "string" } },
+        "Insert":            { "fields": { "schema": "string", "table_name": "string" } },
+        "Pragma":            { "fields": { "pragma_name": "string", "pragma_arg": { "optional": "string" } } },
+        "Read":              { "fields": { "schema": "string", "table_name": "string", "column_name": "string" } },
+        "Select":            {},
+        "Transaction":       { "fields": { "operation": "TransactionOp" } },
+        "Update":            { "fields": { "schema": "string", "table_name": "string", "column_name": "string" } },
+        "Attach":            { "fields": { "filename": "string" } },
+        "Detach":             { "fields": { "schema": "string" } },
+        "AlterTable":        { "fields": { "schema": "string", "table_name": "string" } },
+        "Reindex":           { "fields": { "schema": "string", "index_name": "string" } },
+        "Analyze":           { "fields": { "schema": "string", "target_name": "string" } },
+        "Function":          { "fields": { "function_name": "string" } },
+        "Recursive":         {}
+      }
+    },
+
+    "AuthorizerCallback": {
+      "kind": "callback",
+      "doc": "Application-supplied policy function. Called once per AuthAction during prepare. Receives the action and an opaque user-data handle established at set_authorizer time; returns an AuthVerdict. MUST NOT recursively call prepare/step/set_authorizer on the same db (Pin 13). Targets render this as the idiomatic callable shape (Rust closure, C function pointer + void*, Python callable, Go func value, Zig fn pointer + context).",
+      "params": [
+        { "name": "action",    "type": "AuthAction" },
+        { "name": "user_data", "type": { "borrow": "OpaqueUserData" } }
+      ],
+      "returns": "AuthVerdict"
+    },
+
+    "OpaqueUserData": {
+      "kind": "opaque",
+      "doc": "Target-defined handle the application threads through set_authorizer to the callback. The spec treats this as opaque; the lib-api never inspects it. Rust may render this as a generic type parameter or a boxed Any; C as a void*; Python as a Python object; Go as an interface{}; Zig as an anyopaque pointer."
+    },
+
+    "AuthState": {
+      "kind": "record",
+      "doc": "Per-connection authorizer slot. Lives on the Database connection record. callback is present-or-absent; absent means no policy and every invoke_authorizer call short-circuits to Ok (Pin 10). user_data is paired with callback at set_authorizer time.",
+      "fields": {
+        "callback":  { "optional": "AuthorizerCallback" },
+        "user_data": { "optional": "OpaqueUserData" }
+      }
+    },
+
+    "AuthDenied": {
+      "kind": "record",
+      "doc": "Payload of the CompileError::AuthDenied variant. Carries the offending AuthAction so the application sees which call triggered the refusal. Pin 7.",
+      "fields": {
+        "action": "AuthAction"
+      }
+    }
+  },
+
+  "constructors": {
+    "AuthState": [
+      {
+        "name": "empty",
+        "params": [],
+        "returns": "AuthState",
+        "doc": "Initial per-connection state — no callback installed. Equivalent to clear_authorizer; every invoke_authorizer returns Ok."
+      }
+    ]
+  },
+
+  "functions": {
+    "set_authorizer": {
+      "doc": "Install (or replace) the per-connection authorizer callback. Idempotent. Replacing a callback does NOT re-authorize already-prepared statements (Pin 3); only future prepare calls see the new callback. Pass the absent form to clear (or call clear_authorizer).",
+      "params": [
+        { "name": "db",        "type": { "mut": "Database" } },
+        { "name": "callback",  "type": { "optional": "AuthorizerCallback" } },
+        { "name": "user_data", "type": { "optional": "OpaqueUserData" } }
+      ],
+      "returns": "unit"
+    },
+
+    "clear_authorizer": {
+      "doc": "Convenience: equivalent to set_authorizer(db, absent, absent). After clear, every invoke_authorizer call returns Ok (Pin 10).",
+      "params": [
+        { "name": "db", "type": { "mut": "Database" } }
+      ],
+      "returns": "unit"
+    },
+
+    "invoke_authorizer": {
+      "doc": "Compiler-internal entry point. Called by the per-statement compilers (compile_select / compile_insert / compile_update / compile_delete / compile_create_* / compile_pragma / etc.) as they walk the AST. If db.auth_state.callback is absent, returns Ok. Otherwise invokes the callback with `action` and the stored user_data, returns its verdict. The compiler maps Deny to CompileError::AuthDenied { action } at the call site (Pin 7); maps Ignore on Read/Update to a register-Null / SET-drop rewrite (Pin 6); Ok proceeds normally.",
+      "params": [
+        { "name": "db",     "type": { "borrow": "Database" } },
+        { "name": "action", "type": "AuthAction" }
+      ],
+      "returns": "AuthVerdict"
+    }
+  }
+}

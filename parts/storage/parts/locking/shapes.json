@@ -1,0 +1,155 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/storage/parts/locking",
+
+  "imports": {},
+
+  "constants": {
+    "WAL_READ_MARK_SLOTS":     { "type": "u32", "value": 5 },
+    "SHM_LOCK_PAGE_OFFSET":    { "type": "u32", "value": 120 },
+    "SHM_WRITE_LOCK":          { "type": "u32", "value": 0 },
+    "SHM_CHECKPOINT_LOCK":     { "type": "u32", "value": 1 },
+    "SHM_RECOVER_LOCK":        { "type": "u32", "value": 2 },
+    "SHM_READ_LOCK_BASE":      { "type": "u32", "value": 3 }
+  },
+
+  "types": {
+    "LockMode": {
+      "kind": "enum",
+      "doc": "Selects which sub-state-machine the manager enforces.",
+      "variants": {
+        "Rollback": {},
+        "Wal": {}
+      }
+    },
+
+    "LockState": {
+      "kind": "enum",
+      "doc": "Rollback-mode lock ladder. Strict ordering: Unlocked < Shared < Reserved < Pending < Exclusive.",
+      "variants": {
+        "Unlocked":  {},
+        "Shared":    {},
+        "Reserved":  {},
+        "Pending":   {},
+        "Exclusive": {}
+      }
+    },
+
+    "WalLockSlot": {
+      "kind": "enum",
+      "doc": "Named lock slots inside the *-shm lock page.",
+      "variants": {
+        "Write":      {},
+        "Checkpoint": {},
+        "Recover":    {},
+        "ReadMark":   { "fields": { "index": "u32" } }
+      }
+    },
+
+    "WalLockKind": {
+      "kind": "enum",
+      "doc": "Acquisition flavor against a WalLockSlot.",
+      "variants": {
+        "Shared":    {},
+        "Exclusive": {}
+      }
+    },
+
+    "LockError": {
+      "kind": "enum",
+      "doc": "Named lock conditions. Maps to idiomatic per-target error type.",
+      "variants": {
+        "Busy":              {},
+        "InvalidTransition": { "fields": { "from": "LockState", "to": "LockState" } },
+        "IoError":           { "fields": { "message": "string" } },
+        "SingleProcessMode": {}
+      }
+    },
+
+    "LockManager": {
+      "kind": "record",
+      "doc": "Per-connection lock manager. Holds the current state, the OS-level handle (file descriptor for rollback mode, shm region for WAL mode), and a refcount for the cursor-aggregation rule (PIN 14). Internals are opaque; only the methods below are public.",
+      "fields": {
+        "mode":      "LockMode",
+        "state":     "LockState",
+        "shared_refcount": "u32"
+      }
+    }
+  },
+
+  "methods": {
+    "LockManager::open_rollback": {
+      "kind": "ctor",
+      "doc": "Construct a rollback-mode manager bound to the OS file handle for the main DB file. If the OS does not provide advisory locks, falls back to in-process Mutex and stamps the manager with a SingleProcessMode diagnostic exactly once.",
+      "params": { "path": "string" },
+      "returns": "result<LockManager, LockError>"
+    },
+
+    "LockManager::open_wal": {
+      "kind": "ctor",
+      "doc": "Construct a WAL-mode manager bound to the *-shm region.",
+      "params": { "shm_path": "string" },
+      "returns": "result<LockManager, LockError>"
+    },
+
+    "LockManager::current": {
+      "kind": "method",
+      "doc": "Observation: present rollback-mode state. WAL-mode managers always report Unlocked here; query via wal_held instead.",
+      "receiver": "self",
+      "returns": "LockState"
+    },
+
+    "LockManager::mode": {
+      "kind": "method",
+      "doc": "Returns the configured mode.",
+      "receiver": "self",
+      "returns": "LockMode"
+    },
+
+    "LockManager::acquire": {
+      "kind": "method",
+      "doc": "Drive forward toward target rollback-mode state per PIN 1. Walks every intermediate state. Idempotent if already at target (PIN 7). Asking for a lower state is InvalidTransition (PIN 7). Non-blocking — returns Busy on contention (PIN 12).",
+      "receiver": "mut self",
+      "params": { "target": "LockState" },
+      "returns": "result<unit, LockError>"
+    },
+
+    "LockManager::downgrade": {
+      "kind": "method",
+      "doc": "Reduce privilege to target. Always succeeds in-process (PIN 5). Asking to raise privilege is InvalidTransition.",
+      "receiver": "mut self",
+      "params": { "target": "LockState" },
+      "returns": "result<unit, LockError>"
+    },
+
+    "LockManager::shared_acquire": {
+      "kind": "method",
+      "doc": "Refcounting helper for PIN 14. First call walks Unlocked -> Shared; subsequent calls just bump the refcount.",
+      "receiver": "mut self",
+      "returns": "result<unit, LockError>"
+    },
+
+    "LockManager::shared_release": {
+      "kind": "method",
+      "doc": "Decrement refcount; on zero, drops the SHARED grant.",
+      "receiver": "mut self",
+      "returns": "result<unit, LockError>"
+    },
+
+    "LockManager::wal_acquire": {
+      "kind": "method",
+      "doc": "WAL-mode: acquire the named slot in the requested kind. Compatibility matrix per master.md PIN 8/9/10. Non-blocking.",
+      "receiver": "mut self",
+      "params": { "slot": "WalLockSlot", "kind": "WalLockKind" },
+      "returns": "result<unit, LockError>"
+    },
+
+    "LockManager::wal_release": {
+      "kind": "method",
+      "doc": "WAL-mode: release a previously acquired slot.",
+      "receiver": "mut self",
+      "params": { "slot": "WalLockSlot" },
+      "returns": "result<unit, LockError>"
+    }
+  }
+}

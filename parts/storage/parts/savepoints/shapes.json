@@ -1,0 +1,86 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/storage/parts/savepoints",
+
+  "imports": {
+    "RuntimeCondition": "/parts/core",
+    "PagerContext":     "/parts/storage/parts/pager",
+    "SchemaSnapshot":   "/parts/storage"
+  },
+
+  "types": {
+    "WalMark": {
+      "kind": "alias",
+      "of": "u64",
+      "doc": "Cut-point identifying the boundary between pre-savepoint and post-savepoint changes. Under WAL backend this is the mx_frame value at push time; under rollback-mode journal backend it is the journal byte offset at push time. Targets pick the appropriate runtime mapping per backend; the abstract type is just an opaque marker."
+    },
+
+    "SavepointFrame": {
+      "kind": "record",
+      "doc": "One frame on the savepoint stack. Captures the cut-points needed to revert all storage state (page deltas + schema deltas) back to push time. The frame does NOT copy page images — revert reads pre-savepoint page images out of the WAL or rollback journal.",
+      "fields": {
+        "name":                "string",
+        "wal_mark":            "WalMark",
+        "schema_mark":         "SchemaSnapshot",
+        "page_dirty_set_mark": "u32"
+      }
+    },
+
+    "SavepointStore": {
+      "kind": "record",
+      "doc": "The savepoint stack. LIFO: deepest frame at index 0, innermost at the top. `implicit_outer_open` is true iff the storage layer silently began the outer transaction during the FIRST push (no caller-issued BEGIN was active at that moment). Cleared on the matching outermost RELEASE that empties the stack (pin S4). Resets to empty on crash recovery (pin S9).",
+      "fields": {
+        "frames":              { "list": "SavepointFrame" },
+        "implicit_outer_open": "bool"
+      }
+    }
+  },
+
+  "constants": {
+    "SAVEPOINT_STACK_MAX_DEPTH": {
+      "type": "u32",
+      "value": 32,
+      "doc": "Hard cap on simultaneous open savepoints. Push beyond this raises SavepointStackOverflow. v1 picks 32; revisit only if a real workload demonstrates need."
+    }
+  },
+
+  "functions": {
+    "push_savepoint": {
+      "doc": "Push a new frame named `name` onto the stack. Captures wal_mark, schema_mark, and page_dirty_set_mark from `pager`. If no transaction is open, silently begins one and sets implicit_outer_open=true (pin S2). Raises SavepointStackOverflow if the stack is at SAVEPOINT_STACK_MAX_DEPTH (pin S7).",
+      "params": [
+        { "name": "store", "type": { "mut":    "SavepointStore" } },
+        { "name": "name",  "type": { "borrow": "string" } },
+        { "name": "pager", "type": { "mut":    "PagerContext" } }
+      ],
+      "returns": { "result": { "ok": "unit", "err": "RuntimeCondition" } }
+    },
+
+    "release_savepoint": {
+      "doc": "Find the innermost frame named `name`. Discard it AND every frame above it; their changes merge into the next-outer frame (or commit to the outer transaction if the released frame was outermost — pin S4). Raises SavepointNotFound if no matching frame exists. If the stack becomes empty and implicit_outer_open is true, commits the implicit outer transaction.",
+      "params": [
+        { "name": "store", "type": { "mut": "SavepointStore" } },
+        { "name": "name",  "type": { "borrow": "string" } },
+        { "name": "pager", "type": { "mut": "PagerContext" } }
+      ],
+      "returns": { "result": { "ok": "unit", "err": "RuntimeCondition" } }
+    },
+
+    "rollback_to_savepoint": {
+      "doc": "Find the innermost frame named `name`. Revert page state (via pager.revert_pages_to) and schema state (via pager.restore_schema) to that frame's marks. Discard frames ABOVE the matched frame; the matched frame ITSELF stays on the stack (pin S5b). Raises SavepointNotFound if no matching frame exists.",
+      "params": [
+        { "name": "store", "type": { "mut": "SavepointStore" } },
+        { "name": "name",  "type": { "borrow": "string" } },
+        { "name": "pager", "type": { "mut": "PagerContext" } }
+      ],
+      "returns": { "result": { "ok": "unit", "err": "RuntimeCondition" } }
+    },
+
+    "any_open": {
+      "doc": "Used by the pager's checkpoint scheduler to gate checkpoint while any savepoint frame is open (pin S8). Returns true iff `store.frames` is non-empty.",
+      "params": [
+        { "name": "store", "type": { "borrow": "SavepointStore" } }
+      ],
+      "returns": "bool"
+    }
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/vdbe/parts/opcodes-savepoint",
+  "imports": {
+    "OpcodeOutcome":    "/parts/core",
+    "RuntimeCondition": "/parts/core",
+    "VdbeState":        "/parts/vdbe",
+    "SavepointStore":   "/parts/storage/parts/savepoints"
+  },
+  "types": {
+    "OpcodeSavepoint": {
+      "kind": "variant",
+      "doc": "Savepoint-control opcodes. Each carries an owned savepoint name. Execution delegates to the storage savepoint stack — the VDBE itself holds no savepoint state. Outcome is Continue or Halt(Error(condition)); never Jump.",
+      "cases": {
+        "Savepoint": {
+          "fields": { "name": "string" },
+          "doc": "Push a new savepoint frame named `name` onto the storage savepoint stack. If no transaction is open, the storage layer silently begins one (storage pin S2). Halts with SavepointStackOverflow if the stack is at SAVEPOINT_STACK_MAX_DEPTH."
+        },
+        "ReleaseSavepoint": {
+          "fields": { "name": "string" },
+          "doc": "Discard the savepoint named `name` and every frame above it. Changes from discarded frames are merged into the next-outer frame, or committed to the outer transaction if the released frame was outermost. Halts with SavepointNotFound if no matching frame is on the stack."
+        },
+        "RollbackToSavepoint": {
+          "fields": { "name": "string" },
+          "doc": "Revert all changes (page + schema) made since the savepoint named `name` was declared. The matched frame STAYS on the stack; frames above it are discarded along with their reverted changes. Halts with SavepointNotFound if no matching frame is on the stack."
+        }
+      }
+    }
+  },
+  "functions": {
+    "execute": {
+      "params": [
+        { "name": "op",    "type": { "borrow": "OpcodeSavepoint" } },
+        { "name": "state", "type": { "mut":    "VdbeState" } },
+        { "name": "store", "type": { "mut":    "SavepointStore" } }
+      ],
+      "returns": "OpcodeOutcome",
+      "doc": "Execute one savepoint opcode by delegating to the storage SavepointStore. Returns Continue on success or Halt(Error(SavepointNotFound | SavepointStackOverflow)) on failure."
+    }
+  }
+}

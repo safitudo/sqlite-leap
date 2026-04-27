@@ -1,0 +1,234 @@
+{
+  "$schema": "https://leap.dev/shape.schema.json",
+  "part": "lib-api/vfs",
+  "kind": "leaf",
+  "phase": "V0-spec-only",
+  "enums": {
+    "AccessMode": ["EXISTS", "READ", "READWRITE"],
+    "FileKind": [
+      "MAIN_DB", "MAIN_JOURNAL", "TEMP_DB", "TEMP_JOURNAL",
+      "TRANSIENT_DB", "SUBJOURNAL", "SUPER_JOURNAL", "WAL"
+    ],
+    "LockLevel": ["NONE", "SHARED", "RESERVED", "PENDING", "EXCLUSIVE"],
+    "ShmLockKind": ["SHARED", "EXCLUSIVE"],
+    "FileControlOp": [
+      "FCNTL_LOCKSTATE", "FCNTL_SIZE_HINT", "FCNTL_CHUNK_SIZE",
+      "FCNTL_SYNC_OMITTED", "FCNTL_HAS_MOVED", "FCNTL_VFSNAME",
+      "FCNTL_PRAGMA"
+    ]
+  },
+  "bitsets": {
+    "OpenFlags": [
+      "OPEN_READONLY", "OPEN_READWRITE", "OPEN_CREATE",
+      "OPEN_DELETEONCLOSE", "OPEN_EXCLUSIVE", "OPEN_AUTOPROXY",
+      "OPEN_URI", "OPEN_MEMORY", "OPEN_NOFOLLOW"
+    ],
+    "SyncFlags": ["SYNC_NORMAL", "SYNC_FULL", "SYNC_DATAONLY"],
+    "DeviceCharBits": [
+      "ATOMIC", "ATOMIC_512", "ATOMIC_1K", "ATOMIC_2K",
+      "ATOMIC_4K", "ATOMIC_8K", "ATOMIC_16K", "ATOMIC_32K",
+      "ATOMIC_64K", "SAFE_APPEND", "SEQUENTIAL",
+      "UNDELETABLE_WHEN_OPEN", "POWERSAFE_OVERWRITE", "IMMUTABLE"
+    ]
+  },
+  "records": {
+    "AccessResult": {
+      "fields": [
+        { "name": "exists",   "type": "bool" },
+        { "name": "readable", "type": "bool" },
+        { "name": "writable", "type": "bool" }
+      ]
+    },
+    "OsError": {
+      "fields": [
+        { "name": "code",    "type": "int" },
+        { "name": "message", "type": "string" }
+      ]
+    },
+    "SharedRegionRef": {
+      "fields": [
+        { "name": "region_index", "type": "int" },
+        { "name": "size_bytes",   "type": "int" },
+        { "name": "opaque_handle", "type": "opaque" }
+      ]
+    },
+    "FileControlResult": {
+      "kind": "tagged_union",
+      "variants": ["Ok", "Value", "NotImplemented"]
+    },
+    "RuntimeCondition": {
+      "kind": "tagged_union",
+      "variants": [
+        "IO_ERR", "IO_ERR_READ", "IO_ERR_SHORT_READ", "IO_ERR_WRITE",
+        "IO_ERR_FSYNC", "IO_ERR_TRUNCATE", "IO_ERR_LOCK",
+        "IO_ERR_UNLOCK", "IO_ERR_DELETE", "IO_ERR_ACCESS",
+        "IO_ERR_NOMEM", "BUSY", "READONLY", "CANTOPEN",
+        "NOT_IMPLEMENTED", "NAME_COLLISION", "NOT_FOUND"
+      ]
+    }
+  },
+  "interfaces": {
+    "Vfs": {
+      "ops": [
+        { "name": "xOpen",
+          "params": [
+            { "name": "path",           "type": "string" },
+            { "name": "flags",          "type": "OpenFlags" },
+            { "name": "requested_kind", "type": "FileKind" }
+          ],
+          "returns": "VfsFile | RuntimeCondition" },
+        { "name": "xDelete",
+          "params": [
+            { "name": "path",     "type": "string" },
+            { "name": "sync_dir", "type": "bool" }
+          ],
+          "returns": "ok | RuntimeCondition" },
+        { "name": "xAccess",
+          "params": [
+            { "name": "path", "type": "string" },
+            { "name": "mode", "type": "AccessMode" }
+          ],
+          "returns": "AccessResult" },
+        { "name": "xFullPathname",
+          "params": [{ "name": "path", "type": "string" }],
+          "returns": "string | RuntimeCondition",
+          "pin": "V22-idempotent" },
+        { "name": "xRandomness",
+          "params": [{ "name": "n_bytes", "type": "int" }],
+          "returns": "bytes",
+          "pin": "V12-only-engine-rng" },
+        { "name": "xSleep",
+          "params": [{ "name": "microseconds", "type": "int" }],
+          "returns": "int" },
+        { "name": "xCurrentTime",
+          "params": [],
+          "returns": "real_julian_day",
+          "pin": "V13-only-engine-clock" },
+        { "name": "xGetLastError",
+          "params": [],
+          "returns": "OsError" }
+      ]
+    },
+    "VfsFile": {
+      "ops": [
+        { "name": "xRead",
+          "params": [
+            { "name": "offset",  "type": "int" },
+            { "name": "n_bytes", "type": "int" }
+          ],
+          "returns": "bytes | RuntimeCondition",
+          "pin": "V5-read-past-eof-zero-fill" },
+        { "name": "xWrite",
+          "params": [
+            { "name": "offset", "type": "int" },
+            { "name": "bytes",  "type": "bytes" }
+          ],
+          "returns": "ok | RuntimeCondition" },
+        { "name": "xTruncate",
+          "params": [{ "name": "new_size_bytes", "type": "int" }],
+          "returns": "ok | RuntimeCondition" },
+        { "name": "xSync",
+          "params": [{ "name": "flags", "type": "SyncFlags" }],
+          "returns": "ok | RuntimeCondition",
+          "pin": "V6-durability-boundary" },
+        { "name": "xFileSize",
+          "params": [],
+          "returns": "int | RuntimeCondition" },
+        { "name": "xLock",
+          "params": [{ "name": "level", "type": "LockLevel" }],
+          "returns": "ok | RuntimeCondition",
+          "pin": "V4-lock-ladder-monotonic" },
+        { "name": "xUnlock",
+          "params": [{ "name": "level", "type": "LockLevel" }],
+          "returns": "ok | RuntimeCondition",
+          "pin": "V4-lock-ladder-monotonic" },
+        { "name": "xCheckReservedLock",
+          "params": [],
+          "returns": "bool" },
+        { "name": "xFileControl",
+          "params": [
+            { "name": "op",  "type": "FileControlOp" },
+            { "name": "arg", "type": "opaque" }
+          ],
+          "returns": "FileControlResult | RuntimeCondition",
+          "pin": "V14-unknown-opcodes-noop-success" },
+        { "name": "xSectorSize",
+          "params": [],
+          "returns": "int",
+          "pin": "V16-hint-not-contract" },
+        { "name": "xDeviceCharacteristics",
+          "params": [],
+          "returns": "DeviceCharBits",
+          "pin": "V15-default-safe-zero" },
+        { "name": "xShmMap",
+          "params": [
+            { "name": "region_index", "type": "int" },
+            { "name": "region_size",  "type": "int" },
+            { "name": "extend",       "type": "bool" }
+          ],
+          "returns": "SharedRegionRef | RuntimeCondition",
+          "pin": "V18-may-return-not-implemented-v1" },
+        { "name": "xShmLock",
+          "params": [
+            { "name": "offset_index", "type": "int" },
+            { "name": "n_slots",      "type": "int" },
+            { "name": "kind",         "type": "ShmLockKind" }
+          ],
+          "returns": "ok | RuntimeCondition",
+          "pin": "V18-may-return-not-implemented-v1" },
+        { "name": "xShmBarrier",
+          "params": [],
+          "returns": "ok",
+          "pin": "V18-may-return-not-implemented-v1" },
+        { "name": "xShmUnmap",
+          "params": [{ "name": "delete_flag", "type": "bool" }],
+          "returns": "ok",
+          "pin": "V18-may-return-not-implemented-v1" }
+      ]
+    }
+  },
+  "functions": {
+    "sqlite3_vfs_register": {
+      "params": [
+        { "name": "vfs",          "type": "Vfs" },
+        { "name": "make_default", "type": "bool" }
+      ],
+      "returns": "ok | RuntimeCondition",
+      "pin": "V7-process-global-named-registry"
+    },
+    "sqlite3_vfs_unregister": {
+      "params": [{ "name": "vfs", "type": "Vfs" }],
+      "returns": "ok | RuntimeCondition",
+      "pin": "V8-default-handoff-non-destructive"
+    },
+    "sqlite3_vfs_find": {
+      "params": [{ "name": "name", "type": "string?" }],
+      "returns": "Vfs | not_found"
+    }
+  },
+  "default_vfs": {
+    "name": "unix",
+    "platforms": ["linux", "macos", "bsd"],
+    "characteristics_default": "POWERSAFE_OVERWRITE | SAFE_APPEND",
+    "sector_size_default": 4096,
+    "lock_protocol": "posix-byte-range-fcntl",
+    "randomness_source": "/dev/urandom",
+    "pin": "V24-mainline-readable-naming"
+  },
+  "registry": {
+    "scope": "process-global",
+    "initial_state": "empty",
+    "default_pointer": "set-by-first-or-explicit-make_default",
+    "concurrent_safety": "atomic-mutation",
+    "pin": "V21-registry-mutation-atomic"
+  },
+  "generation_scope": {
+    "engine_storage_must_route_through_vfs": true,
+    "forbidden_direct_calls_in_storage_emissions": [
+      "open", "read", "write", "pread", "pwrite",
+      "fsync", "fdatasync", "ftruncate",
+      "unlink", "rename", "stat"
+    ],
+    "pin": "V2-storage-only-talks-via-vfs"
+  }
+}

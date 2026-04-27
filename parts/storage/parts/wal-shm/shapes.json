@@ -1,0 +1,319 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/storage/parts/wal-shm",
+
+  "imports": {
+    "WalState": "/parts/storage/parts/wal",
+    "WalError": "/parts/storage/parts/wal"
+  },
+
+  "constants": {
+    "SHM_REGION_SIZE":      { "type": "u32", "value": 32768 },
+    "SHM_HASHTABLE_NPAGE":  { "type": "u32", "value": 4096 },
+    "SHM_HASHTABLE_NPAGE_ONE": { "type": "u32", "value": 4062 },
+    "SHM_HASHTABLE_NSLOT":  { "type": "u32", "value": 8192 },
+    "SHM_HASH_MULTIPLIER":  { "type": "u32", "value": 383 },
+    "SHM_VERSION":          { "type": "u32", "value": 3007000 },
+    "SHM_HEADER_SIZE":      { "type": "u32", "value": 136 },
+    "SHM_HEADER_RECORD_SIZE": { "type": "u32", "value": 48 },
+    "SHM_NUM_READ_MARKS":   { "type": "u32", "value": 5 },
+    "SHM_LOCK_OFFSET_WRITE":      { "type": "u32", "value": 120 },
+    "SHM_LOCK_OFFSET_CHECKPOINT": { "type": "u32", "value": 121 },
+    "SHM_LOCK_OFFSET_RECOVER":    { "type": "u32", "value": 122 },
+    "SHM_LOCK_OFFSET_READ_BASE":  { "type": "u32", "value": 123 }
+  },
+
+  "types": {
+    "ShmError": {
+      "kind": "record",
+      "doc": "Single failure channel for shm operations. Targets map to idiomatic error types.",
+      "fields": {
+        "message": "string"
+      }
+    },
+
+    "ShmLockKind": {
+      "kind": "variant",
+      "doc": "Names the eight logical locks the shm protocol uses. WRITE excludes other writers. CHECKPOINT excludes other checkpointers. RECOVER excludes other recoverers. READ_K(0..4) excludes writers of read_marks[k]. The mapping to OS primitives lives in target mapping.md files.",
+      "variants": {
+        "Write":       {},
+        "Checkpoint":  {},
+        "Recover":     {},
+        "Read":        { "fields": { "slot": "u32" } }
+      }
+    },
+
+    "ShmLockMode": {
+      "kind": "variant",
+      "doc": "Lock acquisition mode. Shared = many readers; Exclusive = sole holder.",
+      "variants": {
+        "Shared":    {},
+        "Exclusive": {}
+      }
+    },
+
+    "ShmHeaderRecord": {
+      "kind": "record",
+      "doc": "48-byte wal-index header record. Stored TWICE back-to-back at offset 0 of region 0; readers accept only when both copies are byte-identical AND the Fibonacci checksum over the first 40 bytes validates. is_init becomes 1 once a writer has populated the record. big_endian_checksums mirrors the WAL magic choice. salts mirror the WAL header's current salts; rolling them in the WAL must be followed by re-initializing this record.",
+      "fields": {
+        "version":              "u32",
+        "unused":               "u32",
+        "change_counter":       "u32",
+        "is_init":              "u8",
+        "big_endian_checksums": "u8",
+        "page_size_encoded":    "u16",
+        "mx_frame":             "u32",
+        "n_page":               "u32",
+        "frame_checksum_s0":    "u32",
+        "frame_checksum_s1":    "u32",
+        "salt_1":               "u32",
+        "salt_2":               "u32",
+        "checksum_c0":          "u32",
+        "checksum_c1":          "u32"
+      }
+    },
+
+    "ShmCheckpointInfo": {
+      "kind": "record",
+      "doc": "Bytes 96..136 of region 0. n_backfill is the number of WAL frames already copied to the main DB file. read_marks[5] are the five read-mark slots; index 0 is permanently 0. n_backfill_attempted is the optimistic intent counter used by checkpointers.",
+      "fields": {
+        "n_backfill":           "u32",
+        "read_marks":           { "list": "u32" },
+        "n_backfill_attempted": "u32"
+      }
+    },
+
+    "ShmHashRegion": {
+      "kind": "record",
+      "doc": "One 32 KiB hash region. a_pgno[k] holds the page_number of the frame whose region-relative index is k. a_hash[h] holds (region-index + 1) into a_pgno, with 0 meaning empty. Lookup: probe a_hash via hash(p) = (p * 383) mod NSLOT with linear probe; resolve to a_pgno; the frame number is region_base + a_pgno_index + 1. Region 0 has NPAGE_ONE entries (4062); regions 1..N have NPAGE entries (4096).",
+      "fields": {
+        "region_index": "u32",
+        "a_pgno":       { "list": "u32" },
+        "a_hash":       { "list": "u16" }
+      }
+    },
+
+    "ShmState": {
+      "kind": "record",
+      "doc": "Per-process handle for an open shm file. db_path is the database path (the shm path is derived as db_path + '-shm'). header is the validated current header (most recently read copy, after both-copies-agree check). regions is the set of currently-mapped 32 KiB hash regions, indexed by region_index. mark_held names the READ(k) slot this process holds, if any (for Reader role); 0xFFFFFFFF means none.",
+      "fields": {
+        "db_path":      "string",
+        "header":       "ShmHeaderRecord",
+        "checkpoint":   "ShmCheckpointInfo",
+        "regions":      { "list": "ShmHashRegion" },
+        "mark_held":    "u32"
+      }
+    },
+
+    "ReaderHandle": {
+      "kind": "record",
+      "doc": "Returned by shm_reader_open. mark_index is the READ(k) slot the reader has SHARED-locked. mx_frame is the WAL frame number this reader's snapshot is pinned to. mark_index = 0 means the special 'no WAL' snapshot (mx_frame = 0).",
+      "fields": {
+        "mark_index": "u32",
+        "mx_frame":   "u32"
+      }
+    },
+
+    "WriterHandle": {
+      "kind": "record",
+      "doc": "Returned by shm_writer_begin. Holds EXCLUSIVE on WRITE for its lifetime; released by shm_writer_commit or shm_writer_rollback. start_mx_frame snapshots the mx_frame at begin so commit can compute frames_written.",
+      "fields": {
+        "start_mx_frame":      "u32",
+        "frames_pending_count": "u32"
+      }
+    },
+
+    "CheckpointHandle": {
+      "kind": "record",
+      "doc": "Returned by shm_checkpoint_begin. Holds EXCLUSIVE on CHECKPOINT for its lifetime; released by shm_checkpoint_end. barrier_frame is the highest frame the checkpointer is allowed to backfill past, computed from active read marks at begin time.",
+      "fields": {
+        "barrier_frame": "u32"
+      }
+    },
+
+    "ShmLookupResult": {
+      "kind": "variant",
+      "doc": "Result of a page lookup in the shm hash table. Found gives the frame_number of the LATEST frame for that page within [1, mx_frame]. NotFound means the page is not in the WAL (caller falls back to main DB file).",
+      "variants": {
+        "Found":    { "fields": { "frame_number": "u32" } },
+        "NotFound": {}
+      }
+    }
+  },
+
+  "functions": {
+    "shm_open": {
+      "doc": "Open or create the shm file at `{db_path}-shm`. If the file is shorter than SHM_REGION_SIZE OR the two header copies disagree OR the header checksum fails OR the version field doesn't match SHM_VERSION, run shm_recover internally to reconstruct from WAL frames. Returns a ShmState with the validated header and at least region 0 mapped. Does NOT acquire any of the named locks; caller does that explicitly via reader/writer/checkpoint flows.",
+      "params": [
+        { "name": "db_path",   "type": "string" },
+        { "name": "wal_state", "type": { "borrow": "WalState" } }
+      ],
+      "returns": { "result": { "ok": "ShmState", "err": "ShmError" } }
+    },
+
+    "shm_recover": {
+      "doc": "Reconstruct shm contents from the on-disk WAL. Acquires EXCLUSIVE on RECOVER; if another process completed recovery while we waited, releases and returns the now-valid state. Otherwise: truncates shm to one region, scans WAL frames forward applying base wal protocol, populates the hash table for frames 1..mx_frame, writes both header copies with a barrier between, releases RECOVER. Idempotent. Read-only against the WAL.",
+      "params": [
+        { "name": "state",     "type": { "borrow_mut": "ShmState" } },
+        { "name": "wal_state", "type": { "borrow": "WalState" } }
+      ],
+      "returns": { "result": { "ok": "unit", "err": "ShmError" } }
+    },
+
+    "shm_lock_acquire": {
+      "doc": "Acquire one of the named locks in the requested mode. Blocks (or returns err with a 'busy' message — target choice) if the lock is incompatibly held. Mapping to OS primitives is target-specific.",
+      "params": [
+        { "name": "state", "type": { "borrow_mut": "ShmState" } },
+        { "name": "kind",  "type": "ShmLockKind" },
+        { "name": "mode",  "type": "ShmLockMode" }
+      ],
+      "returns": { "result": { "ok": "unit", "err": "ShmError" } }
+    },
+
+    "shm_lock_try_acquire": {
+      "doc": "Non-blocking lock acquisition. Returns Some(()) on success, None if the lock is incompatibly held by another process. Used by readers when probing READ(k) slots.",
+      "params": [
+        { "name": "state", "type": { "borrow_mut": "ShmState" } },
+        { "name": "kind",  "type": "ShmLockKind" },
+        { "name": "mode",  "type": "ShmLockMode" }
+      ],
+      "returns": { "result": { "ok": { "option": "unit" }, "err": "ShmError" } }
+    },
+
+    "shm_lock_release": {
+      "doc": "Release a previously acquired lock. Idempotent if not held.",
+      "params": [
+        { "name": "state", "type": { "borrow_mut": "ShmState" } },
+        { "name": "kind",  "type": "ShmLockKind" }
+      ],
+      "returns": { "result": { "ok": "unit", "err": "ShmError" } }
+    },
+
+    "shm_reader_open": {
+      "doc": "Open a reader snapshot. Probes read_marks[1..4] for a slot already pinned to current mx_frame; if found, takes SHARED on that READ(k) and returns. Otherwise tries to acquire EXCLUSIVE on a free READ(k), writes mx_frame into read_marks[k], downgrades to SHARED. If all 1..4 marks are busy, falls back to SHARED on READ(0) (mx_frame = 0, 'no WAL' snapshot). Returns ReaderHandle.",
+      "params": [
+        { "name": "state", "type": { "borrow_mut": "ShmState" } }
+      ],
+      "returns": { "result": { "ok": "ReaderHandle", "err": "ShmError" } }
+    },
+
+    "shm_reader_close": {
+      "doc": "Release the SHARED lock on READ(handle.mark_index). Leaves read_marks[k] populated as a hint for future readers. Idempotent.",
+      "params": [
+        { "name": "state",  "type": { "borrow_mut": "ShmState" } },
+        { "name": "handle", "type": { "borrow": "ReaderHandle" } }
+      ],
+      "returns": { "result": { "ok": "unit", "err": "ShmError" } }
+    },
+
+    "shm_lookup_page": {
+      "doc": "Look up a page in the shm hash table for the reader's snapshot. Probes the appropriate region(s) within [1, handle.mx_frame], using hash(p) = (p * 383) mod NSLOT with linear probe. Returns Found(frame_number) for the LATEST matching frame, NotFound if absent. Reads only — does not mutate shm state.",
+      "params": [
+        { "name": "state",       "type": { "borrow": "ShmState" } },
+        { "name": "handle",      "type": { "borrow": "ReaderHandle" } },
+        { "name": "page_number", "type": "u32" }
+      ],
+      "returns": { "result": { "ok": "ShmLookupResult", "err": "ShmError" } }
+    },
+
+    "shm_writer_begin": {
+      "doc": "Acquire EXCLUSIVE on WRITE. Re-reads the header to refresh local view in case another writer committed between this writer's last touch and now. Returns WriterHandle with start_mx_frame = current header.mx_frame.",
+      "params": [
+        { "name": "state", "type": { "borrow_mut": "ShmState" } }
+      ],
+      "returns": { "result": { "ok": "WriterHandle", "err": "ShmError" } }
+    },
+
+    "shm_writer_append": {
+      "doc": "Add a (page_number, frame_no) entry to the shm hash table. If frame_no's region is not yet mapped, extends the shm file by SHM_REGION_SIZE and maps the new region. Inserts via linear probe; if an existing entry for page_number is found in this region, overwrites it (latest-wins inside region). Increments handle.frames_pending_count.",
+      "params": [
+        { "name": "state",       "type": { "borrow_mut": "ShmState" } },
+        { "name": "handle",      "type": { "borrow_mut": "WriterHandle" } },
+        { "name": "page_number", "type": "u32" },
+        { "name": "frame_no",    "type": "u32" }
+      ],
+      "returns": { "result": { "ok": "unit", "err": "ShmError" } }
+    },
+
+    "shm_writer_commit": {
+      "doc": "Publish the writer's changes by updating the header. Pre-condition: the WAL frames covered by handle's appends have already been fsynced per the connection's SyncLevel (pin SHM13). Writes header copy 1 (mx_frame, n_page, frame_checksum, salts, change_counter+1), issues a memory barrier, writes header copy 2 (identical bytes), issues a memory barrier, releases EXCLUSIVE on WRITE.",
+      "params": [
+        { "name": "state",        "type": { "borrow_mut": "ShmState" } },
+        { "name": "handle",       "type": { "borrow": "WriterHandle" } },
+        { "name": "new_mx_frame", "type": "u32" },
+        { "name": "new_n_page",   "type": "u32" },
+        { "name": "frame_checksum_s0", "type": "u32" },
+        { "name": "frame_checksum_s1", "type": "u32" }
+      ],
+      "returns": { "result": { "ok": "unit", "err": "ShmError" } }
+    },
+
+    "shm_writer_rollback": {
+      "doc": "Abandon the writer session without publishing. The shm hash table may have been mutated by shm_writer_append calls; those mutations are stale (point to WAL frames that won't exist). Recovery on next access (or another writer overwriting) will correct them. Releases EXCLUSIVE on WRITE.",
+      "params": [
+        { "name": "state",  "type": { "borrow_mut": "ShmState" } },
+        { "name": "handle", "type": { "borrow": "WriterHandle" } }
+      ],
+      "returns": { "result": { "ok": "unit", "err": "ShmError" } }
+    },
+
+    "shm_checkpoint_begin": {
+      "doc": "Acquire EXCLUSIVE on CHECKPOINT. Computes barrier_frame: starts at header.mx_frame; for each k in 1..4, if some process holds SHARED on READ(k) AND read_marks[k] != 0, lowers barrier_frame to min(barrier_frame, read_marks[k]). Returns CheckpointHandle.",
+      "params": [
+        { "name": "state", "type": { "borrow_mut": "ShmState" } }
+      ],
+      "returns": { "result": { "ok": "CheckpointHandle", "err": "ShmError" } }
+    },
+
+    "shm_checkpoint_advance": {
+      "doc": "Update n_backfill in the checkpoint info block to advanced_frame (must be <= handle.barrier_frame). Caller has already copied the relevant frames into the main DB file. If advanced_frame == header.mx_frame AND no readers hold READ(1..4), the caller may follow with a salt-roll reset (delegated to the base wal_checkpoint).",
+      "params": [
+        { "name": "state",          "type": { "borrow_mut": "ShmState" } },
+        { "name": "handle",         "type": { "borrow": "CheckpointHandle" } },
+        { "name": "advanced_frame", "type": "u32" }
+      ],
+      "returns": { "result": { "ok": "unit", "err": "ShmError" } }
+    },
+
+    "shm_checkpoint_end": {
+      "doc": "Release EXCLUSIVE on CHECKPOINT. Idempotent.",
+      "params": [
+        { "name": "state",  "type": { "borrow_mut": "ShmState" } },
+        { "name": "handle", "type": { "borrow": "CheckpointHandle" } }
+      ],
+      "returns": { "result": { "ok": "unit", "err": "ShmError" } }
+    },
+
+    "shm_hash": {
+      "doc": "The shm hash function: (page_number * 383) mod SHM_HASHTABLE_NSLOT. Pure; targets MAY inline. Exposed in the shape surface for cross-target equivalence tests.",
+      "params": [
+        { "name": "page_number", "type": "u32" }
+      ],
+      "returns": "u32"
+    },
+
+    "shm_header_checksum": {
+      "doc": "Compute the (c0, c1) Fibonacci-style checksum over the first 40 bytes of an encoded ShmHeaderRecord. Initial state (0, 0); same checksum step as wal_checksum_step. Used both when writing the header (to populate checksum_c0/c1) and when reading (to validate).",
+      "params": [
+        { "name": "bytes", "type": { "borrow": { "list": "u8" } } }
+      ],
+      "returns": { "tuple": ["u32", "u32"] }
+    },
+
+    "shm_encode_header_record": {
+      "doc": "Encode a ShmHeaderRecord into 48 host-endian bytes. checksum_c0/c1 in the input MUST already be valid (computed by shm_header_checksum over the first 40 bytes); this function does not recompute. Used for both header copies on commit.",
+      "params": [
+        { "name": "record", "type": { "borrow": "ShmHeaderRecord" } }
+      ],
+      "returns": { "list": "u8" }
+    },
+
+    "shm_decode_header_record": {
+      "doc": "Decode 48 bytes into a ShmHeaderRecord. Returns err(ShmError) on checksum mismatch or version mismatch. Caller is responsible for comparing two decoded copies for byte-identity before accepting.",
+      "params": [
+        { "name": "bytes", "type": { "borrow": { "list": "u8" } } }
+      ],
+      "returns": { "result": { "ok": "ShmHeaderRecord", "err": "ShmError" } }
+    }
+  }
+}

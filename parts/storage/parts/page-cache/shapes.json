@@ -1,0 +1,113 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "name": "storage/page-cache",
+  "types": {
+    "PageId": {
+      "kind": "alias",
+      "of": "u32"
+    },
+    "Page": {
+      "kind": "record",
+      "doc": "Refcounted page-sized byte buffer.",
+      "fields": [
+        { "name": "bytes", "type": "rc<list<u8>>" }
+      ]
+    },
+    "CacheEntry": {
+      "kind": "record",
+      "fields": [
+        { "name": "page",   "type": "Page" },
+        { "name": "dirty",  "type": "bool" },
+        { "name": "pinned", "type": "bool" }
+      ]
+    },
+    "PageCache": {
+      "kind": "record",
+      "fields": [
+        { "name": "capacity",  "type": "usize" },
+        { "name": "entries",   "type": "map<PageId, CacheEntry>" },
+        { "name": "lru_order", "type": "list<PageId>",
+          "doc": "Front = LRU; back = MRU." }
+      ]
+    },
+    "CacheCondition": {
+      "kind": "enum",
+      "variants": [
+        "InvalidCapacity",
+        "PageNotPresent",
+        "PagePinned"
+      ]
+    }
+  },
+  "ctors": {
+    "PageCache::new": {
+      "params": [{ "name": "capacity", "type": "usize" }],
+      "returns": "result<PageCache, CacheCondition>",
+      "pin": 1
+    }
+  },
+  "methods": {
+    "PageCache::get": {
+      "self": "&mut",
+      "params": [{ "name": "page_id", "type": "PageId" }],
+      "returns": "option<Page>",
+      "pins": [2, 3, 4, 5, 16]
+    },
+    "PageCache::put": {
+      "self": "&mut",
+      "params": [
+        { "name": "page_id", "type": "PageId" },
+        { "name": "page",    "type": "Page" },
+        { "name": "dirty",   "type": "bool" }
+      ],
+      "returns": "unit",
+      "pins": [2, 5, 6, 7, 8]
+    },
+    "PageCache::mark_dirty": {
+      "self": "&mut",
+      "params": [{ "name": "page_id", "type": "PageId" }],
+      "returns": "result<unit, CacheCondition>",
+      "pins": [13]
+    },
+    "PageCache::pin": {
+      "self": "&mut",
+      "params": [{ "name": "page_id", "type": "PageId" }],
+      "returns": "result<unit, CacheCondition>",
+      "pins": [15]
+    },
+    "PageCache::unpin": {
+      "self": "&mut",
+      "params": [{ "name": "page_id", "type": "PageId" }],
+      "returns": "result<unit, CacheCondition>",
+      "pins": [15]
+    },
+    "PageCache::invalidate": {
+      "self": "&mut",
+      "params": [{ "name": "page_id", "type": "PageId" }],
+      "returns": "result<unit, CacheCondition>",
+      "pins": [9, 10]
+    },
+    "PageCache::flush_dirty": {
+      "self": "&mut",
+      "params": [],
+      "returns": "list<tuple<PageId, Page>>",
+      "pins": [11, 12]
+    },
+    "PageCache::len": {
+      "self": "&",
+      "params": [],
+      "returns": "usize"
+    },
+    "PageCache::capacity": {
+      "self": "&",
+      "params": [],
+      "returns": "usize"
+    },
+    "PageCache::clear": {
+      "self": "&mut",
+      "params": [],
+      "returns": "unit",
+      "pins": [14]
+    }
+  }
+}

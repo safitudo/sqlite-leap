@@ -1,0 +1,99 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/compiler/parts/triggers",
+
+  "imports": {
+    "TriggerTiming":     "/parts/parser/parts/create-trigger-stmt",
+    "TriggerEvent":      "/parts/parser/parts/create-trigger-stmt",
+    "TriggerBodyStmt":   "/parts/parser/parts/create-trigger-stmt",
+    "CreateTriggerStmt": "/parts/parser/parts/create-trigger-stmt",
+    "Expr":              "/parts/parser/parts/expr",
+    "CompileError":      "/parts/compiler/parts/expr-compile",
+    "CompileContext":    "/parts/compiler/parts/expr-compile",
+    "RegisterSlot":      "/parts/vdbe"
+  },
+
+  "types": {
+    "SpliceWhen": {
+      "kind": "variant",
+      "doc": "Where, relative to the host DML's row write, this splice emission occurs. Distinct from the parser's TriggerTiming because INSTEAD OF is a third splice mode (replaces the host write entirely) rather than a flavor of BEFORE/AFTER.",
+      "cases": {
+        "Before":    { "doc": "Splice point ABOVE the host row-write opcodes. Bound to triggers with timing=Before." },
+        "After":     { "doc": "Splice point BELOW the host row-write opcodes. Bound to triggers with timing=After." },
+        "InsteadOf": { "doc": "Splice point that REPLACES the host row-write entirely. Bound to triggers with timing=InsteadOf. Permitted only when the host object is a view (compiler-enforced)." }
+      }
+    },
+
+    "TriggerContext": {
+      "kind": "record",
+      "doc": "Compile-time state needed to lower one trigger body. Carries the trigger's event/timing for OLD/NEW availability checks; carries register-slot lists for the row's pre-image (old_image) and post-image (new_image) so OLD.col / NEW.col references resolve to register copies; carries the host table's column_names for index lookup; carries a depth counter for the recursive-trigger guard. Targets implement reference fields (old_image, new_image) using their idiomatic borrow form — none of the lifetime / pointer-ownership detail leaks into this spec.",
+      "fields": {
+        "event":        "TriggerEvent",
+        "timing":       "TriggerTiming",
+        "old_image":    { "option": { "list": "RegisterSlot" } },
+        "new_image":    { "option": { "list": "RegisterSlot" } },
+        "column_names": { "list": "string" },
+        "depth":        "u32",
+        "trigger_name": "string"
+      }
+    }
+  },
+
+  "functions": {
+    "compile_trigger_splice": {
+      "doc": "Emit, into the host VDBE program currently under construction in `ctx`, the body fragments for every trigger in `triggers` that matches (host_table, host_event, splice). Triggers fire in registration order. WHEN predicates compile into a per-trigger conditional gate. OLD/NEW availability is enforced per the table in master.md. Recursion is guarded by ctx.trigger_stack and the recursive_triggers PRAGMA; depth is bounded by MAX_TRIGGER_DEPTH (defined in /parts/storage/parts/triggers/). Returns Ok(unit) on success; raises a CompileError annotated with the offending trigger's name on failure.",
+      "params": [
+        { "name": "host_event", "type": "TriggerEvent" },
+        { "name": "host_table", "type": { "borrow": "string" } },
+        { "name": "splice",     "type": "SpliceWhen" },
+        { "name": "ctx",        "type": { "mut": "CompileContext" } },
+        { "name": "triggers",   "type": { "borrow": { "list": "CreateTriggerStmt" } } }
+      ],
+      "returns": { "result": { "ok": "unit", "err": "CompileError" } }
+    },
+
+    "bind_old_new": {
+      "doc": "Install the OLD/NEW register-slot lists into `ctx`'s active TriggerContext stack so that a body statement's column references through OLD.col / NEW.col resolve correctly. Idempotent within one trigger; paired with unbind_old_new on body completion.",
+      "params": [
+        { "name": "ctx",        "type": { "mut": "CompileContext" } },
+        { "name": "tr",         "type": { "borrow": "CreateTriggerStmt" } },
+        { "name": "host_event", "type": "TriggerEvent" }
+      ],
+      "returns": "unit"
+    },
+
+    "unbind_old_new": {
+      "doc": "Pop the most-recently-pushed TriggerContext from `ctx`. Called after all body statements of one trigger have been lowered.",
+      "params": [
+        { "name": "ctx", "type": { "mut": "CompileContext" } },
+        { "name": "tr",  "type": { "borrow": "CreateTriggerStmt" } }
+      ],
+      "returns": "unit"
+    },
+
+    "events_compatible": {
+      "doc": "True iff a trigger declared with `tr_event` should fire on a host DML carrying `host_event`. INSERT vs INSERT and DELETE vs DELETE are trivial; UPDATE matches when either the trigger's column-restriction list is empty (any column) or it overlaps the host UPDATE's SET-list columns.",
+      "params": [
+        { "name": "tr_event",   "type": { "borrow": "TriggerEvent" } },
+        { "name": "host_event", "type": { "borrow": "TriggerEvent" } }
+      ],
+      "returns": "bool"
+    },
+
+    "timing_matches": {
+      "doc": "True iff a trigger declared with `tr_timing` should fire at splice point `splice`. Pure mapping: Before↔Before, After↔After, InsteadOf↔InsteadOf.",
+      "params": [
+        { "name": "tr_timing", "type": "TriggerTiming" },
+        { "name": "splice",    "type": "SpliceWhen" }
+      ],
+      "returns": "bool"
+    }
+  },
+
+  "constants": {
+    "MAX_TRIGGER_DEPTH": {
+      "type": "u32",
+      "value": 1000
+    }
+  }
+}

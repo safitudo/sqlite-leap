@@ -1,0 +1,87 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/parser/parts/create-trigger-stmt",
+
+  "imports": {
+    "Token":       "/parts/parser/parts/tokenizer",
+    "TokenKind":   "/parts/parser/parts/tokenizer",
+    "Expr":        "/parts/parser/parts/expr",
+    "ParseError":  "/parts/parser/parts/expr",
+    "InsertStmt":  "/parts/parser/parts/insert-stmt",
+    "UpdateStmt":  "/parts/parser/parts/update-stmt",
+    "DeleteStmt":  "/parts/parser/parts/delete-stmt",
+    "SelectStmt":  "/parts/parser/parts/select-stmt"
+  },
+
+  "types": {
+    "TriggerTiming": {
+      "kind": "variant",
+      "doc": "When the trigger fires relative to the row write. INSTEAD OF is permitted only on views (compiler-enforced; parser admits it on any target). The published SQLite grammar treats absence of this keyword as an implicit BEFORE; this parser requires the keyword (see create-trigger-stmt master.md pin 2).",
+      "cases": {
+        "Before":    { "doc": "BEFORE — fire before the row is written; body may abort the write via RAISE." },
+        "After":     { "doc": "AFTER — fire after the row is written; the row's effect is visible to the body." },
+        "InsteadOf": { "doc": "INSTEAD OF — replace the operation entirely. Only valid on views; compiler enforces." }
+      }
+    },
+
+    "TriggerEvent": {
+      "kind": "variant",
+      "doc": "Which DML operation activates the trigger. UpdateOf carries an optional column-restriction list — the trigger fires only when at least one named column appears in the UPDATE's SET list. An empty list means 'any column' (plain UPDATE without OF).",
+      "cases": {
+        "Delete":   { "doc": "DELETE event." },
+        "Insert":   { "doc": "INSERT event." },
+        "UpdateOf": {
+          "doc": "UPDATE event, optionally restricted to a column list. columns=[] means 'any column'.",
+          "fields": { "columns": { "list": "string" } }
+        }
+      }
+    },
+
+    "TriggerBodyStmt": {
+      "kind": "variant",
+      "doc": "One statement in a trigger body. Each case wraps the corresponding per-statement AST as parsed by its owning parser leaf. The compiler dispatches on this discriminator when lowering the trigger body into VDBE program fragments.",
+      "cases": {
+        "Insert": { "doc": "INSERT body statement.", "fields": { "stmt": "InsertStmt" } },
+        "Update": { "doc": "UPDATE body statement.", "fields": { "stmt": "UpdateStmt" } },
+        "Delete": { "doc": "DELETE body statement.", "fields": { "stmt": "DeleteStmt" } },
+        "Select": { "doc": "SELECT body statement (executed for side-effects via RAISE or value-discard).", "fields": { "stmt": "SelectStmt" } }
+      }
+    },
+
+    "CreateTriggerStmt": {
+      "kind": "record",
+      "doc": "Parsed CREATE TRIGGER statement. Captures every syntactic element of the published grammar admitted in scope: temp-flag, if-not-exists, name, timing, event, target table, for_each_row flag, optional WHEN predicate, and the body statement list. Schema-qualified names (`main.tr`, `main.t`) are deferred. Trigger semantics (OLD/NEW availability per event, INSTEAD-OF-only-on-views, recursion control) are NOT enforced here — that lives in /parts/compiler/parts/triggers.",
+      "fields": {
+        "name":          "string",
+        "is_temp":       "bool",
+        "if_not_exists": "bool",
+        "timing":        "TriggerTiming",
+        "event":         "TriggerEvent",
+        "table":         "string",
+        "for_each_row":  "bool",
+        "when_":         { "option": "Expr" },
+        "body":          { "list": "TriggerBodyStmt" }
+      }
+    },
+
+    "CreateTriggerParseOk": {
+      "kind": "record",
+      "doc": "Successful parse output: the CreateTriggerStmt plus the index of the next un-consumed token (positioned AFTER the closing END, BEFORE any outer ';' / Eof).",
+      "fields": {
+        "stmt": "CreateTriggerStmt",
+        "next": "u32"
+      }
+    }
+  },
+
+  "functions": {
+    "parse_create_trigger": {
+      "doc": "Parse a CREATE TRIGGER statement starting at tokens[start]. Token at start MUST be KwCreate. Delegates the WHEN predicate to parse_expr and each body statement to its owning parser leaf (parse_insert / parse_update / parse_delete / parse_select). Rejects schema-qualified names, body statements outside the INSERT/UPDATE/DELETE/SELECT set, and (for clarity) implicit-BEFORE timing — each with `deferred: <construct>` or a precise error message per the master.md pins.",
+      "params": [
+        { "name": "tokens", "type": { "borrow": { "list": "Token" } } },
+        { "name": "start",  "type": "u32" }
+      ],
+      "returns": { "result": { "ok": "CreateTriggerParseOk", "err": "ParseError" } }
+    }
+  }
+}

@@ -1,0 +1,247 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/lib-api/parts/hooks",
+
+  "imports": {
+    "Database":         "/parts/storage",
+    "RuntimeCondition": "/parts/core",
+    "Value":            "/parts/core"
+  },
+
+  "types": {
+    "UpdateOp": {
+      "kind": "variant",
+      "doc": "Discriminator for the row-mutation kind that triggered an update_hook / preupdate_hook fire. Numeric codes (Delete=9, Insert=18, Update=23) match mainline SQLite's authorizer action codes for FFI parity; targets MAY but need not expose the integer form.",
+      "cases": {
+        "Insert": {},
+        "Update": {},
+        "Delete": {}
+      }
+    },
+
+    "UpdateNotification": {
+      "kind": "record",
+      "doc": "Argument passed to update_hook callbacks (master.md Pin 3-5). Fires AFTER row mutation, BEFORE commit. rowid is the affected row's integer primary key (synthetic if implicit). schema is 'main', 'temp', or an attached schema name.",
+      "fields": {
+        "op":          "UpdateOp",
+        "schema":      "string",
+        "table":       "string",
+        "rowid":       "i64"
+      }
+    },
+
+    "RowAccessor": {
+      "kind": "opaque",
+      "doc": "Lazy column-value accessor passed to preupdate_hook for old / new row payloads. Targets render this as the most idiomatic per-language read surface (Rust struct with `get(col_idx) -> Value`, C function pair `preupdate_old(db,col,&out)` / `preupdate_new(db,col,&out)`, Python list-like, Go struct with method, Zig struct + method). The accessor is only valid for the duration of the callback; reading past return is undefined."
+    },
+
+    "PreUpdateNotification": {
+      "kind": "record",
+      "doc": "Argument to preupdate_hook callbacks. Fires BEFORE row mutation. Pin 9: old_row is present for Update/Delete and absent for Insert; new_row is present for Update/Insert and absent for Delete. rowid_old equals rowid_new for Update unless the UPDATE rewrites the rowid; for Insert rowid_old is absent; for Delete rowid_new is absent.",
+      "fields": {
+        "op":          "UpdateOp",
+        "schema":      "string",
+        "table":       "string",
+        "rowid_old":   { "optional": "i64" },
+        "rowid_new":   { "optional": "i64" },
+        "old_row":     { "optional": "RowAccessor" },
+        "new_row":     { "optional": "RowAccessor" }
+      }
+    },
+
+    "CommitDecision": {
+      "kind": "variant",
+      "doc": "Return value of commit_hook (Pin 6). Commit lets the transaction proceed to durability; Veto promotes the in-flight commit into a rollback and surfaces RuntimeCondition::CommitVetoed at the originating step.",
+      "cases": {
+        "Commit": {},
+        "Veto":   {}
+      }
+    },
+
+    "OpaqueUserData": {
+      "kind": "opaque",
+      "doc": "Target-defined per-callback user-data handle (same shape as the authorizer's; the spec keeps them as separate types so target mappings may diverge if needed). Spec treats this as opaque."
+    },
+
+    "CommitHookCallback": {
+      "kind": "callback",
+      "doc": "Called by the transaction layer immediately before a commit becomes durable. Returns CommitDecision::Commit to proceed or Veto to roll back. MUST NOT call recursive prepare/step/DDL on the same db (Pin 12).",
+      "params": [
+        { "name": "user_data", "type": { "borrow": "OpaqueUserData" } }
+      ],
+      "returns": "CommitDecision"
+    },
+
+    "RollbackHookCallback": {
+      "kind": "callback",
+      "doc": "Called by the transaction layer after a rollback completes. Return value (if any) is discarded. Same recursion restriction as CommitHookCallback.",
+      "params": [
+        { "name": "user_data", "type": { "borrow": "OpaqueUserData" } }
+      ],
+      "returns": "unit"
+    },
+
+    "UpdateHookCallback": {
+      "kind": "callback",
+      "doc": "Called once per row INSERT/UPDATE/DELETE on a non-system table, AFTER the in-memory page mutation, BEFORE commit (Pin 3). Return value discarded — update_hook cannot veto.",
+      "params": [
+        { "name": "notification", "type": "UpdateNotification" },
+        { "name": "user_data",    "type": { "borrow": "OpaqueUserData" } }
+      ],
+      "returns": "unit"
+    },
+
+    "PreUpdateHookCallback": {
+      "kind": "callback",
+      "doc": "Called once per row mutation on a non-system table BEFORE the mutation applies. Receives accessors for old / new row column values; the accessors are only valid for the lifetime of the call (Pin 9). Return value discarded — preupdate cannot veto.",
+      "params": [
+        { "name": "notification", "type": "PreUpdateNotification" },
+        { "name": "user_data",    "type": { "borrow": "OpaqueUserData" } }
+      ],
+      "returns": "unit"
+    },
+
+    "CommitHookSlot": {
+      "kind": "record",
+      "doc": "Per-connection commit-hook slot. Both fields are present-or-absent together: setting a callback installs both, clearing removes both.",
+      "fields": {
+        "callback":  { "optional": "CommitHookCallback" },
+        "user_data": { "optional": "OpaqueUserData" }
+      }
+    },
+
+    "RollbackHookSlot": {
+      "kind": "record",
+      "doc": "Per-connection rollback-hook slot.",
+      "fields": {
+        "callback":  { "optional": "RollbackHookCallback" },
+        "user_data": { "optional": "OpaqueUserData" }
+      }
+    },
+
+    "UpdateHookSlot": {
+      "kind": "record",
+      "doc": "Per-connection update-hook slot.",
+      "fields": {
+        "callback":  { "optional": "UpdateHookCallback" },
+        "user_data": { "optional": "OpaqueUserData" }
+      }
+    },
+
+    "PreUpdateHookSlot": {
+      "kind": "record",
+      "doc": "Per-connection preupdate-hook slot.",
+      "fields": {
+        "callback":  { "optional": "PreUpdateHookCallback" },
+        "user_data": { "optional": "OpaqueUserData" }
+      }
+    },
+
+    "HooksState": {
+      "kind": "record",
+      "doc": "Aggregated hooks slot living on the Database connection record. The four sub-slots are independent (Pin 1).",
+      "fields": {
+        "commit":    "CommitHookSlot",
+        "rollback":  "RollbackHookSlot",
+        "update":    "UpdateHookSlot",
+        "preupdate": "PreUpdateHookSlot"
+      }
+    }
+  },
+
+  "constructors": {
+    "HooksState": [
+      {
+        "name": "empty",
+        "params": [],
+        "returns": "HooksState",
+        "doc": "Initial per-connection state — no hooks installed. All four fire_* entry points short-circuit to no-op / Commit."
+      }
+    ]
+  },
+
+  "functions": {
+    "set_commit_hook": {
+      "doc": "Install / replace / clear the per-connection commit-hook. Pass absent for callback + user_data to clear. Returns the prior user_data handle (mainline parity); targets MAY drop the return if their idiomatic surface prefers a void set.",
+      "params": [
+        { "name": "db",        "type": { "mut": "Database" } },
+        { "name": "callback",  "type": { "optional": "CommitHookCallback" } },
+        { "name": "user_data", "type": { "optional": "OpaqueUserData" } }
+      ],
+      "returns": { "optional": "OpaqueUserData" }
+    },
+
+    "set_rollback_hook": {
+      "doc": "Install / replace / clear the per-connection rollback-hook. Same shape as set_commit_hook.",
+      "params": [
+        { "name": "db",        "type": { "mut": "Database" } },
+        { "name": "callback",  "type": { "optional": "RollbackHookCallback" } },
+        { "name": "user_data", "type": { "optional": "OpaqueUserData" } }
+      ],
+      "returns": { "optional": "OpaqueUserData" }
+    },
+
+    "set_update_hook": {
+      "doc": "Install / replace / clear the per-connection update-hook. Replacement mid-transaction means rows mutated before the replacement fired the prior callback; rows after fire the new one (no callback list).",
+      "params": [
+        { "name": "db",        "type": { "mut": "Database" } },
+        { "name": "callback",  "type": { "optional": "UpdateHookCallback" } },
+        { "name": "user_data", "type": { "optional": "OpaqueUserData" } }
+      ],
+      "returns": { "optional": "OpaqueUserData" }
+    },
+
+    "set_preupdate_hook": {
+      "doc": "Install / replace / clear the per-connection preupdate-hook. Independent of update_hook (Pin 1); both may be installed and both fire as a pair (Pin 10).",
+      "params": [
+        { "name": "db",        "type": { "mut": "Database" } },
+        { "name": "callback",  "type": { "optional": "PreUpdateHookCallback" } },
+        { "name": "user_data", "type": { "optional": "OpaqueUserData" } }
+      ],
+      "returns": { "optional": "OpaqueUserData" }
+    },
+
+    "fire_commit": {
+      "doc": "Transaction-layer-internal entry point. Called immediately before a commit's durability barrier. Returns CommitDecision::Commit if no commit_hook is installed; otherwise invokes the callback and returns its verdict. The transaction layer maps Veto to: revert in-memory pages, do not write WAL/journal commit record, fire_rollback, surface RuntimeCondition::CommitVetoed at the originating step (master.md Pin 6).",
+      "params": [
+        { "name": "db", "type": { "borrow": "Database" } }
+      ],
+      "returns": "CommitDecision"
+    },
+
+    "fire_rollback": {
+      "doc": "Transaction-layer-internal entry point. Called after rollback completes (in-memory pages reverted, WAL/journal rolled back). No-op if no rollback_hook installed. Pin 8.",
+      "params": [
+        { "name": "db", "type": { "borrow": "Database" } }
+      ],
+      "returns": "unit"
+    },
+
+    "fire_update": {
+      "doc": "VDBE-internal entry point called by Insert/Update/Delete opcodes AFTER the row mutation applies to in-memory page state. No-op if no update_hook installed; no-op if table is a sqlite_* system table (Pin 5). Pin 4: one fire per row, in mutation order.",
+      "params": [
+        { "name": "db",     "type": { "borrow": "Database" } },
+        { "name": "op",     "type": "UpdateOp" },
+        { "name": "schema", "type": "string" },
+        { "name": "table",  "type": "string" },
+        { "name": "rowid",  "type": "i64" }
+      ],
+      "returns": "unit"
+    },
+
+    "fire_preupdate": {
+      "doc": "VDBE-internal entry point called by Insert/Update/Delete opcodes BEFORE the row mutation applies. No-op if no preupdate_hook installed; no-op for sqlite_* system tables (Pin 13). The accessors are constructed by the VDBE on demand and remain valid only for the duration of this call.",
+      "params": [
+        { "name": "db",         "type": { "borrow": "Database" } },
+        { "name": "op",         "type": "UpdateOp" },
+        { "name": "schema",     "type": "string" },
+        { "name": "table",      "type": "string" },
+        { "name": "rowid_old",  "type": { "optional": "i64" } },
+        { "name": "rowid_new",  "type": { "optional": "i64" } },
+        { "name": "old_row",    "type": { "optional": "RowAccessor" } },
+        { "name": "new_row",    "type": { "optional": "RowAccessor" } }
+      ],
+      "returns": "unit"
+    }
+  }
+}

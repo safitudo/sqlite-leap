@@ -1,0 +1,82 @@
+{
+  "$schema": "../../../../../schema/shape.schema.json",
+  "owner": "/parts/compiler/parts/qualified-names",
+
+  "imports": {
+    "DbCatalog":  "/parts/storage/parts/multi-db",
+    "SchemaIdx":  "/parts/storage/parts/multi-db",
+    "MultiDbError": "/parts/storage/parts/multi-db"
+  },
+
+  "types": {
+    "ResolutionPosition": {
+      "kind": "variant",
+      "doc":  "Lexical position of the name being resolved. TABLE means the leaf identifies a table (FROM, INSERT INTO, UPDATE, DELETE FROM, RETURNING subject); EXPR means the leaf identifies a column (everywhere else).",
+      "cases": {
+        "Table": null,
+        "Expr":  null
+      }
+    },
+
+    "QualifiedName": {
+      "kind": "record",
+      "doc":  "Three-part identifier produced by the parser. Each surface form maps as: `c` -> { absent, absent, 'c' }; `t.c` -> { absent, 't', 'c' }; `s.t.c` -> { 's', 't', 'c' }; `t` (TABLE position) -> { absent, absent, 't' }; `s.t` (TABLE position) -> { 's', absent, 't' }. The resolver consults ResolutionContext.position to disambiguate.",
+      "fields": {
+        "schema":    { "option": "string" },
+        "qualifier": { "option": "string" },
+        "leaf":      "string"
+      }
+    },
+
+    "InScopeTable": {
+      "kind": "record",
+      "doc":  "One FROM-clause table currently in scope. schema_idx is the slot the table lives in; table_id is the per-slot table descriptor index; alias is the lexical alias under which the table was bound (the table's own name when no AS was written).",
+      "fields": {
+        "schema_idx": "SchemaIdx",
+        "table_id":   "u32",
+        "alias":      "string"
+      }
+    },
+
+    "ResolutionContext": {
+      "kind": "record",
+      "doc":  "Caller-supplied context driving the resolution walk. position selects table-vs-expr disambiguation; from_tables is the in-order list of FROM-scope tables (used for bare-column lookup); from_alias_to_table maps lexical aliases to (schema_idx, table_id) and takes priority over schema-name walks per master.md pin 5.",
+      "fields": {
+        "position":             "ResolutionPosition",
+        "from_tables":          { "list": "InScopeTable" },
+        "from_alias_to_table":  { "list": "InScopeTable" }
+      }
+    },
+
+    "ResolvedRef": {
+      "kind": "variant",
+      "doc":  "Result of a successful resolution. Table is returned for TABLE-position resolutions; Column is returned for EXPR-position resolutions and carries the per-table column index produced by /parts/compiler/parts/name-resolution.",
+      "cases": {
+        "Table":  { "schema_idx": "SchemaIdx", "table_id": "u32" },
+        "Column": { "schema_idx": "SchemaIdx", "table_id": "u32", "column_idx": "u32" }
+      }
+    },
+
+    "ResolveError": {
+      "kind": "record",
+      "doc":  "Single error channel for qualified-name resolution. kind is one of: SchemaNotFound, TableNotFound, ColumnNotFound, AmbiguousColumn, MissingTableQualifier, CrossSchemaForeignKey. hint carries the offending identifier for diagnostic messages.",
+      "fields": {
+        "kind":    "string",
+        "hint":    "string",
+        "message": "string"
+      }
+    }
+  },
+
+  "functions": {
+    "resolve_qualified_name": {
+      "doc": "Resolve a parser-produced QualifiedName to a ResolvedRef. Walk order is exactly catalog_walk_unqualified: main, temp, attached-by-attach_seq-asc. FROM-scope aliases take priority when qualifier is present (pin 5). Explicit schema prefix is exact: no fallback to other slots (pin 10). All identifier compares are ASCII case-folded (pin 7). The compiler MUST call this once per statement compile and MAY cache the resulting SchemaIdx for the duration of that compile (pin 12); it MUST NOT cache across statement boundaries (pin 11).",
+      "params": [
+        { "name": "catalog", "type": { "borrow": "DbCatalog" } },
+        { "name": "name",    "type": { "borrow": "QualifiedName" } },
+        { "name": "context", "type": { "borrow": "ResolutionContext" } }
+      ],
+      "returns": { "result": { "ok": "ResolvedRef", "err": "ResolveError" } }
+    }
+  }
+}

@@ -1,0 +1,98 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/storage/parts/backup-engine",
+
+  "imports": {
+    "Database":         "/parts/storage",
+    "RuntimeCondition": "/parts/core"
+  },
+
+  "types": {
+    "BackupEngine": {
+      "kind": "record",
+      "doc": "The storage-side backup state machine. Holds the source and destination Database references (target-rendered as borrows / handles), the cursor over pages still to copy (the pending set, with page 1 deferred per Pin E5), and the snapshot scalars captured at open / restart (src_page_size, src_pagecount_observed, src_change_counter_observed, dst_pre_init_size). Targets MAY render the pending-set cursor as a 1-based bitmap, a counter + 'page 1 done' flag, or a list; the spec only pins that |pending| is the value returned by backup_engine_remaining and that page 1 is yielded last.",
+      "fields": {
+        "state":                       "EngineState",
+        "src_page_size":               "u32",
+        "src_pagecount_observed":      "u32",
+        "src_change_counter_observed": "u32",
+        "dst_pre_init_size":           "u32",
+        "page1_deferred":              "bool"
+      }
+    },
+
+    "EngineState": {
+      "kind": "variant",
+      "doc": "States of the backup-engine state machine. Idle is the post-open / pre-first-step state. Copying is entered on the first non-zero step. RestartRequired is entered when a source-write is detected; the next step transitions back to Copying. Completed is terminal modulo release. RolledBack is the terminal state after release-while-not-Completed.",
+      "cases": {
+        "Idle":             {},
+        "Copying":          {},
+        "RestartRequired":  {},
+        "Completed":        {},
+        "RolledBack":       {}
+      }
+    },
+
+    "EngineStepOutcome": {
+      "kind": "variant",
+      "doc": "Outcome of a backup_engine_step call. Progressed means the cursor advanced (or the step was a no-op for n_pages=0, or a restart was triggered — both surfaced as Progressed per Pin B4 / Pin B12). Completed means the entire pass finished and dst_commit ran. Failed wraps a RuntimeCondition that the lib-api translates into BackupStepResult::Error.",
+      "cases": {
+        "Progressed": {},
+        "Completed":  {},
+        "Failed":     { "fields": { "condition": "RuntimeCondition" } }
+      }
+    }
+  },
+
+  "functions": {
+    "backup_engine_open": {
+      "doc": "Acquire the destination's exclusive write-lock and capture the source's snapshot scalars (page count, change counter, page size). Returns Err on lock contention, on UnknownSchema, or on PageSizeMismatch. The returned engine has state=Idle.",
+      "params": [
+        { "name": "src_handle", "type": { "borrow": "Database" } },
+        { "name": "dst_handle", "type": { "mut":    "Database" } }
+      ],
+      "returns": { "result": { "ok": "BackupEngine", "err": "RuntimeCondition" } }
+    },
+
+    "backup_engine_step": {
+      "doc": "Copy up to n_pages source pages into the destination. n_pages == 0 returns Progressed without acquiring any lock. n_pages > 0 acquires the source's shared read-lock, checks the source's change-counter for source-write-since-last-step, and either restarts the pass or copies up to n_pages non-page-1 pages. When the pending set (modulo page 1) becomes empty, page 1 is copied and dst_commit is invoked, returning Completed. The lib-api translates Completed into BackupStepResult::Done.",
+      "params": [
+        { "name": "engine",  "type": { "mut": "BackupEngine" } },
+        { "name": "n_pages", "type": "u32" }
+      ],
+      "returns": "EngineStepOutcome"
+    },
+
+    "backup_engine_release": {
+      "doc": "Release the destination's exclusive write-lock and free engine resources. If state is Completed, this is a clean release (the dst commit already happened in the final step). Otherwise, the destination is rolled back: pager_rollback on a pre-existing destination, file-truncate-to-zero on a fresh destination. Idempotent (Pin E11).",
+      "params": [
+        { "name": "engine", "type": { "mut": "BackupEngine" } }
+      ],
+      "returns": "unit"
+    },
+
+    "backup_engine_remaining": {
+      "doc": "Cardinality of the pending set (including page 1 if still deferred). Pinned by Pin E14 as the canonical definition of the lib-api's backup_remaining accessor. O(1) read.",
+      "params": [
+        { "name": "engine", "type": { "borrow": "BackupEngine" } }
+      ],
+      "returns": "u32"
+    },
+
+    "backup_engine_pagecount": {
+      "doc": "Source page count as observed at the most recent open or restart (engine.src_pagecount_observed). The lib-api's backup_pagecount accessor delegates here. O(1) read.",
+      "params": [
+        { "name": "engine", "type": { "borrow": "BackupEngine" } }
+      ],
+      "returns": "u32"
+    },
+
+    "backup_engine_state": {
+      "doc": "Current state of the engine. Used by the lib-api's finish to decide between clean release and rollback (Pin B6 / Pin E11).",
+      "params": [
+        { "name": "engine", "type": { "borrow": "BackupEngine" } }
+      ],
+      "returns": "EngineState"
+    }
+  }
+}

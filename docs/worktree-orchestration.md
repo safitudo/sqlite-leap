@@ -63,14 +63,49 @@ rsync -a /Users/stanislav/code/sqlite-leap/src-rust/ ./src-rust/
 
 Less elegant, more explicit, no global config required. Use this until the hook approach is validated.
 
-## Merge-back
+## Merge-back — staged output (corrected 2026-04-26)
 
-When an agent finishes and we want to keep its src-* edits:
+**Critical bug in v1 of this doc:** the original merge-back recipe assumed I could rsync from `.claude/worktrees/<name>/src-rust/` after the agent finished. **It can't.** The Agent tool auto-cleans the worktree when git sees no committed changes, and `src-*` is gitignored — so from git's perspective the agent did nothing, and the entire worktree (including 599 lines of regenerated WAL writer) gets deleted before the main thread can copy back.
 
-1. Agent's worktree path is at `.claude/worktrees/<name>/`
-2. Copy back: `rsync -a .claude/worktrees/<name>/src-rust/ /Users/stanislav/code/sqlite-leap/src-rust/`
-3. Validate: `cargo build && cargo test` in main tree
-4. If clean: keep. If broken: revert via git stash + drop worktree.
+**The fix: agents stage their output to `.claude/agent-output/<task-name>/` in the main repo (absolute path), which survives worktree cleanup.**
+
+Staging is non-gitignored (`.claude/` is committed metadata) but `.claude/agent-output/` should be added to `.gitignore` so review artifacts aren't committed.
+
+### Agent-side recipe (bake into every src-touching prompt)
+
+```
+# 1. Seed gitignored sources into your worktree
+rsync -a /Users/stanislav/code/sqlite-leap/src-rust/ ./src-rust/
+
+# 2. ... do work, build, validate inside worktree ...
+
+# 3. Stage results to main repo's agent-output dir
+mkdir -p /Users/stanislav/code/sqlite-leap/.claude/agent-output/<task-name>/
+rsync -a --delete ./src-rust/ /Users/stanislav/code/sqlite-leap/.claude/agent-output/<task-name>/src-rust/
+# (or only the changed files — list them in the prompt)
+
+# 4. Report task-name + file list to coordinator
+```
+
+### Coordinator-side merge-back (main thread)
+
+For each finished agent, in dispatch-determined order:
+
+1. Inspect `.claude/agent-output/<task-name>/src-rust/` — diff against current `src-rust/`
+2. Validate the staged delta is what the agent claimed (file count, line counts, public API)
+3. `rsync -a .claude/agent-output/<task-name>/src-rust/ src-rust/` — only the files that agent owned this wave
+4. Build: `cd src-rust && cargo build --release --example lib_bench --example slt_runner`
+5. If clean: continue to next agent. If broken: revert that file set, mark agent's wave as failed, do not block other agents whose merges already landed.
+6. After all merges land, run a consolidated build + smoke test before committing.
+
+### Why this changes parallelism economics
+
+Original assumption: collisions at write-time inside src-rust → use worktrees to isolate.
+Reality: with staged output, writes never collide at all (each agent writes to a unique `agent-output/<task>/` path). Collisions only emerge at *merge-back time* — a serialized step the coordinator controls.
+
+This means **agents can have overlapping file write sets safely**. Two agents both editing `src-rust/pager.rs` no longer corrupt each other's work — coordinator picks one merge to apply first, validates, then applies the second (with manual conflict resolution if needed).
+
+Trade-off: more agents in flight increases coordinator review burden. Net: throughput up, careful-review-load up, build-corruption risk down.
 
 ## What to dispatch with worktrees vs without
 

@@ -1,0 +1,135 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/lib-api/parts/vtab",
+
+  "imports": {
+    "Value":            "/parts/core",
+    "RuntimeCondition": "/parts/core",
+    "Database":         "/parts/storage",
+    "ParseError":       "/parts/parser/parts/expr"
+  },
+
+  "types": {
+    "Module": {
+      "kind": "record",
+      "doc": "Registration record for a virtual-table module. Carries the named callback set described in master.md's Module-shape table. Targets render as a struct of function pointers (C), a trait object + vtable (Rust), a class satisfying a structural protocol (Python), or equivalent. Optional callbacks (xBegin/xSync/xCommit/xRollback/xRename/xSavepoint/xRelease/xRollbackTo) are admitted as 'present-or-absent'; absence makes the corresponding SQL action a no-op or ReadOnly rejection (Pin 22). The xUpdate callback is required for writable modules; its absence rejects all DML with VtabCondition::ReadOnly.",
+      "fields": {
+        "name": "str",
+        "writable": "bool"
+      }
+    },
+
+    "VtabHandle": {
+      "kind": "opaque",
+      "doc": "Per-instance state owned by a Module. Created by xCreate / xConnect, retired by xDestroy / xDisconnect. The framework holds it by value and threads it back into every vtab callback; it never inspects the contents."
+    },
+
+    "CursorHandle": {
+      "kind": "opaque",
+      "doc": "Per-cursor state owned by a Module. Created by xOpen, retired by xClose. Distinct from /parts/storage::CursorHandle (which is a btree cursor). One Vtab may have multiple concurrent cursors (Pin 10)."
+    },
+
+    "ConstraintOp": {
+      "kind": "variant",
+      "doc": "Comparison operators a vtab's xBestIndex may negotiate. The set is closed; new operators require a spec change. Pin 26: where-terms whose operator is outside this set are NOT exposed to xBestIndex; they become post-filter predicates the VDBE re-checks after xColumn.",
+      "cases": {
+        "Eq":         {},
+        "Ne":         {},
+        "Lt":         {},
+        "Le":         {},
+        "Gt":         {},
+        "Ge":         {},
+        "Match":      {},
+        "Like":       {},
+        "Glob":       {},
+        "Regexp":     {},
+        "Is":         {},
+        "IsNot":      {},
+        "IsNull":     {},
+        "IsNotNull":  {},
+        "Limit":      {},
+        "Offset":     {}
+      }
+    },
+
+    "Constraint": {
+      "kind": "record",
+      "doc": "A single WHERE constraint exposed to xBestIndex. column = -1 denotes the rowid column. usable = false means the constraint cannot be honored on this iteration (Pin 5); a module that assigns argv_index to an unusable constraint has its assignment ignored.",
+      "fields": {
+        "column": "i32",
+        "op":     "ConstraintOp",
+        "usable": "bool"
+      }
+    },
+
+    "OrderBy": {
+      "kind": "record",
+      "doc": "A single ORDER BY clause fragment exposed to xBestIndex. column = -1 denotes the rowid column. desc = true if DESC.",
+      "fields": {
+        "column": "i32",
+        "desc":   "bool"
+      }
+    },
+
+    "ConstraintUsage": {
+      "kind": "record",
+      "doc": "Per-constraint reply from xBestIndex. argv_index is 1-based and dense (Pin 6); 0 means the constraint is unused. nonzero k means the constraint's right-hand side is delivered to xFilter as argv[k - 1]. omit = true asserts xFilter will fully honor the constraint, so the VDBE need not re-check it post-materialize (Pin 7).",
+      "fields": {
+        "argv_index": "u32",
+        "omit":       "bool"
+      }
+    },
+
+    "IndexInfo": {
+      "kind": "record",
+      "doc": "Negotiation record passed to xBestIndex. The framework constructs it with constraints + order_by + a default usage vector (every entry argv_index=0, omit=false), then hands it to the module mutably. The module sets idx_num, idx_str, order_by_consumed, estimated_cost, and per-constraint usage. Post-call the framework treats those fields as the negotiated plan and does NOT mutate them further (Pin 4). idx_str ownership: the module owns the string for the cursor's lifetime; target mappings declare any free callback (Pin 27).",
+      "fields": {
+        "constraints":        { "list": "Constraint" },
+        "order_by":           { "list": "OrderBy" },
+        "usage":              { "list": "ConstraintUsage" },
+        "idx_num":            "i32",
+        "idx_str":            { "optional": "str" },
+        "order_by_consumed":  "bool",
+        "estimated_cost":     "f64",
+        "estimated_rows":     "i64"
+      }
+    },
+
+    "VtabUpdateOp": {
+      "kind": "variant",
+      "doc": "Inferred from xUpdate's argv shape (Pins 14-17). Delete: argc==1, argv[0] is old rowid. Insert: argc>1 and argv[0]==Null. UpdateInPlace: argc>1, argv[0]==argv[1], both non-Null. RenameRowid: argc>1, argv[0]!=argv[1], both non-Null. The framework does not eagerly tag argv with this variant; it is a documentation aid for module authors and the per-target dispatcher.",
+      "cases": {
+        "Delete":         {},
+        "Insert":         {},
+        "UpdateInPlace":  {},
+        "RenameRowid":    {}
+      }
+    },
+
+    "VtabCondition": {
+      "kind": "variant",
+      "doc": "Error conditions raised by vtab callbacks and the framework. Targets render as their canonical sum-of-errors. Internal carries a free-form detail string for module-specific failures the framework cannot classify.",
+      "cases": {
+        "ModuleNotFound":           {},
+        "ModuleAlreadyRegistered":  {},
+        "VtabNotFound":             {},
+        "DeclareInvalid":           { "fields": { "error": "ParseError" } },
+        "ConstraintViolation":      {},
+        "ReadOnly":                 {},
+        "LockingError":             {},
+        "Busy":                     {},
+        "Misuse":                   {},
+        "Internal":                 { "fields": { "detail": "str" } }
+      }
+    },
+
+    "register_module":   { "kind": "fn", "params": { "db": "Database", "name": "str", "module": "Module" }, "returns": { "result": "VtabCondition" } },
+    "unregister_module": { "kind": "fn", "params": { "db": "Database", "name": "str" }, "returns": { "result": "VtabCondition" } },
+    "list_modules":      { "kind": "fn", "params": { "db": "Database" }, "returns": { "list": "str" } },
+
+    "create_vtab":       { "kind": "fn", "params": { "db": "Database", "module_name": "str", "vtab_name": "str", "args": { "list": "str" } }, "returns": { "result": "VtabCondition" } },
+    "connect_vtab":      { "kind": "fn", "params": { "db": "Database", "module_name": "str", "vtab_name": "str", "args": { "list": "str" } }, "returns": { "result": "VtabCondition" } },
+    "destroy_vtab":      { "kind": "fn", "params": { "db": "Database", "vtab_name": "str" }, "returns": { "result": "VtabCondition" } },
+    "disconnect_vtab":   { "kind": "fn", "params": { "db": "Database", "vtab_name": "str" }, "returns": { "result": "VtabCondition" } }
+  }
+}

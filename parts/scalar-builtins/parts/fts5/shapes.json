@@ -1,0 +1,143 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "scalar-builtins/fts5",
+  "doc": "FTS5 query surface: parsed CREATE-VIRTUAL-TABLE config, parsed MATCH-query AST, ranker config, and the (rowid, score) iterator the VDBE consumes. On-disk segment access is delegated to the imported Fts5IndexHandle / Fts5PostingIter from parts/storage/parts/fts5-index. Tokenization is delegated to the imported Fts5Tokenizer from parts/storage/parts/fts5-tokenizer.",
+  "imports": {
+    "Fts5IndexHandle":  "parts/storage/parts/fts5-index",
+    "Fts5PostingIter":  "parts/storage/parts/fts5-index",
+    "Fts5PrefixIndexLengths": "parts/storage/parts/fts5-index",
+    "Fts5Tokenizer":    "parts/storage/parts/fts5-tokenizer",
+    "Fts5TokenStream":  "parts/storage/parts/fts5-tokenizer",
+    "Value":            "parts/core",
+    "Rowid":            "parts/core"
+  },
+  "types": {
+    "Fts5TableConfig": {
+      "kind": "record",
+      "doc": "Parsed and validated CREATE VIRTUAL TABLE … USING fts5(…) configuration. One per FTS5 table; persisted in the t_config shadow table as (k,v) rows.",
+      "fields": {
+        "table_name":     "str",
+        "columns":        { "list": "Fts5ColumnDef" },
+        "tokenizer_name": "str",
+        "tokenizer_args": { "list": "str" },
+        "prefix_lengths": { "list": "u32" },
+        "content":        "Fts5ContentMode",
+        "columnsize":     "bool",
+        "detail":         "Fts5DetailLevel",
+        "rank_expr":      "str"
+      }
+    },
+    "Fts5ColumnDef": {
+      "kind": "record",
+      "fields": {
+        "name":      "str",
+        "unindexed": "bool"
+      }
+    },
+    "Fts5ContentMode": {
+      "kind": "variant",
+      "doc": "Content-table strategy. Internal owns a t_content shadow; External points at a user table; Contentless stores no row data.",
+      "cases": {
+        "Internal":    { "fields": {} },
+        "External":    { "fields": { "table": "str", "rowid_col": "str" } },
+        "Contentless": { "fields": {} }
+      }
+    },
+    "Fts5DetailLevel": {
+      "kind": "variant",
+      "cases": {
+        "Full":   { "fields": {} },
+        "Column": { "fields": {} },
+        "None":   { "fields": {} }
+      }
+    },
+    "Fts5Query": {
+      "kind": "variant",
+      "doc": "Parsed MATCH-query AST. Recursive boolean shape with phrase leaves, column-set restrictions, prefix terms, and NEAR clusters.",
+      "cases": {
+        "Phrase":      { "fields": { "tokens": { "list": "str" }, "prefix_last": "bool" } },
+        "And":         { "fields": { "left": "Fts5Query", "right": "Fts5Query" } },
+        "Or":          { "fields": { "left": "Fts5Query", "right": "Fts5Query" } },
+        "Not":         { "fields": { "include": "Fts5Query", "exclude": "Fts5Query" } },
+        "ColumnFilter":{ "fields": { "columns": { "list": "u32" }, "inner": "Fts5Query" } },
+        "Near":        { "fields": { "phrases": { "list": "Fts5Query" }, "span": "u32" } }
+      }
+    },
+    "Fts5RankerConfig": {
+      "kind": "record",
+      "doc": "Active ranking-function configuration. v1 only supports the bm25 family; other names raise Fts5RankExprInvalid at parse.",
+      "fields": {
+        "name":           "str",
+        "k1":             "f64",
+        "b":              "f64",
+        "column_weights": { "list": "f64" }
+      }
+    },
+    "Fts5MatchHit": {
+      "kind": "record",
+      "doc": "One row of the cursor stream consumed by the VDBE. Score is the negated BM25 sum (low = best).",
+      "fields": {
+        "rowid": "Rowid",
+        "score": "f64"
+      }
+    },
+    "Fts5RuntimeCondition": {
+      "kind": "variant",
+      "doc": "Closed set of FTS5-internal error conditions. Each maps to a RuntimeCondition::Fts5* variant declared in parts/core.",
+      "cases": {
+        "Fts5ConfigError":       { "fields": { "msg": "str" } },
+        "Fts5MatchOnNonFts":     { "fields": {} },
+        "Fts5UnknownColumn":     { "fields": { "name": "str" } },
+        "Fts5UnindexedFilter":   { "fields": { "name": "str" } },
+        "Fts5PrefixInternal":    { "fields": {} },
+        "Fts5NearArg":           { "fields": {} },
+        "Fts5QuerySyntax":       { "fields": { "msg": "str" } },
+        "Fts5UnknownTokenizer":  { "fields": { "name": "str" } },
+        "Fts5RankExprInvalid":   { "fields": { "msg": "str" } }
+      }
+    }
+  },
+  "functions": {
+    "parse_create_args": {
+      "doc": "Parse the comma-separated arg-list inside USING fts5(…). Returns a validated Fts5TableConfig or an Fts5ConfigError condition.",
+      "params": [
+        { "name": "table_name", "type": "str" },
+        { "name": "args",       "type": { "list": "str" } }
+      ],
+      "returns": { "result": { "ok": "Fts5TableConfig", "err": "Fts5RuntimeCondition" } }
+    },
+    "parse_match_query": {
+      "doc": "Parse the RHS of a MATCH operator into an Fts5Query AST. Tokenizer is needed to lex phrase atoms identically to indexing time.",
+      "params": [
+        { "name": "config",    "type": { "borrow": "Fts5TableConfig" } },
+        { "name": "tokenizer", "type": { "borrow": "Fts5Tokenizer" } },
+        { "name": "text",      "type": "str" }
+      ],
+      "returns": { "result": { "ok": "Fts5Query", "err": "Fts5RuntimeCondition" } }
+    },
+    "parse_rank_expr": {
+      "doc": "Parse a ranking-function expression like 'bm25(2.0, 1.0)'. v1: only bm25 recognised.",
+      "params": [
+        { "name": "config", "type": { "borrow": "Fts5TableConfig" } },
+        { "name": "expr",   "type": "str" }
+      ],
+      "returns": { "result": { "ok": "Fts5RankerConfig", "err": "Fts5RuntimeCondition" } }
+    },
+    "evaluate_match": {
+      "doc": "Build an iterator over (rowid, score) hits for a parsed query against an index handle. The iterator yields hits ascending by rowid.",
+      "params": [
+        { "name": "index",  "type": { "borrow": "Fts5IndexHandle" } },
+        { "name": "query",  "type": { "borrow": "Fts5Query" } },
+        { "name": "ranker", "type": { "borrow": "Fts5RankerConfig" } }
+      ],
+      "returns": { "result": { "ok": { "list": "Fts5MatchHit" }, "err": "Fts5RuntimeCondition" } }
+    }
+  },
+  "constants": {
+    "FTS5_DEFAULT_K1":          { "type": "f64", "value": 1.2 },
+    "FTS5_DEFAULT_B":           { "type": "f64", "value": 0.75 },
+    "FTS5_DEFAULT_NEAR_SPAN":   { "type": "u32", "value": 10 },
+    "FTS5_DEFAULT_TOKENIZER":   { "type": "str", "value": "unicode61" },
+    "FTS5_MODULE_NAME":         { "type": "str", "value": "fts5" }
+  }
+}

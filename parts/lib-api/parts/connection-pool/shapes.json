@@ -1,0 +1,94 @@
+{
+  "$schema": "../../../../shape.schema.json",
+  "shapes": {
+    "ConnectionPool": {
+      "kind": "record",
+      "fields": [
+        { "name": "path",   "type": "string" },
+        { "name": "max",    "type": "u64"    },
+        { "name": "shared", "type": "ref:SharedDb" },
+        { "name": "slots",  "type": "list<Slot>" }
+      ],
+      "notes": "Pin 1: max >= 1. Pin 2: every Slot in slots references the same shared."
+    },
+    "Slot": {
+      "kind": "record",
+      "fields": [
+        { "name": "state", "type": "ref:SlotState" },
+        { "name": "conn",  "type": "optional<ref:Connection>" }
+      ],
+      "notes": "Pin 3: a Free slot may carry a cached Connection so prepared cache survives drop-then-reacquire."
+    },
+    "SlotState": {
+      "kind": "variant",
+      "variants": [
+        { "tag": "Free" },
+        { "tag": "InUse" },
+        { "tag": "Poisoned" }
+      ]
+    },
+    "Connection": {
+      "kind": "record",
+      "fields": [
+        { "name": "prepared_cache", "type": "map<string, ref:PreparedStatement>" },
+        { "name": "shared",         "type": "ref:SharedDb" },
+        { "name": "poisoned",       "type": "bool" }
+      ],
+      "notes": "Pin 6: poisoned set true on any ExecuteError; observed at drop to mark slot Poisoned."
+    },
+    "SharedDb": {
+      "kind": "record",
+      "fields": [
+        { "name": "store", "type": "ref:Database" }
+      ],
+      "notes": "v1: in-memory Database. on-disk follow-up: pager + WAL. Always behind a mutex when shared."
+    },
+    "PooledConnection": {
+      "kind": "record",
+      "fields": [
+        { "name": "pool",      "type": "ref:ConnectionPool" },
+        { "name": "slot_idx",  "type": "u64" }
+      ],
+      "notes": "Pin 5: drop returns slot. Pin 7: Send but not Sync."
+    },
+    "AcquireResult": {
+      "kind": "variant",
+      "variants": [
+        { "tag": "Ready",      "payload": "ref:PooledConnection" },
+        { "tag": "WouldBlock" }
+      ]
+    },
+    "PoolError": {
+      "kind": "variant",
+      "variants": [
+        { "tag": "CapacityZero" },
+        { "tag": "OpenFailed",   "payload": "string" },
+        { "tag": "ExecuteError", "payload": "ref:RuntimeCondition" }
+      ]
+    }
+  },
+  "functions": {
+    "pool_new": {
+      "params": [
+        { "name": "path", "type": "string" },
+        { "name": "max",  "type": "u64" }
+      ],
+      "returns": "result<ref:ConnectionPool, ref:PoolError>"
+    },
+    "pool_acquire": {
+      "params": [
+        { "name": "pool", "type": "ref:ConnectionPool" }
+      ],
+      "returns": "ref:PooledConnection",
+      "notes": "Pin 4: blocks when every slot is InUse; loops on spurious wakeups."
+    },
+    "connection_execute": {
+      "params": [
+        { "name": "conn", "type": "ref:PooledConnection" },
+        { "name": "sql",  "type": "string" }
+      ],
+      "returns": "result<list<list<Value>>, ref:PoolError>",
+      "notes": "Returns rows for SELECT (possibly empty); returns empty list for DDL/DML-as-Done."
+    }
+  }
+}

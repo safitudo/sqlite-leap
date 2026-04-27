@@ -1,0 +1,51 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/parser/parts/savepoint-stmt",
+
+  "imports": {
+    "Token":      "/parts/parser/parts/tokenizer",
+    "TokenKind":  "/parts/parser/parts/tokenizer",
+    "ParseError": "/parts/parser/parts/expr"
+  },
+
+  "types": {
+    "SavepointStmt": {
+      "kind": "variant",
+      "doc": "One of the three savepoint-family statements. Each carries a single owned identifier — the savepoint name. The variant tag distinguishes intent: declare, release, or partial-rollback. The compiler maps each variant to the matching VDBE opcode (Savepoint / ReleaseSavepoint / RollbackToSavepoint).",
+      "cases": {
+        "Savepoint": {
+          "doc": "`SAVEPOINT name` — declare a new savepoint. Pushes a frame onto the savepoint stack at runtime. If the stack is empty when this runs, an implicit outer transaction is started.",
+          "fields": { "name": "string" }
+        },
+        "Release": {
+          "doc": "`RELEASE [SAVEPOINT] name` — discard the savepoint with this name and every savepoint above it. Changes made under those frames are kept (merged into the next-outer frame). If `name` is the OUTERMOST savepoint and there is no enclosing transaction, the implicit outer transaction commits.",
+          "fields": { "name": "string" }
+        },
+        "RollbackTo": {
+          "doc": "`ROLLBACK [TRANSACTION] TO [SAVEPOINT] name` — revert all changes made since the savepoint named `name` was declared. The savepoint frame itself REMAINS on the stack (subsequent RELEASE / ROLLBACK TO with the same name still resolves). Any savepoints DEEPER than `name` are also discarded as a side effect.",
+          "fields": { "name": "string" }
+        }
+      }
+    },
+
+    "SavepointParseOk": {
+      "kind": "record",
+      "doc": "Successful savepoint-family parse: the statement plus the index of the next un-consumed token (typically the terminating `;` or `Eof`).",
+      "fields": {
+        "stmt": "SavepointStmt",
+        "next": "u32"
+      }
+    }
+  },
+
+  "functions": {
+    "parse_savepoint_family": {
+      "doc": "Parse one of `SAVEPOINT name` / `RELEASE [SAVEPOINT] name` / `ROLLBACK [TRANSACTION] TO [SAVEPOINT] name` starting at `start` in `tokens`. The token at `start` MUST be one of `KwSavepoint`, `KwRelease`, or `KwRollback`. A bare `ROLLBACK` (not followed by `TRANSACTION` or `TO`) is rejected with `\"deferred: bare ROLLBACK (transaction rollback)\"` — that form is owned by the transaction-stmt parser.",
+      "params": [
+        { "name": "tokens", "type": { "borrow": { "list": "Token" } } },
+        { "name": "start",  "type": "u32" }
+      ],
+      "returns": { "result": { "ok": "SavepointParseOk", "err": "ParseError" } }
+    }
+  }
+}

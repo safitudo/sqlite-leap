@@ -1,0 +1,39 @@
+{
+  "$schema": "../../../../../schema/shape.schema.json",
+  "owner": "/parts/parser/parts/detach-stmt",
+
+  "imports": {
+    "ParseError": "/parts/parser/parts/expr",
+    "Token":      "/parts/parser/parts/tokenizer"
+  },
+
+  "types": {
+    "DetachStmt": {
+      "kind": "record",
+      "doc": "Parsed DETACH statement. schema_name is the OWNED logical alias whose binding the executor will release. The parser rejects 'main' and 'temp' (case-insensitive) but does NOT verify the binding exists nor check for open cursors / transactions — those are executor-side checks.",
+      "fields": {
+        "schema_name": "string"
+      }
+    },
+
+    "DetachParseOk": {
+      "kind": "record",
+      "doc": "Successful parse: the DETACH AST plus the index of the next unread token.",
+      "fields": {
+        "stmt": "DetachStmt",
+        "next": "u32"
+      }
+    }
+  },
+
+  "functions": {
+    "parse_detach": {
+      "doc": "Parse a DETACH statement starting at tokens[start]. Consumes the DETACH keyword, optional DATABASE keyword, the schema-name identifier (rejecting reserved 'main' and 'temp' case-insensitively, and rejecting non-Ident tokens). Stops BEFORE the statement terminator. Tokenizer-only dependency; no Expr embedded.",
+      "params": [
+        { "name": "tokens", "type": { "borrow": { "list": "Token" } } },
+        { "name": "start",  "type": "u32" }
+      ],
+      "returns": { "result": { "ok": "DetachParseOk", "err": "ParseError" } }
+    }
+  }
+}

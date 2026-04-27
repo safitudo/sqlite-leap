@@ -1,0 +1,41 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/parser/parts/drop-trigger-stmt",
+
+  "imports": {
+    "Token":      "/parts/parser/parts/tokenizer",
+    "TokenKind":  "/parts/parser/parts/tokenizer",
+    "ParseError": "/parts/parser/parts/expr"
+  },
+
+  "types": {
+    "DropTriggerStmt": {
+      "kind": "record",
+      "doc": "Parsed DROP TRIGGER statement. `if_exists` reflects the IF EXISTS clause; `name` is the trigger identifier. Schema-qualified names are deferred. Whether the trigger actually exists is a runtime concern owned by /parts/storage/parts/triggers — this AST never carries existence state.",
+      "fields": {
+        "if_exists": "bool",
+        "name":      "string"
+      }
+    },
+
+    "DropTriggerParseOk": {
+      "kind": "record",
+      "doc": "Successful parse output: the DropTriggerStmt plus the index of the next un-consumed token (positioned BEFORE any outer ';' / Eof).",
+      "fields": {
+        "stmt": "DropTriggerStmt",
+        "next": "u32"
+      }
+    }
+  },
+
+  "functions": {
+    "parse_drop_trigger": {
+      "doc": "Parse a `DROP TRIGGER [IF EXISTS] <name>` statement. Token at `start` MUST be KwDrop and tokens[start+1] MUST be KwTrigger; the statement router is responsible for dispatching to this leaf only on that two-token prefix. Rejects schema-qualified trigger names with `deferred: schema-qualified trigger name`.",
+      "params": [
+        { "name": "tokens", "type": { "borrow": { "list": "Token" } } },
+        { "name": "start",  "type": "u32" }
+      ],
+      "returns": { "result": { "ok": "DropTriggerParseOk", "err": "ParseError" } }
+    }
+  }
+}
