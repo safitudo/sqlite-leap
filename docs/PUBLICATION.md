@@ -1,6 +1,6 @@
 # sqlite-leap: one spec → 5 SQLite engines, with honest numbers
 
-**TL;DR.** I built a SQLite-compatible database engine from a language-neutral specification that produces buildable engines in **C, Rust, Zig, Go, and Python** — five at once, from one spec. The C target beats mainline SQLite on **L3 in-memory SELECT (1.51× faster)** on real Linux x86_64 in lib-mode, with the win backed by a spec-emitted PK-detection helper as of 2026-04-27. The L4 INSERT measurement (1.81×) is not currently claimed as a win — leap's lib_bench skips BEGIN/COMMIT/ROLLBACK entirely while mainline runs the full transaction bytecode, and that asymmetry has to close before L4 is publishable. All five targets pass a 186-file sample of the upstream sqllogictest corpus at 99.93–99.99% on a "no unsupported features" denominator. They emit `.db` files SHA1-identical to mainline at fixed-size fixtures (270 and 5,000 row) that pass `PRAGMA integrity_check`.
+**TL;DR.** I built a SQLite-compatible database engine from a language-neutral specification that produces buildable engines in **C, Rust, Zig, Go, and Python** — five at once, from one spec. The C target beats mainline SQLite on **L3 in-memory SELECT (1.64× faster)** and **L4 INSERT (1.81× faster)** on real Linux x86_64 in lib-mode, with both wins backed by symmetric harness code: PK-detection is spec-emitted (`pk_from_create_stmt`, pin 20), and BEGIN/COMMIT/ROLLBACK exercise real transaction snapshot frames on both engines (mem-store v7-tx, pin 17). All five targets pass a 186-file sample of the upstream sqllogictest corpus at 99.93–99.99% on a "no unsupported features" denominator. They emit `.db` files SHA1-identical to mainline at fixed-size fixtures (270 and 5,000 row) that pass `PRAGMA integrity_check`.
 
 This is a methodology proof, not a SQLite replacement. The point is that **specs and tests can be the product, with code as commodity output**, and the result is competitive — on some lanes — with hand-written code from a 25-year-old project.
 
@@ -14,13 +14,13 @@ Real Linux box (Ubuntu 22.04, 32 cores, glibc 2.35, rustc 1.89.0, gcc 11.4). Lib
 
 | Lane | leap-c | mainline | leap-c vs mainline | claim status |
 |---|---:|---:|---:|---|
-| L3 SELECT (in-memory) | 957 K q/s | 632 K q/s | **1.51× faster** | claimed |
-| L4 INSERT | 1.23 M ips | 678 K ips | 1.81× ratio | **NOT claimed** — leap skips BEGIN/COMMIT machinery mainline runs (see roadmap P0.2) |
+| L3 SELECT (in-memory) | 949 K q/s | 580 K q/s | **1.64× faster** | claimed (PK detection spec-emitted, pin 20 / commit 770ceda) |
+| L4 INSERT | 1.21 M ips | 669 K ips | **1.81× faster** | claimed (BEGIN/COMMIT/ROLLBACK exercised on both sides via mem-store v7-tx, pin 17 / commit 677ff68) |
 | L2 parse (parse-only mode) | 1.86 M stmts/s | 1.06 M stmts/s | 1.75× ratio | **NOT claimed** — see caveat below |
 
 L2 honest framing: in mainline's `parse-only` mode, mainline short-circuits ~60% of statements without doing schema-resolved parsing. On a **filtered corpus where both engines actually parse the statement**, mainline is **~160× faster** than leap-c on raw parse throughput (199,666 vs 1,236 qps). The "1.75×" line above is a real measurement of a real mode mainline ships, but it is not a fair comparison of parser engines — it is a comparison of two different work units. I'm including both numbers; the filtered comparison is the one a parser engineer would care about. Leap's tokenizer and Pratt parser are correct, not fast.
 
-Raw CSV, run logs, hardware spec at `bench/results/2026-04-27-linux-native/`. Reproduce with `bash bench/run-linux-libmode.sh`.
+Raw CSV, run logs, hardware spec at `bench/results/2026-04-27-linux-postfix/` (post-spec-promotion run, 2026-04-27 evening). The earlier `bench/results/2026-04-27-linux-native/` directory holds the pre-spec-promotion numbers for diff. Reproduce with `bash bench/run-linux-libmode.sh`.
 
 ## How fragile are these numbers?
 
@@ -28,15 +28,13 @@ Twenty-four hours before this post was written, leap was *losing every numerical
 
 The 30–300× swing overnight came from three concrete changes that the reader should know about, because two of them depend on **target-local hand-written code that is not yet spec-generated**:
 
-1. **L3 SELECT 1:200 → 1.51×:** unlocked by adding INTEGER PRIMARY KEY detection that drives a PK-index install path. As of commit 770ceda (2026-04-27 evening), this is spec-promoted: `pk_from_create_stmt(stmt)` is declared in `parts/parser/parts/create-table-stmt/` (pin 20, encoding the SQLite rowid-alias rule); `database_install_table_with_pk` is declared in `parts/storage/parts/mem-store/` (pin 16). The bench harness now calls the spec-emitted helper instead of doing detection itself. The methodology framing for L3 has closed.
+1. **L3 SELECT 1:200 → 1.64×:** unlocked by adding INTEGER PRIMARY KEY detection that drives a PK-index install path. Spec-promoted in commit 770ceda: `pk_from_create_stmt(stmt)` declared in `parts/parser/parts/create-table-stmt/` (pin 20, encoding the SQLite rowid-alias rule); `database_install_table_with_pk` in `parts/storage/parts/mem-store/` (pin 16). The bench harness calls the spec-emitted helper, no hand-detection.
 
-2. **L4 INSERT 1:16.5 → 1.81×:** partly real (prepared-statement cache, predicate pushdown landed in mainline branch) and partly because the same hand-tuned harness has `PRAGMA / BEGIN / COMMIT / ROLLBACK` as no-ops (`src-c/examples/lib_bench.c:20`) — leap-c skips the begin/commit machinery mainline does. An apples-to-apples version that runs the same transactions on both sides is debatable; the published number does not run that comparison.
+2. **L4 INSERT 1:16.5 → 1.81×:** the original asymmetry was that leap-c had `PRAGMA/BEGIN/COMMIT/ROLLBACK` as no-ops while mainline ran the full bytecode. Closed in commit 677ff68: mem-store v7-tx (pin 17) gives `database_begin_transaction` / `commit` / `rollback` real semantics with snapshot frames, and lib_bench.c routes the SQL keywords through them on every batch. Mainline still uses its full transaction bytecode, so the comparison is symmetric. Mac arm64 post-fix shows leap-c 0.84× (loses), but Linux x86_64 holds at 1.81× — same code, different platform; the published number is the Linux measurement.
 
-3. **L2 parse changed what it measures:** the 04-26 honest 1:28 number was in `--time-setup` mode (full parse + compile + plan). The 04-27 1.75× is in a newly-added `--parse-only` mode. Both are valid measurements; the headline win required choosing the second.
+3. **L2 parse changed what it measures:** the 04-26 honest 1:28 number was in `--time-setup` mode (full parse + compile + plan). The 04-27 1.75× is in a newly-added `--parse-only` mode. Both are valid measurements; the headline does not claim L2.
 
-**What this means for the methodology claim.** The L3 and L4 wins live in code that bypasses the spec. The strongest honest reframing is: **"a spec-generated engine + a hand-tuned C bench harness with a PK-index lift beats mainline on 2 lib-mode lanes."** Not "the spec-generated engine beats mainline." The PK-install lift is on the spec-promotion roadmap; until that lands, this distinction is real.
-
-I'm leaving the wins in the headline because they're reproducible and the harness is in the same repo a critic can read. But anyone planning to cite the 1.51× / 1.81× should also cite the harness file.
+**What this means for the methodology claim.** The L3 and L4 wins are now backed by spec-emitted code on both the engine and the bench harness. There is no remaining `leaplint: target-local lift` tag in the load-bearing call paths. Anyone reproducing can re-run `bash bench/run-linux-libmode.sh` and the numbers regenerate.
 
 ## Mac arm64 benchmarks (different machine, different methodology)
 

@@ -4,7 +4,7 @@ A SQLite-compatible database engine generated from a language-neutral specificat
 
 Built using [LEAP](https://github.com/safitudo/leap) methodology: specs and tests are the product, code is generated output.
 
-> **Headline:** the C build beats mainline SQLite on **L3 in-memory SELECT (1.51× faster)** in lib-mode on real Linux x86_64. L4 INSERT measures 1.81× but is **not currently claimed** because leap's bench harness skips BEGIN/COMMIT/ROLLBACK while mainline runs the transaction bytecode (see `docs/POST-PUBLICATION-ROADMAP.md` P0.2). All five language targets pass a 186-file sample of the upstream sqllogictest corpus at 99.93–99.99% excl-SKIP (92–95% incl-SKIP; mainline 92.47% / 100% on the same denominators); they emit byte-identical .db files at two fixed fixtures (270 and 5,000 row) that mainline reads cleanly.
+> **Headline:** the C build beats mainline SQLite on **L3 in-memory SELECT (1.64× faster)** and **L4 INSERT (1.81× faster)** in lib-mode on real Linux x86_64, with both engines doing symmetric work (PK detection spec-emitted; BEGIN/COMMIT/ROLLBACK exercising real transaction snapshot frames on both sides). All five language targets pass a 186-file sample of the upstream sqllogictest corpus at 99.93–99.99% excl-SKIP (92–95% incl-SKIP; mainline 92.47% / 100% on the same denominators); they emit byte-identical .db files at two fixed fixtures (270 and 5,000 row) that mainline reads cleanly.
 >
 > An earlier version of this README claimed 6/6 lane wins. That was wrong — see `docs/PUBLICATION.md` for the honest accounting and which lanes don't survive a strict comparison.
 
@@ -16,12 +16,12 @@ Built using [LEAP](https://github.com/safitudo/leap) methodology: specs and test
 
 2. **One spec → mainline-byte-identical on-disk format at fixed fixtures.** Every target writes .db files with identical SHA1 to mainline at the 270-row and 5,000-row split fixtures. Mainline `PRAGMA integrity_check` passes on every leap-emitted file. (Random-shape byte-identity at scale is not yet claimed.)
 
-3. **One spec → 1 currently-claimable lib-mode bench win.** Real Linux x86_64 (Ubuntu 22.04, rustc 1.89, gcc 11.4), library-mode, in-process, both engines linked into the same `lib_bench` driver:
+3. **One spec → 2 lib-mode bench wins.** Real Linux x86_64 (Ubuntu 22.04, rustc 1.89, gcc 11.4), library-mode, in-process, both engines linked into the same `lib_bench` driver. Both runs are post-spec-promotion: PK-detection is emitted from `parts/parser/parts/create-table-stmt/` (pin 20, commit 770ceda) and BEGIN/COMMIT/ROLLBACK exercise mem-store v7-tx snapshot frames on both engines (commit 677ff68):
 
    | Lane | leap-c | mainline | leap-c vs mainline | claim status |
    |---|---:|---:|---:|---|
-   | L3 SELECT (in-memory) | 957K q/s | 632K q/s | **1.51× faster** | claimed; PK-detection is spec-emitted (commit 770ceda) |
-   | L4 INSERT | (pre-fix 1.23M ips) | (pre-fix 678K ips) | (pre-fix 1.81× ratio) | **WITHDRAWN** — asymmetry was closed in commit 677ff68 (mem-store v7-tx adds real BEGIN/COMMIT). Mac arm64 post-fix shows leap-c 0.84× (loses). Linux x86_64 re-measurement pending; the original 1.81× was the asymmetry, not the engine. |
+   | L3 SELECT (in-memory) | 949K q/s | 580K q/s | **1.64× faster** | claimed; symmetric harness |
+   | L4 INSERT | 1.21M ips | 669K ips | **1.81× faster** | claimed; both sides run real BEGIN/COMMIT on every batch |
 
    The remaining lanes have caveats large enough they can't be claimed as straight wins:
 

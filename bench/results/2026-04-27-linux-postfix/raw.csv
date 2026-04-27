@@ -1,0 +1,10 @@
+lane,target,value,units,elapsed_s,statements,errors,timestamp
+parse-speed,sqlite-mainline,147781,statements_per_second,0.177315,26204,131169,2026-04-27T20:25:50Z
+parse-speed,sqlite-leap-rust,2871,statements_per_second,54.774418,157307,39124,2026-04-27T20:26:45Z
+parse-speed,sqlite-leap-c,2651,statements_per_second,59.330952,157307,52122,2026-04-27T20:27:44Z
+select-in-memory,sqlite-mainline,579587,selects_per_second,0.172537,100000,0,2026-04-27T20:27:44Z
+select-in-memory,sqlite-leap-rust,494094,selects_per_second,0.202390,100000,0,2026-04-27T20:27:44Z
+select-in-memory,sqlite-leap-c,948686,selects_per_second,0.105409,100000,0,2026-04-27T20:27:45Z
+insert-throughput,sqlite-mainline,669433,inserts_per_second,0.149387,100005,0,2026-04-27T20:27:45Z
+insert-throughput,sqlite-leap-rust,552478,inserts_per_second,0.181011,100005,0,2026-04-27T20:27:45Z
+insert-throughput,sqlite-leap-c,1210216,inserts_per_second,0.082634,100005,0,2026-04-27T20:27:45Z
