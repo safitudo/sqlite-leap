@@ -4,7 +4,9 @@ A SQLite-compatible database engine generated from a language-neutral specificat
 
 Built using [LEAP](https://github.com/safitudo/leap) methodology: specs and tests are the product, code is generated output.
 
-> **Headline:** the C build beats mainline SQLite on **all six benchmark lanes**, all five language targets pass the upstream sqllogictest corpus at 99.93–99.99% (mainline 100%), and they emit byte-identical .db files that mainline reads cleanly.
+> **Headline:** the C build beats mainline SQLite on **2 of 6 standard library-mode lanes** on real Linux x86_64 (SELECT 1.51×, INSERT 1.81×); all five language targets pass a 186-file sample of the upstream sqllogictest corpus at 99.93–99.99% excl-SKIP (92–95% incl-SKIP; mainline 92.47% / 100% on the same denominators); they emit byte-identical .db files at two fixed fixtures (270 and 5,000 row) that mainline reads cleanly.
+>
+> An earlier version of this README claimed 6/6 lane wins. That was wrong — see `docs/PUBLICATION.md` for the honest accounting and which lanes don't survive a strict comparison.
 
 ---
 
@@ -12,22 +14,23 @@ Built using [LEAP](https://github.com/safitudo/leap) methodology: specs and test
 
 1. **One spec → 5 native engines.** Roughly 10K lines of `parts/` produce ~140K lines of buildable engine code across C, Rust, Zig, Go, Python — all behaviorally identical on the upstream sqllogictest corpus.
 
-2. **One spec → mainline-byte-identical on-disk format.** Every target writes .db files with identical SHA1 to mainline at 270 and 5,000 row tests. Mainline `PRAGMA integrity_check` passes on every leap-emitted file.
+2. **One spec → mainline-byte-identical on-disk format at fixed fixtures.** Every target writes .db files with identical SHA1 to mainline at the 270-row and 5,000-row split fixtures. Mainline `PRAGMA integrity_check` passes on every leap-emitted file. (Random-shape byte-identity at scale is not yet claimed.)
 
-3. **One spec → competitive performance.** Real Linux x86_64, library-mode, apples-to-apples:
+3. **One spec → competitive performance on 2 lib-mode lanes.** Real Linux x86_64 (Ubuntu 22.04, rustc 1.89, gcc 11.4), library-mode, in-process, both engines linked into the same `lib_bench` driver:
 
    | Lane | leap-c | mainline | leap-c vs mainline |
    |---|---:|---:|---:|
-   | L1 cold start | 3.2 ms | 8.6 ms | **2.7× faster** |
-   | L2 parse | 1.86M stmts/s | 1.06M stmts/s | **1.75× faster** |
-   | L3 SELECT | 957K q/s | 632K q/s | **1.51× faster** |
-   | L4 INSERT | 1.23M ips | 678K ips | **1.81× faster** |
-   | L5 binary size | 369 KB | 1.22 MB | **3.3× smaller** |
-   | L6 RSS idle | 2.10 MB | 2.72 MB | **1.3× smaller** |
+   | L3 SELECT (in-memory) | 957K q/s | 632K q/s | **1.51× faster** |
+   | L4 INSERT (WAL) | 1.23M ips | 678K ips | **1.81× faster** |
 
-   leap-c wins **6 of 6** lanes vs mainline on real Linux x86_64.
+   The remaining lanes have caveats large enough they can't be claimed as straight wins:
 
-   **vs Turso** (the one-language Rust SQLite rewrite): leap-c is 36.5× smaller binary; leap-rust is 8.6× lower memory. Turso loses 4.81× to mainline on SELECT in CLI mode.
+   - **L2 parse**: in mainline's `parse-only` mode (which short-circuits ~60% of statements without resolving schema), leap-c posts 1.86M stmts/s vs 1.06M (1.75× "faster"). On a **filtered corpus where both engines parse the same statements**, mainline is **~160× faster** than leap-c. Leap's parser is correct, not fast.
+   - **L1 cold start (Mac arm64 only)**: leap-c 3.26 ms vs mainline `sqlite3 :memory:` CLI 4.97 ms = 1.52× faster. Linux validation pending.
+   - **L5 binary size (Mac arm64 only)**: leap-c engine smoke 203 KB vs mainline `sqlite3` CLI 1.77 MB = 8.7× smaller, but mainline's binary includes the CLI shell + readline + ICU; an engine-only mainline build would close most of this gap.
+   - **L6 RSS (Mac arm64 only)**: leap-c 3.05 MB vs mainline 3.01 MB — **mainline is slightly lighter, not leap.** Not a win.
+
+   See `docs/PUBLICATION.md` for the full honest accounting.
 
 ---
 
