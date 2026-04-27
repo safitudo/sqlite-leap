@@ -12,8 +12,9 @@
       "kind": "record",
       "doc": "In-memory table catalog. Holds a list of named tables and (v6) a parallel views registry. Tables and views are inserted by the caller via `database_install_table` / `database_install_view` before the VDBE runs; the VDBE reads + writes tables, but only reads views (views are compile-time-resolved). Behavioral test harness only — the persistent btree-backed Database is a separate part.",
       "fields": {
-        "tables": { "list": "MemTable" },
-        "views":  { "list": "ViewEntry" }
+        "tables":    { "list": "MemTable" },
+        "views":     { "list": "ViewEntry" },
+        "txn_stack": { "list": "TxnFrame" }
       }
     },
 
@@ -54,6 +55,24 @@
       "fields": {
         "name":       "string",
         "select_sql": "string"
+      }
+    },
+
+    "TableSnapshot": {
+      "kind": "record",
+      "doc": "v7-tx (pin 17): one entry of a transaction stack frame, capturing the rollback-restorable extent of one MemTable at BEGIN time. `rows_len` is the number of rows present at the snapshot moment; `rowids_len` is the parallel rowids vector length (always equal to rows_len in well-formed states, but recorded separately because the two vectors are stored independently and the rollback path truncates each to its own snapshot length). On ROLLBACK every table is truncated to its corresponding snapshot lengths; tables installed AFTER BEGIN (i.e. not present in the snapshot frame) are left untouched in v1 — DDL inside a transaction is out of scope. v1 limitation: snapshots only restore length, NOT individual row content. UPDATE and DELETE inside a transaction therefore CANNOT be rolled back faithfully in v1. The L4 INSERT-only workload that motivates this leaf is correctly handled.",
+      "fields": {
+        "table_index": "u32",
+        "rows_len":    "u64",
+        "rowids_len":  "u64"
+      }
+    },
+
+    "TxnFrame": {
+      "kind": "record",
+      "doc": "v7-tx (pin 17): one transaction stack frame. v1 mem-store admits only a single active frame at a time (no nested savepoints), but the structure is a list-of-frames so a future SAVEPOINT extension does not need a shape change. `tables` records one TableSnapshot per Database table that existed at BEGIN time, in the table-array order at BEGIN time.",
+      "fields": {
+        "tables": { "list": "TableSnapshot" }
       }
     },
 
@@ -206,6 +225,30 @@
         { "name": "name", "type": "string" }
       ],
       "returns": { "option": { "borrow": "ViewEntry" } }
+    },
+
+    "database_begin_transaction": {
+      "doc": "v7-tx (pin 17): open a new transaction. Capture a TableSnapshot (rows_len, rowids_len) for every currently-installed table, push the resulting TxnFrame onto db.txn_stack. v1 mem-store admits at most one active frame: if `txn_stack` is already non-empty, return err(IoError) — re-BEGIN inside an active transaction is a caller error. The current values of `rows`, `rowids`, and `pk_index` (target-local) are NOT cloned — only the lengths are recorded. Subsequent inserts append; rollback truncates back to the recorded length. UPDATE/DELETE rollback fidelity is OUT OF SCOPE for v1 (see TableSnapshot doc).",
+      "params": [
+        { "name": "db", "type": { "borrow_mut": "Database" } }
+      ],
+      "returns": { "result": { "ok": "unit", "err": "RuntimeCondition" } }
+    },
+
+    "database_commit_transaction": {
+      "doc": "v7-tx (pin 17): commit the most recent transaction frame. Pop the top entry of `db.txn_stack` and discard it — the current rows/rowids state becomes permanent. If `txn_stack` is empty (no active transaction), return err(IoError). v1 only supports a single-level transaction; commit clears the stack to empty.",
+      "params": [
+        { "name": "db", "type": { "borrow_mut": "Database" } }
+      ],
+      "returns": { "result": { "ok": "unit", "err": "RuntimeCondition" } }
+    },
+
+    "database_rollback_transaction": {
+      "doc": "v7-tx (pin 17): roll back the most recent transaction frame. Pop the top entry of `db.txn_stack`. For every TableSnapshot in that frame (identified by `table_index`), truncate `tables[table_index].rows` and `tables[table_index].rowids` back to the recorded lengths. Targets MUST also synchronize any auxiliary state derived from the row vector (e.g. the pk_index used by cursor_seek_rowid) so post-rollback queries do not see ghost entries. v1 limitation: only INSERTs are correctly rolled back — UPDATE in-place mutations and DELETE-then-INSERT sequences are NOT restored to their pre-transaction values (the snapshot only records lengths). If `txn_stack` is empty, return err(IoError).",
+      "params": [
+        { "name": "db", "type": { "borrow_mut": "Database" } }
+      ],
+      "returns": { "result": { "ok": "unit", "err": "RuntimeCondition" } }
     },
 
     "cursor_update_row": {

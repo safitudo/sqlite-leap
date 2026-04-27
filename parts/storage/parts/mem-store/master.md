@@ -139,6 +139,68 @@ them.
     `pk_from_create_stmt` (parser leaf) on the parsed
     CreateTableStmt — they MUST NOT inline that detection.
 
+17. **Transaction protocol — single-level INSERT-only rollback (v7-tx)** —
+    `Database` gains a `txn_stack: Vec<TxnFrame>` field; v1 only ever
+    holds zero or one frames. The state machine has two states:
+
+        idle  ──BEGIN──▶  in_txn  ──COMMIT──▶  idle
+                            │
+                            └─ROLLBACK──▶ idle
+
+    Allowed transitions:
+
+    - `idle ──BEGIN──▶ in_txn`: `database_begin_transaction` snapshots
+      `(rows.len, rowids.len)` for every currently-installed table and
+      pushes the resulting `TxnFrame` onto `txn_stack`.
+    - `in_txn ──COMMIT──▶ idle`: `database_commit_transaction` pops
+      and discards the top `TxnFrame`. The current state is permanent.
+    - `in_txn ──ROLLBACK──▶ idle`: `database_rollback_transaction`
+      pops the top `TxnFrame`; for each `TableSnapshot { table_index,
+      rows_len, rowids_len }` in the frame, truncates the corresponding
+      `MemTable.rows` and `MemTable.rowids` to the recorded lengths.
+      Targets that maintain auxiliary indexes (e.g. the pk_index used
+      by `cursor_seek_rowid`) MUST synchronize them so post-rollback
+      reads don't see ghost rowid entries — the simplest correct
+      implementation is to clear and rebuild the index from the
+      truncated rowids vector. Snapshot-frame `table_index` values
+      that fall outside the current `tables` length (a table was
+      somehow removed during the transaction — DDL-rollback is
+      out of scope) are silently skipped.
+
+    Error conditions (v1):
+
+    - `BEGIN` while `txn_stack` is non-empty → `Err(RuntimeCondition::IoError)`.
+      Nested transactions and SAVEPOINT support are deferred.
+    - `COMMIT` or `ROLLBACK` while `txn_stack` is empty →
+      `Err(RuntimeCondition::IoError)`. Implicit-commit-of-nothing is
+      not modeled in v1; callers track open-state explicitly.
+
+    v1 limitations (call out in publication context):
+
+    - **INSERT-only rollback fidelity.** A `TableSnapshot` records only
+      the row-vector lengths at BEGIN time. ROLLBACK truncates back to
+      that length, which correctly undoes appended INSERTs. UPDATE
+      mutates a row in-place and DELETE removes a row, neither of
+      which a length-only snapshot can restore. v1 callers running
+      UPDATE/DELETE inside a transaction will observe partial-state
+      ROLLBACK behavior. Faithful UPDATE/DELETE rollback is a
+      follow-up part (full row-content snapshotting or a
+      copy-on-write rows vector — design open).
+    - **Single-level only.** No nested SAVEPOINTs in v1; the stack
+      structure is forward-compatible but the `BEGIN`-while-active
+      check enforces depth ≤ 1.
+    - **No DDL inside a transaction.** A `CREATE TABLE` issued between
+      BEGIN and ROLLBACK is NOT undone (the new table remains).
+      Acceptable for the L4 INSERT workload; flagged for follow-up.
+
+    Probe rationale: the leaf is admitted to remove the structural
+    asymmetry whereby leap's `lib_bench` skipped BEGIN/COMMIT entirely
+    while mainline ran the full transactional bytecode (see
+    `docs/POST-PUBLICATION-ROADMAP.md` P0.2). The bookkeeping cost
+    must be comparable for an honest L4 measurement; the v1 limits
+    above do not affect the INSERT-into-a-WAL-transaction workload
+    that motivates this leaf.
+
 ## Version history (mem-store)
 
 - **v1 (pre-2026-04-24):** read-only cursor; INSERT/UPDATE/DELETE stubs.
@@ -146,6 +208,15 @@ them.
 - **v3:** cursor_delete_row LIVE with scan-invariant preservation.
 - **v4 (2026-04-24):** `MemTable.column_names` added; `database_install_table` takes a column_names list; `cursor_update_row` LIVE — resolves column names to row indices via MemTable.column_names and overwrites specified slots. If a target emission of an earlier version is still on disk, callers pass an empty column_names list to preserve existing behavior for INSERT/SELECT/DELETE; UPDATE will error with IoError (or SchemaMissing if the target adds that variant).
 - **v5 (2026-04-24, α11):** rowid tracking — parallel `rowids` vector; explicit-rowid insert path via "rowid" column-name; `cursor_seek_rowid` LIVE.
+- **v7-tx (2026-04-27, pin 17):** transaction stack. `Database` gains
+  `txn_stack: Vec<TxnFrame>`; new entrypoints `database_begin_transaction`,
+  `database_commit_transaction`, `database_rollback_transaction`. v1
+  supports a single active frame (no nested SAVEPOINT) and INSERT-only
+  rollback fidelity. UPDATE/DELETE inside a transaction is best-effort.
+  Wired through lib_bench harnesses so leap-c / leap-rust runs the same
+  per-statement bookkeeping as mainline at BEGIN/COMMIT/ROLLBACK
+  boundaries (closes the L4 INSERT methodology asymmetry called out in
+  POST-PUBLICATION-ROADMAP.md P0.2).
 - **v6 (2026-04-24, α20):** view registry. `Database` gains a `views: Vec<ViewEntry>` field where `ViewEntry` holds `name: String` plus `select_sql: String` (the stored SELECT text). The compiler re-tokenizes + re-parses the stored text at each reference — views are resolved as synthetic derived-table sources, never mutate the `tables` array. New API:
   - `database_install_view(db, name, select_sql)` — overwrites any existing view with the same name (ASCII-case-insensitive).
   - `database_drop_view(db, name) -> bool` — returns true if a view was removed, false if no match (caller chooses whether a missing-view DROP is silent or an error).
