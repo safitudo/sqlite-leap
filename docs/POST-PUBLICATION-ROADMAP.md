@@ -4,7 +4,11 @@ Items deferred from the 2026-04-27 publication push, in priority order. None are
 
 ## P0 — close the methodology gap that the second BS check exposed
 
-### 1. Spec-promote the lib_bench.c PK-install lift
+### 1. ~~Spec-promote the lib_bench.c PK-install lift~~ ✓ CLOSED 2026-04-27 evening (commit 770ceda)
+
+`pk_from_create_stmt(stmt)` declared in `parts/parser/parts/create-table-stmt/` (pin 20); `database_install_table_with_pk` declared in `parts/storage/parts/mem-store/` (pin 16). lib_bench.c + lib_bench.rs hand-detection deleted, helper called instead. select1.test 1031/1031 holds. L3 perf preserved on Mac arm64.
+
+
 
 **Where it leaks today:** `src-c/examples/lib_bench.c:240-273` hand-detects a single-column `INTEGER PRIMARY KEY` column, then calls `catalog_install_table(cat, tname, col_names, ncols, pk_col)` which forwards to `leap_storage_database_install_table_with_pk`. The file's header explicitly tags this `leaplint: target-local lift (pending spec promotion 2026-04-26)`.
 
