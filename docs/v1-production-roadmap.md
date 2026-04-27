@@ -456,3 +456,21 @@ Signed (Stan): ____________
 ```
 
 Once this is filled in, I have everything I need. Phase A starts the next session.
+
+---
+
+## Sign-off — autonomous execution authorized 2026-04-26
+
+**Decision:** maximum scope — every YES, every DEFER also YES. "Blow everything out of the water."
+
+- All features in scope: triggers (incl. INSTEAD OF), FK enforcement, savepoints, ATTACH/DETACH, JSON1, **virtual tables**, **FTS5**, **R-tree**, **encryption**, authorizer/hooks, **loadable extensions**, backup API, online + **incremental VACUUM**, full PRAGMA, window full surface, generated STORED, **WITHOUT ROWID**.
+- All engine infra: page cache, multi-process WAL (4c), crash recovery wired, real PRAGMA semantics, lock escalation, **shared cache mode**.
+- All platforms: macOS arm64+x86_64, Linux x86_64+arm64, **Windows x86_64**, WASM (browser/node/bun/deno), **iOS XCFramework**, **Android AAR**.
+- Full sqlite3_* C ABI shim including vtab + loadable extensions surface (since features are in).
+- License: Apache 2.0. Versioning: v1.0.0 SemVer.
+- Test bar as specified.
+- Reporting: weekly + immediate on blockers.
+- CI/cloud budget: $50/month.
+- Held for non-autonomous decision: project name, tagline, LEAP positioning (surface at Phase G).
+
+Estimated total: ~14-20 weeks at LEAP pace.
