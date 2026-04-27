@@ -1,41 +1,99 @@
 >>> Rust (release-small: opt-level=z, lto=fat, panic=abort, strip)
-warning: unreachable pattern
-   --> compiler/select_compile.rs:524:9
+warning: unused import: `Zeroize`
+  --> encryption.rs:38:15
+   |
+38 | use zeroize::{Zeroize, Zeroizing};
+   |               ^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `RuntimeCondition`
+  --> vtab.rs:11:19
+   |
+11 | use crate::core::{RuntimeCondition, Value};
+   |                   ^^^^^^^^^^^^^^^^
+
+warning: value assigned to `content_used` is never read
+   --> storage_fileformat.rs:338:21
     |
-396 |         Expr::WindowCall { .. } => Err(CompileError {
-    |         ----------------------- matches all the relevant values
-...
-524 |         Expr::WindowCall { .. } => Err(CompileError {
-    |         ^^^^^^^^^^^^^^^^^^^^^^^ no value can reach this
+338 |                     content_used += cell.len();
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
     |
-    = note: `#[warn(unreachable_patterns)]` (part of `#[warn(unused)]`) on by default
+    = help: maybe it is overwritten before being read?
+    = note: `#[warn(unused_assignments)]` (part of `#[warn(unused)]`) on by default
+
+warning: value assigned to `cell_count` is never read
+   --> storage_fileformat.rs:339:21
+    |
+339 |                     cell_count += 1;
+    |                     ^^^^^^^^^^^^^^^
+    |
+    = help: maybe it is overwritten before being read?
 
 warning: variable does not need to be mutable
-    --> compiler/select_compile.rs:7341:9
+   --> wal_shm.rs:727:9
+    |
+727 |     let mut header = ShmHeaderRecord {
+    |         ----^^^^^^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+    --> compiler/select_compile.rs:9366:9
      |
-7341 |     let mut after_stage = stage_pos_base + 1;
+9366 |     let mut after_stage = stage_pos_base + 1;
      |         ----^^^^^^^^^^^
      |         |
      |         help: remove this `mut`
-     |
-     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
 
-warning: function `max_buffer_slot_used` is never used
-   --> compiler/select_compile.rs:654:4
+warning: constant `PAGE_TYPE_TABLE_LEAF` is never used
+   --> storage_fileformat.rs:271:7
     |
-654 | fn max_buffer_slot_used<'src>(ops: &[Opcode<'src>]) -> u32 {
-    |    ^^^^^^^^^^^^^^^^^^^^
+271 | const PAGE_TYPE_TABLE_LEAF: u8 = 0x0D;
+    |       ^^^^^^^^^^^^^^^^^^^^
     |
     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
 
-warning: function `ident_text` is never used
-  --> parser/create_table_stmt.rs:71:4
+warning: field `region_index` is never read
+   --> wal_shm.rs:124:5
+    |
+121 | struct Region {
+    |        ------ field in this struct
+...
+124 |     region_index: u32,
+    |     ^^^^^^^^^^^^
+
+warning: function `read_header_record_at` is never used
+   --> wal_shm.rs:363:4
+    |
+363 | fn read_header_record_at(slice: &[u8], offset: usize) -> Result<ShmHeaderRecord, ShmError> {
+    |    ^^^^^^^^^^^^^^^^^^^^^
+
+warning: field `kind` is never read
+  --> connection_pool.rs:97:5
    |
-71 | fn ident_text<'src>(tokens: &[Token<'src>], i: u32) -> Option<&'src str> {
+93 | struct PreparedEntry {
+   |        ------------- field in this struct
+...
+97 |     kind: StmtKind,
+   |     ^^^^
+
+warning: function `compile_case_in_schema` is never used
+    --> compiler/select_compile.rs:3813:4
+     |
+3813 | fn compile_case_in_schema<'src>(
+     |    ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `ident_text` is never used
+  --> parser/create_table_stmt.rs:93:4
+   |
+93 | fn ident_text<'src>(tokens: &[Token<'src>], i: u32) -> Option<&'src str> {
    |    ^^^^^^^^^^
 
-warning: `leap_sqlite` (lib) generated 4 warnings (run `cargo fix --lib -p leap_sqlite` to apply 1 suggestion)
-    Finished `release-small` profile [optimized] target(s) in 0.00s
+warning: `leap_sqlite` (lib) generated 12 warnings (run `cargo fix --lib -p leap_sqlite` to apply 4 suggestions)
+    Finished `release-small` profile [optimized] target(s) in 0.03s
 >>> C (-Os, strip, dead-code eliminations)
 >>> Zig (-Doptimize=ReleaseSmall, strip)
 OK: Zig SELECT steel thread green
@@ -43,23 +101,23 @@ OK: Zig SELECT steel thread green
 >>> Python (source bytes; interpreter footprint reported separately)
 # Lane 5 — 5-target binary size
 
-Generated 2026-04-25T09:16:56Z on Darwin arm64.
-Mainline sqlite3 baseline: `/usr/bin/sqlite3` = 4690560 bytes (4580.6 KB).
+Generated 2026-04-27T18:30:46Z on Darwin arm64.
+Mainline sqlite3 baseline: `/Users/stanislav/miniconda3/bin/sqlite3` = 1809536 bytes (1767.1 KB).
 
 Each row builds the same SELECT behavioral smoke (parser + compiler + VDBE + storage)
 with the smallest-binary flags available in that toolchain.
 
 | target | bytes | KB | vs sqlite3 mainline | notes |
 |---|---:|---:|---:|---|
-| c | 157752 | 154.1 | 0.03x | gcc -Os -ffunction-sections + dead-strip + strip |
-| rust | 536032 | 523.5 | 0.11x | cargo --profile release-small |
-| zig | 2449864 | 2392.4 | 0.52x | zig build -Doptimize=ReleaseSmall + strip |
-| go | 2344898 | 2289.9 | 0.50x | go build -trimpath -ldflags '-s -w' |
-| python | 553975 | 541.0 | 0.12x | .py source only; interpreter python3.10 = 33816 bytes (excluded) |
-| sqlite3 (mainline) | 4690560 | 4580.6 | 1.00x | system `3.51.0` |
+| c | 207912 | 203.0 | 0.11x | gcc -Os -ffunction-sections + dead-strip + strip |
+| rust | 586112 | 572.4 | 0.32x | cargo --profile release-small |
+| zig | 2879192 | 2811.7 | 1.59x | zig build -Doptimize=ReleaseSmall + strip |
+| go | 2681042 | 2618.2 | 1.48x | go build -trimpath -ldflags '-s -w' |
+| python | 968674 | 946.0 | 0.54x | .py source only; interpreter python3.10 = 33816 bytes (excluded) |
+| sqlite3 (mainline) | 1809536 | 1767.1 | 1.00x | system `3.41.2` |
 
-**Smallest binary target:** c at 157752 bytes (154.1 KB).
-**C target beats mainline sqlite3:** YES (0.03x of mainline).
+**Smallest binary target:** c at 207912 bytes (203.0 KB).
+**C target beats mainline sqlite3:** YES (0.11x of mainline).
 
 Notes:
 - Python is reported as engine-package `.py` source bytes; the CPython interpreter

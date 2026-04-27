@@ -2,13 +2,13 @@ build rust   ... ok
 build python ... ok
 build go     ... ok
 build zig    ... ok
-build c      ... ok
+build c      ... FAIL (see /var/folders/vl/xgdd28sx5hl5dwfv599xjtlm0000gn/T/tmp.glwviDZTQr/build.c.log)
 
 == count_star_x3 ==
   rust   OK   (reference)
   python OK   (matches rust)
   go     OK   (matches rust)
   zig    OK   (matches rust)
-  c      OK   (matches rust)
+  c      SKIP (build failed)
 
 RESULT: all targets agree on canonical output across 1 corpus file(s)

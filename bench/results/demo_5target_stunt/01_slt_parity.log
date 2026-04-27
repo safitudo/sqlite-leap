@@ -89,10 +89,10 @@ line    kind       rust    python  c       zig     go
 496     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
 502     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
 512     query      [0;32mPASS   [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;32mPASS   [0m
-522     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;33mDEFER  [0m [0;32mPASS   [0m
-531     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;33mDEFER  [0m [0;32mPASS   [0m
-540     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;33mDEFER  [0m [0;32mPASS   [0m
-549     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;33mDEFER  [0m [0;32mPASS   [0m
+522     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+531     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+540     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+549     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
 562     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
 567     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
 572     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
@@ -103,11 +103,11 @@ line    kind       rust    python  c       zig     go
 601     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
 606     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
 612     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
-624     query      [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m
-633     query      [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m
-640     query      [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m
-646     query      [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m
-655     query      [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m
+624     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+633     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+640     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+646     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+655     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
 664     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
 670     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
 675     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
@@ -131,9 +131,9 @@ line    kind       rust    python  c       zig     go
 812     query      [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m
 822     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
 831     query      [0;32mPASS   [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;32mPASS   [0m [0;33mDEFER  [0m
-841     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;33mDEFER  [0m [0;32mPASS   [0m
-850     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;33mDEFER  [0m [0;32mPASS   [0m
-859     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;33mDEFER  [0m [0;32mPASS   [0m
+841     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+850     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+859     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
 869     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
 873     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
 877     query      [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m
@@ -141,11 +141,11 @@ line    kind       rust    python  c       zig     go
 891     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
 
 [1m── Per-target summary ──[0m
-  SUMMARY target=rust pass=113 fail=0 defer=12 total=125
-  SUMMARY target=python pass=109 fail=0 defer=16 total=125
-  SUMMARY target=c pass=109 fail=0 defer=16 total=125
-  SUMMARY target=zig pass=103 fail=0 defer=22 total=125
-  SUMMARY target=go pass=112 fail=0 defer=13 total=125
+  SUMMARY target=rust pass=118 fail=0 defer=7 skip=0 total=125
+  SUMMARY target=python pass=114 fail=0 defer=11 skip=0 total=125
+  SUMMARY target=c pass=114 fail=0 defer=11 total=125
+  SUMMARY target=zig pass=115 fail=0 defer=10 skip=0 total=125
+  SUMMARY target=go pass=117 fail=0 defer=8 skip=0 total=125
 
 [1m── Cross-target equivalence ──[0m
   [0;32mOK[0m all participating targets agree on every record

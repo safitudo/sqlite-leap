@@ -210,7 +210,7 @@ run_deep_target() {
             ;;
         zig)
             if [[ ! -x src-zig/zig-out/bin/fileformat_deep_split_smoke ]]; then
-                (cd src-zig && zig build) >>"$LOG" 2>&1 || true
+                bash src-zig/build_fileformat_deep_split_smoke.sh >>"$LOG" 2>&1 || return 1
             fi
             src-zig/zig-out/bin/fileformat_deep_split_smoke "$probe" --prefill "$prefill" >>"$LOG" 2>&1 || return 1
             ;;

@@ -1,36 +1,92 @@
 {"new_change_counter":3,"assigned_rowid":2,"bytes_written":8192}
-4:9
+38 | use zeroize::{Zeroize, Zeroizing};
+   |               ^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `RuntimeCondition`
+  --> vtab.rs:11:19
+   |
+11 | use crate::core::{RuntimeCondition, Value};
+   |                   ^^^^^^^^^^^^^^^^
+
+warning: value assigned to `content_used` is never read
+   --> storage_fileformat.rs:338:21
     |
-396 |         Expr::WindowCall { .. } => Err(CompileError {
-    |         ----------------------- matches all the relevant values
-...
-524 |         Expr::WindowCall { .. } => Err(CompileError {
-    |         ^^^^^^^^^^^^^^^^^^^^^^^ no value can reach this
+338 |                     content_used += cell.len();
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
     |
-    = note: `#[warn(unreachable_patterns)]` (part of `#[warn(unused)]`) on by default
+    = help: maybe it is overwritten before being read?
+    = note: `#[warn(unused_assignments)]` (part of `#[warn(unused)]`) on by default
+
+warning: value assigned to `cell_count` is never read
+   --> storage_fileformat.rs:339:21
+    |
+339 |                     cell_count += 1;
+    |                     ^^^^^^^^^^^^^^^
+    |
+    = help: maybe it is overwritten before being read?
 
 warning: variable does not need to be mutable
-    --> compiler/select_compile.rs:7341:9
+   --> wal_shm.rs:727:9
+    |
+727 |     let mut header = ShmHeaderRecord {
+    |         ----^^^^^^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+    --> compiler/select_compile.rs:9366:9
      |
-7341 |     let mut after_stage = stage_pos_base + 1;
+9366 |     let mut after_stage = stage_pos_base + 1;
      |         ----^^^^^^^^^^^
      |         |
      |         help: remove this `mut`
-     |
-     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
 
-warning: function `max_buffer_slot_used` is never used
-   --> compiler/select_compile.rs:654:4
+warning: constant `PAGE_TYPE_TABLE_LEAF` is never used
+   --> storage_fileformat.rs:271:7
     |
-654 | fn max_buffer_slot_used<'src>(ops: &[Opcode<'src>]) -> u32 {
-    |    ^^^^^^^^^^^^^^^^^^^^
+271 | const PAGE_TYPE_TABLE_LEAF: u8 = 0x0D;
+    |       ^^^^^^^^^^^^^^^^^^^^
     |
     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
 
-warning: function `ident_text` is never used
-  --> parser/create_table_stmt.rs:71:4
+warning: field `region_index` is never read
+   --> wal_shm.rs:124:5
+    |
+121 | struct Region {
+    |        ------ field in this struct
+...
+124 |     region_index: u32,
+    |     ^^^^^^^^^^^^
+
+warning: function `read_header_record_at` is never used
+   --> wal_shm.rs:363:4
+    |
+363 | fn read_header_record_at(slice: &[u8], offset: usize) -> Result<ShmHeaderRecord, ShmError> {
+    |    ^^^^^^^^^^^^^^^^^^^^^
+
+warning: field `kind` is never read
+  --> connection_pool.rs:97:5
    |
-71 | fn ident_text<'src>(tokens: &[Token<'src>], i: u32) -> Option<&'src str> {
+93 | struct PreparedEntry {
+   |        ------------- field in this struct
+...
+97 |     kind: StmtKind,
+   |     ^^^^
+
+warning: function `compile_case_in_schema` is never used
+    --> compiler/select_compile.rs:3813:4
+     |
+3813 | fn compile_case_in_schema<'src>(
+     |    ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `ident_text` is never used
+  --> parser/create_table_stmt.rs:93:4
+   |
+93 | fn ident_text<'src>(tokens: &[Token<'src>], i: u32) -> Option<&'src str> {
    |    ^^^^^^^^^^
 
 {"new_change_counter":3,"assigned_rowid":2,"bytes_written":8192}
