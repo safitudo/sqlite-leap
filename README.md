@@ -21,7 +21,7 @@ Built using [LEAP](https://github.com/safitudo/leap) methodology: specs and test
    | Lane | leap-c | mainline | leap-c vs mainline | claim status |
    |---|---:|---:|---:|---|
    | L3 SELECT (in-memory) | 957K q/s | 632K q/s | **1.51× faster** | claimed; PK-detection is spec-emitted (commit 770ceda) |
-   | L4 INSERT | 1.23M ips | 678K ips | 1.81× ratio | **NOT claimed** — leap skips BEGIN/COMMIT/ROLLBACK; mainline runs them. Asymmetry has to close before this can be a publication number. |
+   | L4 INSERT | (pre-fix 1.23M ips) | (pre-fix 678K ips) | (pre-fix 1.81× ratio) | **WITHDRAWN** — asymmetry was closed in commit 677ff68 (mem-store v7-tx adds real BEGIN/COMMIT). Mac arm64 post-fix shows leap-c 0.84× (loses). Linux x86_64 re-measurement pending; the original 1.81× was the asymmetry, not the engine. |
 
    The remaining lanes have caveats large enough they can't be claimed as straight wins:
 

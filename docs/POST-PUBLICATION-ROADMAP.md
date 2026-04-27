@@ -25,7 +25,11 @@ B. **Auto-install:** make `compile_create_table` (or the storage `install_table`
 - `bash bench/run-linux-libmode.sh` reproduces the 1.51× L3 win without any `leaplint: target-local lift` tag remaining in `src-c/examples/lib_bench.c`.
 - `select1.test` regression gate holds 1031/1031 across all 5 targets.
 
-### 2. L4 INSERT — match mainline's transaction semantics
+### 2. ~~L4 INSERT — match mainline's transaction semantics~~ ✓ CLOSED 2026-04-27 evening (commit 677ff68)
+
+mem-store v7-tx adds real BEGIN/COMMIT/ROLLBACK with snapshot frames (pin 17). lib_bench.rs/.c route the SQL keywords to the new API instead of treating them as no-ops. **Honest finding:** Mac arm64 local re-run shows leap-c L4 at 501K ips vs mainline 594K ips — leap is now 0.84× (LOSES) once both sides do comparable transaction work. The pre-fix Linux 1.81× was the asymmetry. **Linux re-run is the next gate** to know what L4 actually says — could be parity, slight win, or slight loss. The publication has not claimed L4 since commit ba5f049, so this isn't a publication retraction; it's the post-fix measurement we need.
+
+
 
 **Where it leaks today:** `src-c/examples/lib_bench.c:20` says "PRAGMA / BEGIN / COMMIT / ROLLBACK are no-ops." Mainline's bench path runs the begin/commit machinery; leap-c skips it. The L4 1.81× win is partly real (prepared-stmt cache, predicate pushdown) and partly because leap is doing less work.
 
