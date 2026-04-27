@@ -4,7 +4,7 @@ A SQLite-compatible database engine generated from a language-neutral specificat
 
 Built using [LEAP](https://github.com/safitudo/leap) methodology: specs and tests are the product, code is generated output.
 
-> **Headline:** the C build beats mainline SQLite on **L3 in-memory SELECT (1.64× faster)** and **L4 INSERT (1.81× faster)** in lib-mode on real Linux x86_64, with both engines doing symmetric work (PK detection spec-emitted; BEGIN/COMMIT/ROLLBACK exercising real transaction snapshot frames on both sides). All five language targets pass a 186-file sample of the upstream sqllogictest corpus at 99.93–99.99% excl-SKIP (92–95% incl-SKIP; mainline 92.47% / 100% on the same denominators); they emit byte-identical .db files at two fixed fixtures (270 and 5,000 row) that mainline reads cleanly.
+> **Headline:** the C build beats mainline SQLite on **L3 in-memory SELECT (1.64× faster)** and **L4 INSERT (1.81× faster)** in lib-mode on real Linux x86_64. Numbers from `bench/results/2026-04-27-linux-postfix/raw.csv`; both engines do symmetric work in the harness (PK detection is emitted from the spec; `BEGIN`/`COMMIT`/`ROLLBACK` exercises real transaction snapshot frames on both sides). Leap loses parse throughput on the same CSV (mainline ~56× faster). All five language targets pass a 335-file Linux sample of the upstream sqllogictest corpus at 99.84–99.99% excl-SKIP (92.96–96.60% incl-SKIP; mainline 94.56% / 100% on the same denominators, source `tests/sqllogictest/results/corpus_2026_04_26_v33_linux/summary.md`); they emit byte-identical .db files at two fixed fixtures (270 and 5,000 row) that mainline reads cleanly.
 >
 > An earlier version of this README claimed 6/6 lane wins. That was wrong — see `docs/PUBLICATION.md` for the honest accounting and which lanes don't survive a strict comparison.
 
@@ -12,7 +12,7 @@ Built using [LEAP](https://github.com/safitudo/leap) methodology: specs and test
 
 ## What this project demonstrates
 
-1. **One spec → 5 native engines.** Roughly 10K lines of `parts/` produce ~140K lines of buildable engine code across C, Rust, Zig, Go, Python — all behaviorally identical on the upstream sqllogictest corpus.
+1. **One spec → 5 native engines.** Roughly 33K lines of language-neutral spec under `parts/` produce ~234K lines of buildable engine code across C, Rust, Zig, Go, Python — all behaviorally identical on the upstream sqllogictest corpus.
 
 2. **One spec → mainline-byte-identical on-disk format at fixed fixtures.** Every target writes .db files with identical SHA1 to mainline at the 270-row and 5,000-row split fixtures. Mainline `PRAGMA integrity_check` passes on every leap-emitted file. (Random-shape byte-identity at scale is not yet claimed.)
 
