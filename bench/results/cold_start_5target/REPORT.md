@@ -1,8 +1,8 @@
 # Lane 1 — 5-target cold start
 
-Generated 2026-04-27T03:12:48Z on Darwin arm64.
+Generated 2026-04-28T02:51:25Z on Darwin arm64.
 
-Median wallclock over 21 samples for a process running a single
+Median wallclock over 11 samples for a process running a single
 `SELECT 1+2` query in memory. Includes process spawn, image load,
 runtime init, parser/compiler/VDBE invocation, and result emission.
 One warm-up run is discarded before measurement to page-cache the
@@ -15,12 +15,12 @@ Resolution: Python `time.perf_counter()` (sub-millisecond).
 
 | target | median (ms) | vs mainline | notes |
 |---|---:|---:|---|
-| c | 2.703 | 1.64x | slt_runner(c) on cold_start.test |
-| rust | 3.024 | 1.47x | slt_runner(rust) on cold_start.test |
-| zig | 3.025 | 1.47x | slt_runner(zig) on cold_start.test |
-| go | 3.580 | 1.24x | slt_runner(go) on cold_start.test |
-| python | 144.159 | 0.03x | slt_runner(python) on cold_start.test |
-| sqlite3 (mainline) | 4.442 | 1.00x | system `3.51.0` |
+| c | 3.154 | 1.66x | slt_runner(c) on cold_start.test |
+| rust | 3.533 | 1.48x | slt_runner(rust) on cold_start.test |
+| zig | 3.645 | 1.44x | slt_runner(zig) on cold_start.test |
+| go | 4.434 | 1.18x | slt_runner(go) on cold_start.test |
+| python | 154.982 | 0.03x | slt_runner(python) on cold_start.test |
+| sqlite3 (mainline) | 5.242 | 1.00x | system `3.51.0` |
 
 Ratio convention: mainline-wallclock / leap-wallclock. >1.00x means
 leap is **faster** to cold-start.

@@ -1,0 +1,33 @@
+Total sampled files: 186; targets: ['rust', 'c', 'go', 'zig', 'python', 'sqlite']
+Total runs: 1116
+  progress: 100/1116
+  progress: 200/1116
+  progress: 300/1116
+  progress: 400/1116
+  progress: 500/1116
+  progress: 600/1116
+  progress: 700/1116
+  progress: 800/1116
+  progress: 900/1116
+  progress: 1000/1116
+  progress: 1100/1116
+# v10 corpus run 2026-04-25 (5 leap targets + mainline sqlite baseline)
+
+Files sampled per target: 186
+Per-file timeout: 60s
+
+## Per-target aggregate (record-level)
+
+| target | PASS | FAIL | DEFER | SKIP | TOTAL | incl-SKIP | excl-SKIP |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| rust | 1619269 | 174 | 48 | 123255 | 1742746 | 92.91% | 99.99% |
+| c | 1519963 | 60 | 42 | 83252 | 1603317 | 94.80% | 99.99% |
+| go | 1513183 | 321 | 30 | 83028 | 1596562 | 94.78% | 99.98% |
+| zig | 1577990 | 1068 | 87 | 93256 | 1672401 | 94.35% | 99.93% |
+| python | 1649242 | 96 | 46 | 134851 | 1784235 | 92.43% | 99.99% |
+| sqlite | 1655199 | 19 | 0 | 134851 | 1790069 | 92.47% | 100.00% |
+
+## Top 10 DEFER reasons per target
+
+### rust
+- 6	parse: <pos> deferred: blob literal

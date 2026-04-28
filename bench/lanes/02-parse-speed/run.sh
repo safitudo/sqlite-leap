@@ -40,7 +40,7 @@ case "$TARGET" in
     sqlite-mainline|turso)
         cmd=(bash -c "$bin :memory: < $CORPUS")
         ;;
-    sqlite-leap-c|sqlite-leap-rust)
+    sqlite-leap-c|sqlite-leap-rust|sqlite-leap-zig|sqlite-leap-go|sqlite-leap-python)
         # The sqllogictest format requires one directive per SQL
         # statement; wrapping the whole corpus in a single `statement ok`
         # header (as we did before 2026-04-20) caused the runner to

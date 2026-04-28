@@ -1,0 +1,7 @@
+lane,target,value,units,elapsed_s,statements,errors,timestamp
+elapsed_seconds=0.125787 statements=100000 errors=0 qps=794994
+elapsed_seconds=0.137042 statements=100000 errors=0 qps=729703
+elapsed_seconds=0.210204 statements=100000 errors=0 qps=475729
+sqlite-mainline: elapsed_seconds=38.585905 statements=100000 errors=0 qps=2591
+sqlite-leap-c: elapsed_seconds=0.016039 statements=100000 errors=0 qps=6234802
+sqlite-leap-rust: elapsed_seconds=0.045679 statements=100000 errors=0 qps=2189181

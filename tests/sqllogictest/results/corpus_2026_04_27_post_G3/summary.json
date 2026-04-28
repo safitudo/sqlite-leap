@@ -1,0 +1,124 @@
+{
+  "rust": {
+    "pass": 1619269,
+    "fail": 174,
+    "defer": 48,
+    "skip": 123255,
+    "total": 1742746,
+    "incl_skip": 92.91480227181701,
+    "excl_skip": 99.98629198927317,
+    "timeouts": [
+      "select4.test",
+      "select5.test",
+      "random/expr/slt_good_0.test",
+      "random/expr/slt_good_111.test",
+      "random/expr/slt_good_45.test",
+      "random/expr/slt_good_72.test"
+    ],
+    "crashes": []
+  },
+  "c": {
+    "pass": 1519963,
+    "fail": 60,
+    "defer": 42,
+    "skip": 83252,
+    "total": 1603317,
+    "incl_skip": 94.80115285997717,
+    "excl_skip": 99.99328976063524,
+    "timeouts": [
+      "select4.test",
+      "select5.test",
+      "random/expr/slt_good_0.test",
+      "random/expr/slt_good_111.test",
+      "random/expr/slt_good_18.test",
+      "random/expr/slt_good_31.test",
+      "random/expr/slt_good_45.test",
+      "random/expr/slt_good_59.test",
+      "random/expr/slt_good_72.test",
+      "random/expr/slt_good_86.test",
+      "random/groupby/slt_good_0.test",
+      "random/groupby/slt_good_1.test",
+      "random/groupby/slt_good_11.test",
+      "random/groupby/slt_good_12.test",
+      "random/groupby/slt_good_2.test",
+      "random/groupby/slt_good_3.test"
+    ],
+    "crashes": []
+  },
+  "go": {
+    "pass": 1513183,
+    "fail": 321,
+    "defer": 30,
+    "skip": 83028,
+    "total": 1596562,
+    "incl_skip": 94.77759084833536,
+    "excl_skip": 99.9768092424749,
+    "timeouts": [
+      "select4.test",
+      "select5.test",
+      "random/expr/slt_good_0.test",
+      "random/expr/slt_good_111.test",
+      "random/expr/slt_good_18.test",
+      "random/expr/slt_good_31.test",
+      "random/expr/slt_good_45.test",
+      "random/expr/slt_good_59.test",
+      "random/expr/slt_good_72.test",
+      "random/expr/slt_good_86.test",
+      "random/groupby/slt_good_0.test",
+      "random/groupby/slt_good_1.test",
+      "random/groupby/slt_good_11.test",
+      "random/groupby/slt_good_12.test",
+      "random/groupby/slt_good_2.test",
+      "random/groupby/slt_good_3.test"
+    ],
+    "crashes": []
+  },
+  "zig": {
+    "pass": 1577990,
+    "fail": 1068,
+    "defer": 87,
+    "skip": 93256,
+    "total": 1672401,
+    "incl_skip": 94.35476300241389,
+    "excl_skip": 99.92685915479579,
+    "timeouts": [
+      "select4.test",
+      "select5.test",
+      "random/expr/slt_good_0.test",
+      "random/expr/slt_good_111.test",
+      "random/expr/slt_good_18.test",
+      "random/expr/slt_good_31.test",
+      "random/expr/slt_good_45.test",
+      "random/expr/slt_good_59.test",
+      "random/expr/slt_good_72.test",
+      "random/expr/slt_good_86.test"
+    ],
+    "crashes": []
+  },
+  "python": {
+    "pass": 1649242,
+    "fail": 96,
+    "defer": 46,
+    "skip": 134851,
+    "total": 1784235,
+    "incl_skip": 92.43412442867671,
+    "excl_skip": 99.99139072526471,
+    "timeouts": [
+      "select3.test",
+      "select4.test",
+      "select5.test"
+    ],
+    "crashes": []
+  },
+  "sqlite": {
+    "pass": 1655199,
+    "fail": 19,
+    "defer": 0,
+    "skip": 134851,
+    "total": 1790069,
+    "incl_skip": 92.46565355860584,
+    "excl_skip": 99.99885211494801,
+    "timeouts": [],
+    "crashes": []
+  }
+}

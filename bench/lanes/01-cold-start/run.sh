@@ -49,7 +49,7 @@ case "$TARGET" in
         # mode runs its own "SELECT 1;" against a fresh :memory: engine.
         cmd=("$bin" --mode=cold-start)
         ;;
-    sqlite-leap-c|sqlite-leap-rust)
+    sqlite-leap-c|sqlite-leap-rust|sqlite-leap-zig|sqlite-leap-go|sqlite-leap-python)
         # sqllogictest harness reads a test file; feed it a one-line file.
         tmptest="$(mktemp)"
         printf 'statement ok\n%s\n\nquery I\n%s\n----\n1\n' "$SQL" "$SQL" > "$tmptest"

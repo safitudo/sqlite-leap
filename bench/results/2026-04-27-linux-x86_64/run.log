@@ -1,0 +1,916 @@
+[libmode] uname: Linux 7054af316713 6.6.12-linuxkit #1 SMP Fri Jan 19 08:53:17 UTC 2024 x86_64 GNU/Linux
+[libmode] glibc: ldd (Debian GLIBC 2.36-9+deb12u13) 2.36
+[libmode] rustc: rustc 1.82.0 (f6e511eec 2024-10-15)
+[libmode] cc:    cc (Debian 12.2.0-14+deb12u1) 12.2.0
+[libmode] === build mainline sqlite_lib_bench ===
+[libmode] mainline lib_bench OK
+[libmode] === build leap-rust lib_bench ===
+    Updating crates.io index
+ Downloading crates ...
+  Downloaded serde_core v1.0.228
+  Downloaded zeroize_derive v1.4.3
+  Downloaded block-buffer v0.10.4
+  Downloaded md-5 v0.10.6
+  Downloaded itoa v1.0.18
+  Downloaded aead v0.5.2
+  Downloaded generic-array v0.14.7
+  Downloaded cpufeatures v0.2.17
+  Downloaded subtle v2.6.1
+  Downloaded pbkdf2 v0.12.2
+  Downloaded version_check v0.9.5
+  Downloaded opaque-debug v0.3.1
+  Downloaded universal-hash v0.5.1
+  Downloaded digest v0.10.7
+  Downloaded crypto-common v0.1.7
+  Downloaded cipher v0.4.4
+  Downloaded cfg-if v1.0.4
+  Downloaded zmij v1.0.21
+  Downloaded ctr v0.9.2
+  Downloaded zeroize v1.8.2
+  Downloaded inout v0.1.4
+  Downloaded quote v1.0.45
+  Downloaded unicode-ident v1.0.24
+  Downloaded chacha20poly1305 v0.10.1
+  Downloaded proc-macro2 v1.0.106
+  Downloaded libloading v0.8.9
+  Downloaded poly1305 v0.8.0
+  Downloaded memchr v2.8.0
+  Downloaded typenum v1.20.0
+  Downloaded aes v0.8.4
+  Downloaded serde_json v1.0.149
+  Downloaded base64 v0.22.1
+  Downloaded hmac v0.12.1
+  Downloaded getrandom v0.2.17
+  Downloaded sha2 v0.10.9
+  Downloaded rand_core v0.6.4
+  Downloaded chacha20 v0.9.1
+  Downloaded syn v2.0.117
+  Downloaded libc v0.2.186
+   Compiling version_check v0.9.5
+   Compiling libc v0.2.186
+   Compiling typenum v1.20.0
+   Compiling cfg-if v1.0.4
+   Compiling proc-macro2 v1.0.106
+   Compiling quote v1.0.45
+   Compiling unicode-ident v1.0.24
+   Compiling subtle v2.6.1
+   Compiling cpufeatures v0.2.17
+   Compiling serde_core v1.0.228
+   Compiling opaque-debug v0.3.1
+   Compiling zmij v1.0.21
+   Compiling serde_json v1.0.149
+   Compiling itoa v1.0.18
+   Compiling memchr v2.8.0
+   Compiling base64 v0.22.1
+   Compiling libloading v0.8.9
+   Compiling generic-array v0.14.7
+   Compiling getrandom v0.2.17
+   Compiling block-buffer v0.10.4
+   Compiling inout v0.1.4
+   Compiling rand_core v0.6.4
+   Compiling syn v2.0.117
+   Compiling crypto-common v0.1.7
+   Compiling digest v0.10.7
+   Compiling universal-hash v0.5.1
+   Compiling aead v0.5.2
+   Compiling poly1305 v0.8.0
+   Compiling hmac v0.12.1
+   Compiling sha2 v0.10.9
+   Compiling md-5 v0.10.6
+   Compiling pbkdf2 v0.12.2
+   Compiling zeroize_derive v1.4.3
+   Compiling zeroize v1.8.2
+   Compiling cipher v0.4.4
+   Compiling chacha20 v0.9.1
+   Compiling ctr v0.9.2
+   Compiling aes v0.8.4
+   Compiling chacha20poly1305 v0.10.1
+   Compiling leap_sqlite v0.1.0 (/tmp/leap-libmode-1/src-rust)
+error[E0433]: failed to resolve: could not find `TryLockError` in `fs`
+   --> storage_lock.rs:453:26
+    |
+453 |             Err(std::fs::TryLockError::WouldBlock) => Err(LockError::Busy),
+    |                          ^^^^^^^^^^^^ could not find `TryLockError` in `fs`
+    |
+help: consider importing this enum
+    |
+18  + use std::sync::TryLockError;
+    |
+help: if you import `TryLockError`, refer to it directly
+    |
+453 -             Err(std::fs::TryLockError::WouldBlock) => Err(LockError::Busy),
+453 +             Err(TryLockError::WouldBlock) => Err(LockError::Busy),
+    |
+
+error[E0433]: failed to resolve: could not find `TryLockError` in `fs`
+   --> storage_lock.rs:454:26
+    |
+454 |             Err(std::fs::TryLockError::Error(e)) => {
+    |                          ^^^^^^^^^^^^ could not find `TryLockError` in `fs`
+    |
+help: consider importing this enum
+    |
+18  + use std::sync::TryLockError;
+    |
+help: if you import `TryLockError`, refer to it directly
+    |
+454 -             Err(std::fs::TryLockError::Error(e)) => {
+454 +             Err(TryLockError::Error(e)) => {
+    |
+
+error[E0433]: failed to resolve: could not find `TryLockError` in `fs`
+   --> storage_lock.rs:487:26
+    |
+487 |             Err(std::fs::TryLockError::WouldBlock) => {
+    |                          ^^^^^^^^^^^^ could not find `TryLockError` in `fs`
+    |
+help: consider importing this enum
+    |
+18  + use std::sync::TryLockError;
+    |
+help: if you import `TryLockError`, refer to it directly
+    |
+487 -             Err(std::fs::TryLockError::WouldBlock) => {
+487 +             Err(TryLockError::WouldBlock) => {
+    |
+
+error[E0433]: failed to resolve: could not find `TryLockError` in `fs`
+   --> storage_lock.rs:492:26
+    |
+492 |             Err(std::fs::TryLockError::Error(e)) => {
+    |                          ^^^^^^^^^^^^ could not find `TryLockError` in `fs`
+    |
+help: consider importing this enum
+    |
+18  + use std::sync::TryLockError;
+    |
+help: if you import `TryLockError`, refer to it directly
+    |
+492 -             Err(std::fs::TryLockError::Error(e)) => {
+492 +             Err(TryLockError::Error(e)) => {
+    |
+
+error[E0433]: failed to resolve: could not find `TryLockError` in `fs`
+   --> storage_lock.rs:509:26
+    |
+509 |             Err(std::fs::TryLockError::WouldBlock) => Err(LockError::Busy),
+    |                          ^^^^^^^^^^^^ could not find `TryLockError` in `fs`
+    |
+help: consider importing this enum
+    |
+18  + use std::sync::TryLockError;
+    |
+help: if you import `TryLockError`, refer to it directly
+    |
+509 -             Err(std::fs::TryLockError::WouldBlock) => Err(LockError::Busy),
+509 +             Err(TryLockError::WouldBlock) => Err(LockError::Busy),
+    |
+
+error[E0433]: failed to resolve: could not find `TryLockError` in `fs`
+   --> storage_lock.rs:510:26
+    |
+510 |             Err(std::fs::TryLockError::Error(e)) => Err(LockError::IoError(
+    |                          ^^^^^^^^^^^^ could not find `TryLockError` in `fs`
+    |
+help: consider importing this enum
+    |
+18  + use std::sync::TryLockError;
+    |
+help: if you import `TryLockError`, refer to it directly
+    |
+510 -             Err(std::fs::TryLockError::Error(e)) => Err(LockError::IoError(
+510 +             Err(TryLockError::Error(e)) => Err(LockError::IoError(
+    |
+
+warning: unused import: `Zeroize`
+  --> encryption.rs:38:15
+   |
+38 | use zeroize::{Zeroize, Zeroizing};
+   |               ^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` on by default
+
+warning: unused import: `RuntimeCondition`
+  --> vtab.rs:11:19
+   |
+11 | use crate::core::{RuntimeCondition, Value};
+   |                   ^^^^^^^^^^^^^^^^
+
+error[E0599]: no method named `try_lock_shared` found for reference `&File` in the current scope
+   --> storage_lock.rs:451:17
+    |
+451 |         match f.try_lock_shared() {
+    |                 ^^^^^^^^^^^^^^^ method not found in `&File`
+
+error[E0599]: no method named `unlock` found for reference `&File` in the current scope
+   --> storage_lock.rs:464:11
+    |
+464 |         f.unlock()
+    |           ^^^^^^ method not found in `&File`
+
+error[E0599]: no method named `unlock` found for reference `&File` in the current scope
+   --> storage_lock.rs:483:11
+    |
+483 |         f.unlock()
+    |           ^^^^^^ method not found in `&File`
+
+error[E0599]: no method named `try_lock` found for reference `&File` in the current scope
+   --> storage_lock.rs:485:17
+    |
+485 |         match f.try_lock() {
+    |                 ^^^^^^^^ method not found in `&File`
+
+error[E0599]: no method named `try_lock_shared` found for reference `&File` in the current scope
+   --> storage_lock.rs:489:27
+    |
+489 |                 let _ = f.try_lock_shared();
+    |                           ^^^^^^^^^^^^^^^ method not found in `&File`
+
+error[E0599]: no method named `try_lock_shared` found for reference `&File` in the current scope
+   --> storage_lock.rs:493:27
+    |
+493 |                 let _ = f.try_lock_shared();
+    |                           ^^^^^^^^^^^^^^^ method not found in `&File`
+
+error[E0599]: no method named `unlock` found for reference `&File` in the current scope
+   --> storage_lock.rs:503:11
+    |
+503 |         f.unlock()
+    |           ^^^^^^ method not found in `&File`
+
+error[E0599]: no method named `try_lock_shared` found for reference `&File` in the current scope
+   --> storage_lock.rs:507:17
+    |
+507 |         match f.try_lock_shared() {
+    |                 ^^^^^^^^^^^^^^^ method not found in `&File`
+
+warning: value assigned to `content_used` is never read
+   --> storage_fileformat.rs:338:21
+    |
+338 |                     content_used += cell.len();
+    |                     ^^^^^^^^^^^^
+    |
+    = help: maybe it is overwritten before being read?
+    = note: `#[warn(unused_assignments)]` on by default
+
+warning: value assigned to `cell_count` is never read
+   --> storage_fileformat.rs:339:21
+    |
+339 |                     cell_count += 1;
+    |                     ^^^^^^^^^^
+    |
+    = help: maybe it is overwritten before being read?
+
+warning: variable does not need to be mutable
+   --> wal_shm.rs:727:9
+    |
+727 |     let mut header = ShmHeaderRecord {
+    |         ----^^^^^^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` on by default
+
+warning: variable does not need to be mutable
+    --> compiler/select_compile.rs:9366:9
+     |
+9366 |     let mut after_stage = stage_pos_base + 1;
+     |         ----^^^^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+
+Some errors have detailed explanations: E0433, E0599.
+For more information about an error, try `rustc --explain E0433`.
+warning: `leap_sqlite` (lib) generated 6 warnings
+error: could not compile `leap_sqlite` (lib) due to 14 previous errors; 6 warnings emitted
+[libmode] rust lib_bench FAIL
+[libmode] === build leap-c lib_bench ===
+make: *** No targets specified and no makefile found.  Stop.
+src-c/storage/fileformat_lib.c: In function 'decode_serial_value':
+src-c/storage/fileformat_lib.c:753:54: warning: left shift of negative value [-Wshift-negative-value]
+  753 |         if (v & ((int64_t)1 << 23)) v |= ~(int64_t)0 << 24;
+      |                                                      ^~
+src-c/storage/fileformat_lib.c:766:54: warning: left shift of negative value [-Wshift-negative-value]
+  766 |         if (v & ((int64_t)1 << 47)) v |= ~(int64_t)0 << 48;
+      |                                                      ^~
+src-c/parser/expr.c: In function 'parse_bp':
+src-c/parser/expr.c:1527:17: warning: pointer used after 'free' [-Wuse-after-free]
+ 1527 |                 free(items.items);
+      |                 ^~~~~~~~~~~~~~~~~
+src-c/parser/expr.c:1513:29: note: call to 'free' here
+ 1513 |                             free(items.items);
+      |                             ^~~~~~~~~~~~~~~~~
+src-c/compiler/select_compile.c: In function 'emitter_append_list':
+src-c/compiler/select_compile.c:220:21: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+  220 |                     if (c->as.goto_.target != PC_PLACEHOLDER) c->as.goto_.target += off; break;
+      |                     ^~
+src-c/compiler/select_compile.c:220:90: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+  220 |                     if (c->as.goto_.target != PC_PLACEHOLDER) c->as.goto_.target += off; break;
+      |                                                                                          ^~~~~
+src-c/compiler/select_compile.c:222:21: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+  222 |                     if (c->as.if_.target != PC_PLACEHOLDER) c->as.if_.target += off; break;
+      |                     ^~
+src-c/compiler/select_compile.c:222:86: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+  222 |                     if (c->as.if_.target != PC_PLACEHOLDER) c->as.if_.target += off; break;
+      |                                                                                      ^~~~~
+src-c/compiler/select_compile.c:224:21: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+  224 |                     if (c->as.if_not.target != PC_PLACEHOLDER) c->as.if_not.target += off; break;
+      |                     ^~
+src-c/compiler/select_compile.c:224:92: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+  224 |                     if (c->as.if_not.target != PC_PLACEHOLDER) c->as.if_not.target += off; break;
+      |                                                                                            ^~~~~
+src-c/compiler/select_compile.c:226:21: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+  226 |                     if (c->as.jump_if_null.target != PC_PLACEHOLDER) c->as.jump_if_null.target += off; break;
+      |                     ^~
+src-c/compiler/select_compile.c:226:104: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+  226 |                     if (c->as.jump_if_null.target != PC_PLACEHOLDER) c->as.jump_if_null.target += off; break;
+      |                                                                                                        ^~~~~
+src-c/compiler/select_compile.c:228:21: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+  228 |                     if (c->as.gosub.target != PC_PLACEHOLDER) c->as.gosub.target += off; break;
+      |                     ^~
+src-c/compiler/select_compile.c:228:90: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+  228 |                     if (c->as.gosub.target != PC_PLACEHOLDER) c->as.gosub.target += off; break;
+      |                                                                                          ^~~~~
+src-c/compiler/select_compile.c: In function 'sc_append_with_rebase':
+src-c/compiler/select_compile.c:1834:21: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+ 1834 |                     if (c->as.goto_.target != PC_PLACEHOLDER) c->as.goto_.target += offset; break;
+      |                     ^~
+src-c/compiler/select_compile.c:1834:93: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+ 1834 |                     if (c->as.goto_.target != PC_PLACEHOLDER) c->as.goto_.target += offset; break;
+      |                                                                                             ^~~~~
+src-c/compiler/select_compile.c:1836:21: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+ 1836 |                     if (c->as.if_.target != PC_PLACEHOLDER) c->as.if_.target += offset; break;
+      |                     ^~
+src-c/compiler/select_compile.c:1836:89: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+ 1836 |                     if (c->as.if_.target != PC_PLACEHOLDER) c->as.if_.target += offset; break;
+      |                                                                                         ^~~~~
+src-c/compiler/select_compile.c:1838:21: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+ 1838 |                     if (c->as.if_not.target != PC_PLACEHOLDER) c->as.if_not.target += offset; break;
+      |                     ^~
+src-c/compiler/select_compile.c:1838:95: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+ 1838 |                     if (c->as.if_not.target != PC_PLACEHOLDER) c->as.if_not.target += offset; break;
+      |                                                                                               ^~~~~
+src-c/compiler/select_compile.c:1840:21: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+ 1840 |                     if (c->as.jump_if_null.target != PC_PLACEHOLDER) c->as.jump_if_null.target += offset; break;
+      |                     ^~
+src-c/compiler/select_compile.c:1840:107: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+ 1840 |                     if (c->as.jump_if_null.target != PC_PLACEHOLDER) c->as.jump_if_null.target += offset; break;
+      |                                                                                                           ^~~~~
+src-c/compiler/select_compile.c:1842:21: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+ 1842 |                     if (c->as.gosub.target != PC_PLACEHOLDER) c->as.gosub.target += offset; break;
+      |                     ^~
+src-c/compiler/select_compile.c:1842:93: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+ 1842 |                     if (c->as.gosub.target != PC_PLACEHOLDER) c->as.gosub.target += offset; break;
+      |                                                                                             ^~~~~
+src-c/compiler/select_compile.c: At top level:
+src-c/compiler/select_compile.c:5736:12: warning: 'match_group_key_col' defined but not used [-Wunused-function]
+ 5736 | static int match_group_key_col(
+      |            ^~~~~~~~~~~~~~~~~~~
+In function 'compile_select_buffered',
+    inlined from 'leap_compiler_select_compile_compile_select_body' at src-c/compiler/select_compile.c:8260:16:
+src-c/compiler/select_compile.c:9367:12: warning: 'outer_schema' may be used uninitialized [-Wmaybe-uninitialized]
+ 9367 |         if (outer_schema == &outer_schema_owned) {
+      |            ^
+src-c/compiler/select_compile.c: In function 'leap_compiler_select_compile_compile_select_body':
+src-c/compiler/select_compile.c:9167:28: note: 'outer_schema' was declared here
+ 9167 |     const LeapTableSchema* outer_schema = schema;
+      |                            ^~~~~~~~~~~~
+src-c/compiler/select_compile.c: In function 'compile_single_table_src':
+src-c/compiler/select_compile.c:3980:21: warning: pointer 'key_indices' may be used after 'realloc' [-Wuse-after-free]
+ 3980 |                     free(key_indices); free(key_desc);                      \
+      |                     ^~~~~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:3992:17: note: in expansion of macro 'PUSH_KEY'
+ 3992 |                 PUSH_KEY(proj_count + i, stmt->order_by.items[i].desc);
+      |                 ^~~~~~~~
+src-c/compiler/select_compile.c:3976:44: note: call to 'realloc' here
+ 3976 |                 uint32_t* ki = (uint32_t*) realloc(key_indices, nc * sizeof(uint32_t)); \
+      |                                            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:3992:17: note: in expansion of macro 'PUSH_KEY'
+ 3992 |                 PUSH_KEY(proj_count + i, stmt->order_by.items[i].desc);
+      |                 ^~~~~~~~
+src-c/compiler/select_compile.c:3980:40: warning: pointer 'key_desc' may be used after 'realloc' [-Wuse-after-free]
+ 3980 |                     free(key_indices); free(key_desc);                      \
+      |                                        ^~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:3992:17: note: in expansion of macro 'PUSH_KEY'
+ 3992 |                 PUSH_KEY(proj_count + i, stmt->order_by.items[i].desc);
+      |                 ^~~~~~~~
+src-c/compiler/select_compile.c:3977:44: note: call to 'realloc' here
+ 3977 |                 bool*     kd = (bool*)     realloc(key_desc,    nc * sizeof(bool));     \
+      |                                            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:3992:17: note: in expansion of macro 'PUSH_KEY'
+ 3992 |                 PUSH_KEY(proj_count + i, stmt->order_by.items[i].desc);
+      |                 ^~~~~~~~
+src-c/compiler/select_compile.c:3980:21: warning: pointer 'key_indices' may be used after 'realloc' [-Wuse-after-free]
+ 3980 |                     free(key_indices); free(key_desc);                      \
+      |                     ^~~~~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:3999:21: note: in expansion of macro 'PUSH_KEY'
+ 3999 |                     PUSH_KEY(i, false);
+      |                     ^~~~~~~~
+src-c/compiler/select_compile.c:3976:44: note: call to 'realloc' here
+ 3976 |                 uint32_t* ki = (uint32_t*) realloc(key_indices, nc * sizeof(uint32_t)); \
+      |                                            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:3999:21: note: in expansion of macro 'PUSH_KEY'
+ 3999 |                     PUSH_KEY(i, false);
+      |                     ^~~~~~~~
+src-c/compiler/select_compile.c:3980:40: warning: pointer 'key_desc' may be used after 'realloc' [-Wuse-after-free]
+ 3980 |                     free(key_indices); free(key_desc);                      \
+      |                                        ^~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:3999:21: note: in expansion of macro 'PUSH_KEY'
+ 3999 |                     PUSH_KEY(i, false);
+      |                     ^~~~~~~~
+src-c/compiler/select_compile.c:3977:44: note: call to 'realloc' here
+ 3977 |                 bool*     kd = (bool*)     realloc(key_desc,    nc * sizeof(bool));     \
+      |                                            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:3999:21: note: in expansion of macro 'PUSH_KEY'
+ 3999 |                     PUSH_KEY(i, false);
+      |                     ^~~~~~~~
+In function 'compile_joined_select',
+    inlined from 'leap_compiler_select_compile_compile_select_multi.part.0' at src-c/compiler/select_compile.c:8506:16:
+src-c/compiler/select_compile.c:5210:17: warning: pointer 'tops_arr' may be used after 'free' [-Wuse-after-free]
+ 5210 |                 free(tops_arr); free(nexts_arr); free(afters_arr);
+      |                 ^~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:5163:5: note: call to 'free' here
+ 5163 |     free(tops_arr); free(nexts_arr); free(afters_arr);
+      |     ^~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:5196:17: warning: pointer 'tops_arr' may be used after 'free' [-Wuse-after-free]
+ 5196 |                 free(tops_arr); free(nexts_arr); free(afters_arr);
+      |                 ^~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:5163:5: note: call to 'free' here
+ 5163 |     free(tops_arr); free(nexts_arr); free(afters_arr);
+      |     ^~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:5242:23: warning: pointer 'tops_arr' may be used after 'free' [-Wuse-after-free]
+ 5242 |         if (em.oom) { free(tops_arr); free(nexts_arr); free(afters_arr); goto join_oom; }
+      |                       ^~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:5163:5: note: call to 'free' here
+ 5163 |     free(tops_arr); free(nexts_arr); free(afters_arr);
+      |     ^~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:5210:33: warning: pointer 'nexts_arr' may be used after 'free' [-Wuse-after-free]
+ 5210 |                 free(tops_arr); free(nexts_arr); free(afters_arr);
+      |                                 ^~~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:5163:21: note: call to 'free' here
+ 5163 |     free(tops_arr); free(nexts_arr); free(afters_arr);
+      |                     ^~~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:5196:33: warning: pointer 'nexts_arr' may be used after 'free' [-Wuse-after-free]
+ 5196 |                 free(tops_arr); free(nexts_arr); free(afters_arr);
+      |                                 ^~~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:5163:21: note: call to 'free' here
+ 5163 |     free(tops_arr); free(nexts_arr); free(afters_arr);
+      |                     ^~~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:5242:39: warning: pointer 'nexts_arr' may be used after 'free' [-Wuse-after-free]
+ 5242 |         if (em.oom) { free(tops_arr); free(nexts_arr); free(afters_arr); goto join_oom; }
+      |                                       ^~~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:5163:21: note: call to 'free' here
+ 5163 |     free(tops_arr); free(nexts_arr); free(afters_arr);
+      |                     ^~~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:5210:50: warning: pointer 'afters_arr' may be used after 'free' [-Wuse-after-free]
+ 5210 |                 free(tops_arr); free(nexts_arr); free(afters_arr);
+      |                                                  ^~~~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:5163:38: note: call to 'free' here
+ 5163 |     free(tops_arr); free(nexts_arr); free(afters_arr);
+      |                                      ^~~~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:5196:50: warning: pointer 'afters_arr' may be used after 'free' [-Wuse-after-free]
+ 5196 |                 free(tops_arr); free(nexts_arr); free(afters_arr);
+      |                                                  ^~~~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:5163:38: note: call to 'free' here
+ 5163 |     free(tops_arr); free(nexts_arr); free(afters_arr);
+      |                                      ^~~~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:5242:56: warning: pointer 'afters_arr' may be used after 'free' [-Wuse-after-free]
+ 5242 |         if (em.oom) { free(tops_arr); free(nexts_arr); free(afters_arr); goto join_oom; }
+      |                                                        ^~~~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:5163:38: note: call to 'free' here
+ 5163 |     free(tops_arr); free(nexts_arr); free(afters_arr);
+      |                                      ^~~~~~~~~~~~~~~~
+src-c/compiler/delete_compile.c: In function 'dc_compile_expr_in_schema':
+src-c/compiler/delete_compile.c:117:5: warning: enumeration value 'LEAP_EXPR_PARAM' not handled in switch [-Wswitch]
+  117 |     switch (expr->kind) {
+      |     ^~~~~~
+/usr/bin/ld: /tmp/ccs2yvBB.o: in function `leap_opcode_expr_execute':
+opcodes_expr.c:(.text+0x326b): undefined reference to `leap_scalar_json1_eval'
+/usr/bin/ld: opcodes_expr.c:(.text+0x3281): undefined reference to `leap_scalar_json1_eval'
+collect2: error: ld returned 1 exit status
+[libmode] c lib_bench FAIL (see log)
+[libmode] === Lane 2 parse ===
+[libmode]   parse-speed sqlite-mainline ...
+prepare err: ambiguous column name: t21.id | sql=SELECT t21.id, t21.c1 FROM t21 JOIN t21 ON t21.c1 = t21.id WHERE t21.c4 < 227.89
+prepare err: ambiguous column name: t43.id | sql=SELECT t43.id, t43.c1 FROM t43 JOIN t43 ON t43.c1 = t43.id WHERE t43.c4 < 452.50
+prepare err: ambiguous column name: t18.id | sql=SELECT t18.id, t18.c1 FROM t18 JOIN t18 ON t18.c1 = t18.id WHERE t18.c4 < 686.79
+prepare err: ambiguous column name: t5.id | sql=SELECT t5.id, t5.c1 FROM t5 JOIN t5 ON t5.c1 = t5.id WHERE t5.c4 < -949.7208
+prepare err: ambiguous column name: t63.id | sql=SELECT t63.id, t63.c1 FROM t63 JOIN t63 ON t63.c1 = t63.id WHERE t63.c4 < -772.3
+prepare err: ambiguous column name: t49.id | sql=SELECT t49.id, t49.c1 FROM t49 JOIN t49 ON t49.c1 = t49.id WHERE t49.c4 < 111.95
+prepare err: ambiguous column name: t42.id | sql=SELECT t42.id, t42.c1 FROM t42 JOIN t42 ON t42.c1 = t42.id WHERE t42.c4 < 676.40
+prepare err: ambiguous column name: t19.id | sql=SELECT t19.id, t19.c1 FROM t19 JOIN t19 ON t19.c1 = t19.id WHERE t19.c4 < -260.6
+prepare err: ambiguous column name: t33.id | sql=SELECT t33.id, t33.c1 FROM t33 JOIN t33 ON t33.c1 = t33.id WHERE t33.c4 < 173.99
+prepare err: ambiguous column name: t63.id | sql=SELECT t63.id, t63.c1 FROM t63 JOIN t63 ON t63.c1 = t63.id WHERE t63.c4 < 132.68
+prepare err: ambiguous column name: t1.id | sql=SELECT t1.id, t1.c1 FROM t1 JOIN t1 ON t1.c1 = t1.id WHERE t1.c4 < -191.9483
+prepare err: ambiguous column name: t46.id | sql=SELECT t46.id, t46.c1 FROM t46 JOIN t46 ON t46.c1 = t46.id WHERE t46.c4 < -312.2
+prepare err: ambiguous column name: t20.id | sql=SELECT t20.id, t20.c1 FROM t20 JOIN t20 ON t20.c1 = t20.id WHERE t20.c4 < 954.31
+prepare err: ambiguous column name: t13.id | sql=SELECT t13.id, t13.c1 FROM t13 JOIN t13 ON t13.c1 = t13.id WHERE t13.c4 < 587.93
+prepare err: ambiguous column name: t31.id | sql=SELECT t31.id, t31.c1 FROM t31 JOIN t31 ON t31.c1 = t31.id WHERE t31.c4 < 813.08
+prepare err: ambiguous column name: t55.id | sql=SELECT t55.id, t55.c1 FROM t55 JOIN t55 ON t55.c1 = t55.id WHERE t55.c4 < 367.01
+prepare err: ambiguous column name: t46.id | sql=SELECT t46.id, t46.c1 FROM t46 JOIN t46 ON t46.c1 = t46.id WHERE t46.c4 < -878.7
+prepare err: ambiguous column name: t46.id | sql=SELECT t46.id, t46.c1 FROM t46 JOIN t46 ON t46.c1 = t46.id WHERE t46.c4 < -882.5
+prepare err: ambiguous column name: t60.id | sql=SELECT t60.id, t60.c1 FROM t60 JOIN t60 ON t60.c1 = t60.id WHERE t60.c4 < 922.72
+prepare err: ambiguous column name: t27.id | sql=SELECT t27.id, t27.c1 FROM t27 JOIN t27 ON t27.c1 = t27.id WHERE t27.c4 < 719.94
+prepare err: ambiguous column name: t4.id | sql=SELECT t4.id, t4.c1 FROM t4 JOIN t4 ON t4.c1 = t4.id WHERE t4.c4 < -125.1589
+prepare err: ambiguous column name: t7.id | sql=SELECT t7.id, t7.c1 FROM t7 JOIN t7 ON t7.c1 = t7.id WHERE t7.c4 < -385.1703
+prepare err: ambiguous column name: t16.id | sql=SELECT t16.id, t16.c1 FROM t16 JOIN t16 ON t16.c1 = t16.id WHERE t16.c4 < -635.8
+prepare err: ambiguous column name: t28.id | sql=SELECT t28.id, t28.c1 FROM t28 JOIN t28 ON t28.c1 = t28.id WHERE t28.c4 < -106.8
+prepare err: ambiguous column name: t62.id | sql=SELECT t62.id, t62.c1 FROM t62 JOIN t62 ON t62.c1 = t62.id WHERE t62.c4 < 199.92
+prepare err: ambiguous column name: t17.id | sql=SELECT t17.id, t17.c1 FROM t17 JOIN t17 ON t17.c1 = t17.id WHERE t17.c4 < -514.7
+prepare err: ambiguous column name: t4.id | sql=SELECT t4.id, t4.c1 FROM t4 JOIN t4 ON t4.c1 = t4.id WHERE t4.c4 < 196.691
+prepare err: ambiguous column name: t18.id | sql=SELECT t18.id, t18.c1 FROM t18 JOIN t18 ON t18.c1 = t18.id WHERE t18.c4 < -680.0
+prepare err: ambiguous column name: t3.id | sql=SELECT t3.id, t3.c1 FROM t3 JOIN t3 ON t3.c1 = t3.id WHERE t3.c4 < 633.0442
+prepare err: ambiguous column name: t33.id | sql=SELECT t33.id, t33.c1 FROM t33 JOIN t33 ON t33.c1 = t33.id WHERE t33.c4 < 700.44
+prepare err: ambiguous column name: t49.id | sql=SELECT t49.id, t49.c1 FROM t49 JOIN t49 ON t49.c1 = t49.id WHERE t49.c4 < -257.2
+prepare err: ambiguous column name: t45.id | sql=SELECT t45.id, t45.c1 FROM t45 JOIN t45 ON t45.c1 = t45.id WHERE t45.c4 < 147.85
+prepare err: ambiguous column name: t34.id | sql=SELECT t34.id, t34.c1 FROM t34 JOIN t34 ON t34.c1 = t34.id WHERE t34.c4 < -460.8
+prepare err: ambiguous column name: t18.id | sql=SELECT t18.id, t18.c1 FROM t18 JOIN t18 ON t18.c1 = t18.id WHERE t18.c4 < -708.3
+prepare err: ambiguous column name: t27.id | sql=SELECT t27.id, t27.c1 FROM t27 JOIN t27 ON t27.c1 = t27.id WHERE t27.c4 < -615.1
+prepare err: ambiguous column name: t42.id | sql=SELECT t42.id, t42.c1 FROM t42 JOIN t42 ON t42.c1 = t42.id WHERE t42.c4 < -965.9
+prepare err: ambiguous column name: t10.id | sql=SELECT t10.id, t10.c1 FROM t10 JOIN t10 ON t10.c1 = t10.id WHERE t10.c4 < 522.79
+prepare err: ambiguous column name: t36.id | sql=SELECT t36.id, t36.c1 FROM t36 JOIN t36 ON t36.c1 = t36.id WHERE t36.c4 < -771.4
+prepare err: ambiguous column name: t53.id | sql=SELECT t53.id, t53.c1 FROM t53 JOIN t53 ON t53.c1 = t53.id WHERE t53.c4 < -660.0
+prepare err: ambiguous column name: t24.id | sql=SELECT t24.id, t24.c1 FROM t24 JOIN t24 ON t24.c1 = t24.id WHERE t24.c4 < 328.54
+prepare err: ambiguous column name: t24.id | sql=SELECT t24.id, t24.c1 FROM t24 JOIN t24 ON t24.c1 = t24.id WHERE t24.c4 < 823.31
+prepare err: ambiguous column name: t37.id | sql=SELECT t37.id, t37.c1 FROM t37 JOIN t37 ON t37.c1 = t37.id WHERE t37.c4 < 637.74
+prepare err: ambiguous column name: t35.id | sql=SELECT t35.id, t35.c1 FROM t35 JOIN t35 ON t35.c1 = t35.id WHERE t35.c4 < 212.05
+prepare err: ambiguous column name: t1.id | sql=SELECT t1.id, t1.c1 FROM t1 JOIN t1 ON t1.c1 = t1.id WHERE t1.c4 < 567.7788
+prepare err: ambiguous column name: t26.id | sql=SELECT t26.id, t26.c1 FROM t26 JOIN t26 ON t26.c1 = t26.id WHERE t26.c4 < -874.4
+prepare err: ambiguous column name: t13.id | sql=SELECT t13.id, t13.c1 FROM t13 JOIN t13 ON t13.c1 = t13.id WHERE t13.c4 < 367.14
+prepare err: ambiguous column name: t29.id | sql=SELECT t29.id, t29.c1 FROM t29 JOIN t29 ON t29.c1 = t29.id WHERE t29.c4 < -457.6
+prepare err: ambiguous column name: t61.id | sql=SELECT t61.id, t61.c1 FROM t61 JOIN t61 ON t61.c1 = t61.id WHERE t61.c4 < -459.4
+prepare err: ambiguous column name: t25.id | sql=SELECT t25.id, t25.c1 FROM t25 JOIN t25 ON t25.c1 = t25.id WHERE t25.c4 < -428.7
+prepare err: ambiguous column name: t53.id | sql=SELECT t53.id, t53.c1 FROM t53 JOIN t53 ON t53.c1 = t53.id WHERE t53.c4 < -594.9
+prepare err: ambiguous column name: t17.id | sql=SELECT t17.id, t17.c1 FROM t17 JOIN t17 ON t17.c1 = t17.id WHERE t17.c4 < 522.14
+prepare err: ambiguous column name: t6.id | sql=SELECT t6.id, t6.c1 FROM t6 JOIN t6 ON t6.c1 = t6.id WHERE t6.c4 < 683.2314
+prepare err: ambiguous column name: t12.id | sql=SELECT t12.id, t12.c1 FROM t12 JOIN t12 ON t12.c1 = t12.id WHERE t12.c4 < 394.39
+prepare err: ambiguous column name: t26.id | sql=SELECT t26.id, t26.c1 FROM t26 JOIN t26 ON t26.c1 = t26.id WHERE t26.c4 < 785.95
+prepare err: ambiguous column name: t0.id | sql=SELECT t0.id, t0.c1 FROM t0 JOIN t0 ON t0.c1 = t0.id WHERE t0.c4 < 188.4492
+prepare err: ambiguous column name: t38.id | sql=SELECT t38.id, t38.c1 FROM t38 JOIN t38 ON t38.c1 = t38.id WHERE t38.c4 < -889.9
+prepare err: ambiguous column name: t20.id | sql=SELECT t20.id, t20.c1 FROM t20 JOIN t20 ON t20.c1 = t20.id WHERE t20.c4 < -249.7
+prepare err: ambiguous column name: t21.id | sql=SELECT t21.id, t21.c1 FROM t21 JOIN t21 ON t21.c1 = t21.id WHERE t21.c4 < -366.5
+prepare err: ambiguous column name: t56.id | sql=SELECT t56.id, t56.c1 FROM t56 JOIN t56 ON t56.c1 = t56.id WHERE t56.c4 < 652.79
+prepare err: ambiguous column name: t4.id | sql=SELECT t4.id, t4.c1 FROM t4 JOIN t4 ON t4.c1 = t4.id WHERE t4.c4 < -383.5256
+prepare err: ambiguous column name: t40.id | sql=SELECT t40.id, t40.c1 FROM t40 JOIN t40 ON t40.c1 = t40.id WHERE t40.c4 < 990.62
+prepare err: ambiguous column name: t26.id | sql=SELECT t26.id, t26.c1 FROM t26 JOIN t26 ON t26.c1 = t26.id WHERE t26.c4 < 458.89
+prepare err: ambiguous column name: t49.id | sql=SELECT t49.id, t49.c1 FROM t49 JOIN t49 ON t49.c1 = t49.id WHERE t49.c4 < -572.3
+prepare err: ambiguous column name: t9.id | sql=SELECT t9.id, t9.c1 FROM t9 JOIN t9 ON t9.c1 = t9.id WHERE t9.c4 < 51.8143
+prepare err: ambiguous column name: t62.id | sql=SELECT t62.id, t62.c1 FROM t62 JOIN t62 ON t62.c1 = t62.id WHERE t62.c4 < 696.22
+prepare err: ambiguous column name: t58.id | sql=SELECT t58.id, t58.c1 FROM t58 JOIN t58 ON t58.c1 = t58.id WHERE t58.c4 < -214.6
+prepare err: ambiguous column name: t55.id | sql=SELECT t55.id, t55.c1 FROM t55 JOIN t55 ON t55.c1 = t55.id WHERE t55.c4 < -560.9
+prepare err: ambiguous column name: t12.id | sql=SELECT t12.id, t12.c1 FROM t12 JOIN t12 ON t12.c1 = t12.id WHERE t12.c4 < -718.0
+prepare err: ambiguous column name: t41.id | sql=SELECT t41.id, t41.c1 FROM t41 JOIN t41 ON t41.c1 = t41.id WHERE t41.c4 < 408.48
+prepare err: ambiguous column name: t43.id | sql=SELECT t43.id, t43.c1 FROM t43 JOIN t43 ON t43.c1 = t43.id WHERE t43.c4 < 894.69
+prepare err: ambiguous column name: t29.id | sql=SELECT t29.id, t29.c1 FROM t29 JOIN t29 ON t29.c1 = t29.id WHERE t29.c4 < 413.21
+prepare err: ambiguous column name: t63.id | sql=SELECT t63.id, t63.c1 FROM t63 JOIN t63 ON t63.c1 = t63.id WHERE t63.c4 < 316.08
+prepare err: ambiguous column name: t57.id | sql=SELECT t57.id, t57.c1 FROM t57 JOIN t57 ON t57.c1 = t57.id WHERE t57.c4 < 805.55
+prepare err: ambiguous column name: t53.id | sql=SELECT t53.id, t53.c1 FROM t53 JOIN t53 ON t53.c1 = t53.id WHERE t53.c4 < -91.49
+prepare err: ambiguous column name: t34.id | sql=SELECT t34.id, t34.c1 FROM t34 JOIN t34 ON t34.c1 = t34.id WHERE t34.c4 < -684.3
+prepare err: ambiguous column name: t50.id | sql=SELECT t50.id, t50.c1 FROM t50 JOIN t50 ON t50.c1 = t50.id WHERE t50.c4 < -245.3
+prepare err: ambiguous column name: t26.id | sql=SELECT t26.id, t26.c1 FROM t26 JOIN t26 ON t26.c1 = t26.id WHERE t26.c4 < 938.37
+prepare err: ambiguous column name: t30.id | sql=SELECT t30.id, t30.c1 FROM t30 JOIN t30 ON t30.c1 = t30.id WHERE t30.c4 < -442.0
+prepare err: ambiguous column name: t31.id | sql=SELECT t31.id, t31.c1 FROM t31 JOIN t31 ON t31.c1 = t31.id WHERE t31.c4 < 138.07
+prepare err: ambiguous column name: t60.id | sql=SELECT t60.id, t60.c1 FROM t60 JOIN t60 ON t60.c1 = t60.id WHERE t60.c4 < 556.80
+prepare err: ambiguous column name: t47.id | sql=SELECT t47.id, t47.c1 FROM t47 JOIN t47 ON t47.c1 = t47.id WHERE t47.c4 < -258.6
+prepare err: ambiguous column name: t2.id | sql=SELECT t2.id, t2.c1 FROM t2 JOIN t2 ON t2.c1 = t2.id WHERE t2.c4 < -929.2541
+prepare err: ambiguous column name: t4.id | sql=SELECT t4.id, t4.c1 FROM t4 JOIN t4 ON t4.c1 = t4.id WHERE t4.c4 < 731.762
+prepare err: ambiguous column name: t14.id | sql=SELECT t14.id, t14.c1 FROM t14 JOIN t14 ON t14.c1 = t14.id WHERE t14.c4 < -357.5
+prepare err: ambiguous column name: t0.id | sql=SELECT t0.id, t0.c1 FROM t0 JOIN t0 ON t0.c1 = t0.id WHERE t0.c4 < 370.7899
+step err: UNIQUE constraint failed: t30.id
+prepare err: ambiguous column name: t23.id | sql=SELECT t23.id, t23.c1 FROM t23 JOIN t23 ON t23.c1 = t23.id WHERE t23.c4 < -683.2
+prepare err: ambiguous column name: t58.id | sql=SELECT t58.id, t58.c1 FROM t58 JOIN t58 ON t58.c1 = t58.id WHERE t58.c4 < 53.490
+prepare err: ambiguous column name: t45.id | sql=SELECT t45.id, t45.c1 FROM t45 JOIN t45 ON t45.c1 = t45.id WHERE t45.c4 < 512.68
+prepare err: ambiguous column name: t9.id | sql=SELECT t9.id, t9.c1 FROM t9 JOIN t9 ON t9.c1 = t9.id WHERE t9.c4 < -37.4289
+prepare err: ambiguous column name: t33.id | sql=SELECT t33.id, t33.c1 FROM t33 JOIN t33 ON t33.c1 = t33.id WHERE t33.c4 < 953.47
+prepare err: ambiguous column name: t41.id | sql=SELECT t41.id, t41.c1 FROM t41 JOIN t41 ON t41.c1 = t41.id WHERE t41.c4 < -514.0
+prepare err: ambiguous column name: t19.id | sql=SELECT t19.id, t19.c1 FROM t19 JOIN t19 ON t19.c1 = t19.id WHERE t19.c4 < 84.462
+prepare err: ambiguous column name: t3.id | sql=SELECT t3.id, t3.c1 FROM t3 JOIN t3 ON t3.c1 = t3.id WHERE t3.c4 < 405.0437
+prepare err: ambiguous column name: t42.id | sql=SELECT t42.id, t42.c1 FROM t42 JOIN t42 ON t42.c1 = t42.id WHERE t42.c4 < -653.7
+prepare err: ambiguous column name: t39.id | sql=SELECT t39.id, t39.c1 FROM t39 JOIN t39 ON t39.c1 = t39.id WHERE t39.c4 < -534.7
+prepare err: ambiguous column name: t25.id | sql=SELECT t25.id, t25.c1 FROM t25 JOIN t25 ON t25.c1 = t25.id WHERE t25.c4 < -632.5
+prepare err: ambiguous column name: t2.id | sql=SELECT t2.id, t2.c1 FROM t2 JOIN t2 ON t2.c1 = t2.id WHERE t2.c4 < 203.2859
+prepare err: ambiguous column name: t59.id | sql=SELECT t59.id, t59.c1 FROM t59 JOIN t59 ON t59.c1 = t59.id WHERE t59.c4 < 753.14
+prepare err: ambiguous column name: t22.id | sql=SELECT t22.id, t22.c1 FROM t22 JOIN t22 ON t22.c1 = t22.id WHERE t22.c4 < 684.24
+prepare err: ambiguous column name: t11.id | sql=SELECT t11.id, t11.c1 FROM t11 JOIN t11 ON t11.c1 = t11.id WHERE t11.c4 < -928.1
+prepare err: ambiguous column name: t15.id | sql=SELECT t15.id, t15.c1 FROM t15 JOIN t15 ON t15.c1 = t15.id WHERE t15.c4 < -552.5
+prepare err: ambiguous column name: t32.id | sql=SELECT t32.id, t32.c1 FROM t32 JOIN t32 ON t32.c1 = t32.id WHERE t32.c4 < 659.8
+prepare err: ambiguous column name: t13.id | sql=SELECT t13.id, t13.c1 FROM t13 JOIN t13 ON t13.c1 = t13.id WHERE t13.c4 < -906.9
+prepare err: ambiguous column name: t31.id | sql=SELECT t31.id, t31.c1 FROM t31 JOIN t31 ON t31.c1 = t31.id WHERE t31.c4 < -772.4
+prepare err: ambiguous column name: t24.id | sql=SELECT t24.id, t24.c1 FROM t24 JOIN t24 ON t24.c1 = t24.id WHERE t24.c4 < -611.8
+prepare err: ambiguous column name: t31.id | sql=SELECT t31.id, t31.c1 FROM t31 JOIN t31 ON t31.c1 = t31.id WHERE t31.c4 < -403.5
+prepare err: ambiguous column name: t7.id | sql=SELECT t7.id, t7.c1 FROM t7 JOIN t7 ON t7.c1 = t7.id WHERE t7.c4 < -208.1911
+prepare err: ambiguous column name: t26.id | sql=SELECT t26.id, t26.c1 FROM t26 JOIN t26 ON t26.c1 = t26.id WHERE t26.c4 < 424.74
+prepare err: ambiguous column name: t2.id | sql=SELECT t2.id, t2.c1 FROM t2 JOIN t2 ON t2.c1 = t2.id WHERE t2.c4 < 308.1158
+prepare err: ambiguous column name: t45.id | sql=SELECT t45.id, t45.c1 FROM t45 JOIN t45 ON t45.c1 = t45.id WHERE t45.c4 < 508.88
+prepare err: ambiguous column name: t7.id | sql=SELECT t7.id, t7.c1 FROM t7 JOIN t7 ON t7.c1 = t7.id WHERE t7.c4 < 209.4196
+prepare err: ambiguous column name: t34.id | sql=SELECT t34.id, t34.c1 FROM t34 JOIN t34 ON t34.c1 = t34.id WHERE t34.c4 < 590.74
+prepare err: ambiguous column name: t26.id | sql=SELECT t26.id, t26.c1 FROM t26 JOIN t26 ON t26.c1 = t26.id WHERE t26.c4 < 860.24
+prepare err: ambiguous column name: t52.id | sql=SELECT t52.id, t52.c1 FROM t52 JOIN t52 ON t52.c1 = t52.id WHERE t52.c4 < 84.409
+prepare err: ambiguous column name: t49.id | sql=SELECT t49.id, t49.c1 FROM t49 JOIN t49 ON t49.c1 = t49.id WHERE t49.c4 < -785.3
+prepare err: ambiguous column name: t39.id | sql=SELECT t39.id, t39.c1 FROM t39 JOIN t39 ON t39.c1 = t39.id WHERE t39.c4 < 385.73
+prepare err: ambiguous column name: t53.id | sql=SELECT t53.id, t53.c1 FROM t53 JOIN t53 ON t53.c1 = t53.id WHERE t53.c4 < 145.42
+prepare err: ambiguous column name: t26.id | sql=SELECT t26.id, t26.c1 FROM t26 JOIN t26 ON t26.c1 = t26.id WHERE t26.c4 < 494.64
+prepare err: ambiguous column name: t29.id | sql=SELECT t29.id, t29.c1 FROM t29 JOIN t29 ON t29.c1 = t29.id WHERE t29.c4 < 160.03
+prepare err: ambiguous column name: t13.id | sql=SELECT t13.id, t13.c1 FROM t13 JOIN t13 ON t13.c1 = t13.id WHERE t13.c4 < -59.95
+prepare err: ambiguous column name: t40.id | sql=SELECT t40.id, t40.c1 FROM t40 JOIN t40 ON t40.c1 = t40.id WHERE t40.c4 < 655.99
+prepare err: ambiguous column name: t39.id | sql=SELECT t39.id, t39.c1 FROM t39 JOIN t39 ON t39.c1 = t39.id WHERE t39.c4 < -537.6
+prepare err: ambiguous column name: t2.id | sql=SELECT t2.id, t2.c1 FROM t2 JOIN t2 ON t2.c1 = t2.id WHERE t2.c4 < -199.8136
+prepare err: ambiguous column name: t53.id | sql=SELECT t53.id, t53.c1 FROM t53 JOIN t53 ON t53.c1 = t53.id WHERE t53.c4 < -170.8
+prepare err: ambiguous column name: t39.id | sql=SELECT t39.id, t39.c1 FROM t39 JOIN t39 ON t39.c1 = t39.id WHERE t39.c4 < -9.705
+prepare err: ambiguous column name: t45.id | sql=SELECT t45.id, t45.c1 FROM t45 JOIN t45 ON t45.c1 = t45.id WHERE t45.c4 < 258.11
+prepare err: ambiguous column name: t8.id | sql=SELECT t8.id, t8.c1 FROM t8 JOIN t8 ON t8.c1 = t8.id WHERE t8.c4 < -733.0283
+prepare err: ambiguous column name: t56.id | sql=SELECT t56.id, t56.c1 FROM t56 JOIN t56 ON t56.c1 = t56.id WHERE t56.c4 < -690.8
+prepare err: ambiguous column name: t41.id | sql=SELECT t41.id, t41.c1 FROM t41 JOIN t41 ON t41.c1 = t41.id WHERE t41.c4 < 810.98
+prepare err: ambiguous column name: t23.id | sql=SELECT t23.id, t23.c1 FROM t23 JOIN t23 ON t23.c1 = t23.id WHERE t23.c4 < 381.10
+prepare err: ambiguous column name: t58.id | sql=SELECT t58.id, t58.c1 FROM t58 JOIN t58 ON t58.c1 = t58.id WHERE t58.c4 < -547.5
+prepare err: ambiguous column name: t9.id | sql=SELECT t9.id, t9.c1 FROM t9 JOIN t9 ON t9.c1 = t9.id WHERE t9.c4 < 529.5037
+prepare err: ambiguous column name: t11.id | sql=SELECT t11.id, t11.c1 FROM t11 JOIN t11 ON t11.c1 = t11.id WHERE t11.c4 < -641.0
+prepare err: ambiguous column name: t20.id | sql=SELECT t20.id, t20.c1 FROM t20 JOIN t20 ON t20.c1 = t20.id WHERE t20.c4 < 83.138
+prepare err: ambiguous column name: t37.id | sql=SELECT t37.id, t37.c1 FROM t37 JOIN t37 ON t37.c1 = t37.id WHERE t37.c4 < 634.00
+prepare err: ambiguous column name: t12.id | sql=SELECT t12.id, t12.c1 FROM t12 JOIN t12 ON t12.c1 = t12.id WHERE t12.c4 < 372.93
+prepare err: ambiguous column name: t25.id | sql=SELECT t25.id, t25.c1 FROM t25 JOIN t25 ON t25.c1 = t25.id WHERE t25.c4 < -332.1
+prepare err: ambiguous column name: t23.id | sql=SELECT t23.id, t23.c1 FROM t23 JOIN t23 ON t23.c1 = t23.id WHERE t23.c4 < 413.83
+prepare err: ambiguous column name: t18.id | sql=SELECT t18.id, t18.c1 FROM t18 JOIN t18 ON t18.c1 = t18.id WHERE t18.c4 < 792.40
+prepare err: ambiguous column name: t27.id | sql=SELECT t27.id, t27.c1 FROM t27 JOIN t27 ON t27.c1 = t27.id WHERE t27.c4 < -306.2
+prepare err: ambiguous column name: t42.id | sql=SELECT t42.id, t42.c1 FROM t42 JOIN t42 ON t42.c1 = t42.id WHERE t42.c4 < -929.2
+prepare err: ambiguous column name: t58.id | sql=SELECT t58.id, t58.c1 FROM t58 JOIN t58 ON t58.c1 = t58.id WHERE t58.c4 < -948.0
+prepare err: ambiguous column name: t33.id | sql=SELECT t33.id, t33.c1 FROM t33 JOIN t33 ON t33.c1 = t33.id WHERE t33.c4 < 482.19
+prepare err: ambiguous column name: t52.id | sql=SELECT t52.id, t52.c1 FROM t52 JOIN t52 ON t52.c1 = t52.id WHERE t52.c4 < 638.80
+prepare err: ambiguous column name: t16.id | sql=SELECT t16.id, t16.c1 FROM t16 JOIN t16 ON t16.c1 = t16.id WHERE t16.c4 < -214.4
+step err: UNIQUE constraint failed: t0.id
+prepare err: ambiguous column name: t11.id | sql=SELECT t11.id, t11.c1 FROM t11 JOIN t11 ON t11.c1 = t11.id WHERE t11.c4 < 708.52
+prepare err: ambiguous column name: t41.id | sql=SELECT t41.id, t41.c1 FROM t41 JOIN t41 ON t41.c1 = t41.id WHERE t41.c4 < 238.81
+prepare err: ambiguous column name: t61.id | sql=SELECT t61.id, t61.c1 FROM t61 JOIN t61 ON t61.c1 = t61.id WHERE t61.c4 < -354.0
+prepare err: ambiguous column name: t44.id | sql=SELECT t44.id, t44.c1 FROM t44 JOIN t44 ON t44.c1 = t44.id WHERE t44.c4 < 816.75
+prepare err: ambiguous column name: t60.id | sql=SELECT t60.id, t60.c1 FROM t60 JOIN t60 ON t60.c1 = t60.id WHERE t60.c4 < 566.83
+prepare err: ambiguous column name: t10.id | sql=SELECT t10.id, t10.c1 FROM t10 JOIN t10 ON t10.c1 = t10.id WHERE t10.c4 < -752.5
+prepare err: ambiguous column name: t3.id | sql=SELECT t3.id, t3.c1 FROM t3 JOIN t3 ON t3.c1 = t3.id WHERE t3.c4 < -848.6791
+prepare err: ambiguous column name: t56.id | sql=SELECT t56.id, t56.c1 FROM t56 JOIN t56 ON t56.c1 = t56.id WHERE t56.c4 < 254.20
+prepare err: ambiguous column name: t41.id | sql=SELECT t41.id, t41.c1 FROM t41 JOIN t41 ON t41.c1 = t41.id WHERE t41.c4 < -707.9
+prepare err: ambiguous column name: t22.id | sql=SELECT t22.id, t22.c1 FROM t22 JOIN t22 ON t22.c1 = t22.id WHERE t22.c4 < 381.10
+step err: UNIQUE constraint failed: t56.id
+prepare err: ambiguous column name: t17.id | sql=SELECT t17.id, t17.c1 FROM t17 JOIN t17 ON t17.c1 = t17.id WHERE t17.c4 < -379.3
+prepare err: ambiguous column name: t61.id | sql=SELECT t61.id, t61.c1 FROM t61 JOIN t61 ON t61.c1 = t61.id WHERE t61.c4 < -316.7
+prepare err: ambiguous column name: t5.id | sql=SELECT t5.id, t5.c1 FROM t5 JOIN t5 ON t5.c1 = t5.id WHERE t5.c4 < -636.191
+prepare err: ambiguous column name: t59.id | sql=SELECT t59.id, t59.c1 FROM t59 JOIN t59 ON t59.c1 = t59.id WHERE t59.c4 < -164.5
+prepare err: ambiguous column name: t24.id | sql=SELECT t24.id, t24.c1 FROM t24 JOIN t24 ON t24.c1 = t24.id WHERE t24.c4 < -911.3
+prepare err: ambiguous column name: t55.id | sql=SELECT t55.id, t55.c1 FROM t55 JOIN t55 ON t55.c1 = t55.id WHERE t55.c4 < 602.61
+prepare err: ambiguous column name: t61.id | sql=SELECT t61.id, t61.c1 FROM t61 JOIN t61 ON t61.c1 = t61.id WHERE t61.c4 < -255.4
+prepare err: ambiguous column name: t9.id | sql=SELECT t9.id, t9.c1 FROM t9 JOIN t9 ON t9.c1 = t9.id WHERE t9.c4 < 135.7628
+prepare err: ambiguous column name: t56.id | sql=SELECT t56.id, t56.c1 FROM t56 JOIN t56 ON t56.c1 = t56.id WHERE t56.c4 < 257.60
+prepare err: ambiguous column name: t33.id | sql=SELECT t33.id, t33.c1 FROM t33 JOIN t33 ON t33.c1 = t33.id WHERE t33.c4 < -951.9
+prepare err: ambiguous column name: t50.id | sql=SELECT t50.id, t50.c1 FROM t50 JOIN t50 ON t50.c1 = t50.id WHERE t50.c4 < 193.72
+prepare err: ambiguous column name: t50.id | sql=SELECT t50.id, t50.c1 FROM t50 JOIN t50 ON t50.c1 = t50.id WHERE t50.c4 < -346.0
+prepare err: ambiguous column name: t47.id | sql=SELECT t47.id, t47.c1 FROM t47 JOIN t47 ON t47.c1 = t47.id WHERE t47.c4 < 101.94
+prepare err: ambiguous column name: t25.id | sql=SELECT t25.id, t25.c1 FROM t25 JOIN t25 ON t25.c1 = t25.id WHERE t25.c4 < 860.73
+step err: UNIQUE constraint failed: t42.id
+prepare err: ambiguous column name: t61.id | sql=SELECT t61.id, t61.c1 FROM t61 JOIN t61 ON t61.c1 = t61.id WHERE t61.c4 < 397.37
+prepare err: ambiguous column name: t43.id | sql=SELECT t43.id, t43.c1 FROM t43 JOIN t43 ON t43.c1 = t43.id WHERE t43.c4 < -4.164
+step err: UNIQUE constraint failed: t49.id
+prepare err: ambiguous column name: t62.id | sql=SELECT t62.id, t62.c1 FROM t62 JOIN t62 ON t62.c1 = t62.id WHERE t62.c4 < 316.99
+prepare err: ambiguous column name: t2.id | sql=SELECT t2.id, t2.c1 FROM t2 JOIN t2 ON t2.c1 = t2.id WHERE t2.c4 < 178.9223
+prepare err: ambiguous column name: t15.id | sql=SELECT t15.id, t15.c1 FROM t15 JOIN t15 ON t15.c1 = t15.id WHERE t15.c4 < -625.8
+prepare err: ambiguous column name: t44.id | sql=SELECT t44.id, t44.c1 FROM t44 JOIN t44 ON t44.c1 = t44.id WHERE t44.c4 < -449.3
+prepare err: ambiguous column name: t49.id | sql=SELECT t49.id, t49.c1 FROM t49 JOIN t49 ON t49.c1 = t49.id WHERE t49.c4 < -584.2
+prepare err: ambiguous column name: t40.id | sql=SELECT t40.id, t40.c1 FROM t40 JOIN t40 ON t40.c1 = t40.id WHERE t40.c4 < 938.73
+prepare err: ambiguous column name: t0.id | sql=SELECT t0.id, t0.c1 FROM t0 JOIN t0 ON t0.c1 = t0.id WHERE t0.c4 < -613.404
+prepare err: ambiguous column name: t27.id | sql=SELECT t27.id, t27.c1 FROM t27 JOIN t27 ON t27.c1 = t27.id WHERE t27.c4 < 775.52
+prepare err: ambiguous column name: t33.id | sql=SELECT t33.id, t33.c1 FROM t33 JOIN t33 ON t33.c1 = t33.id WHERE t33.c4 < -372.7
+step err: UNIQUE constraint failed: t3.id
+prepare err: ambiguous column name: t42.id | sql=SELECT t42.id, t42.c1 FROM t42 JOIN t42 ON t42.c1 = t42.id WHERE t42.c4 < 459.85
+prepare err: ambiguous column name: t54.id | sql=SELECT t54.id, t54.c1 FROM t54 JOIN t54 ON t54.c1 = t54.id WHERE t54.c4 < 21.154
+prepare err: ambiguous column name: t40.id | sql=SELECT t40.id, t40.c1 FROM t40 JOIN t40 ON t40.c1 = t40.id WHERE t40.c4 < 614.31
+prepare err: ambiguous column name: t27.id | sql=SELECT t27.id, t27.c1 FROM t27 JOIN t27 ON t27.c1 = t27.id WHERE t27.c4 < 113.58
+prepare err: ambiguous column name: t50.id | sql=SELECT t50.id, t50.c1 FROM t50 JOIN t50 ON t50.c1 = t50.id WHERE t50.c4 < 315.83
+[libmode]     raw: elapsed_seconds=6.248336 statements=157182 errors=191 qps=25155
+[libmode]   parse-speed sqlite-leap-rust SKIP (binary missing: /tmp/leap-libmode-1/src-rust/target/release/examples/lib_bench)
+[libmode]   parse-speed sqlite-leap-c SKIP (binary missing: /tmp/leap-libmode-1/src-c/build/lib_bench)
+[libmode] === Lane 3 SELECT ===
+[libmode]   select-in-memory sqlite-mainline ...
+[libmode]     raw: elapsed_seconds=0.395950 statements=100000 errors=0 qps=252557
+[libmode]   select-in-memory sqlite-leap-rust SKIP (binary missing: /tmp/leap-libmode-1/src-rust/target/release/examples/lib_bench)
+[libmode]   select-in-memory sqlite-leap-c SKIP (binary missing: /tmp/leap-libmode-1/src-c/build/lib_bench)
+[libmode] === Lane 4 INSERT ===
+[libmode]   insert-throughput sqlite-mainline ...
+[libmode]     raw: elapsed_seconds=0.360741 statements=100005 errors=0 qps=277220
+[libmode]   insert-throughput sqlite-leap-rust SKIP (binary missing: /tmp/leap-libmode-1/src-rust/target/release/examples/lib_bench)
+[libmode]   insert-throughput sqlite-leap-c SKIP (binary missing: /tmp/leap-libmode-1/src-c/build/lib_bench)
+[libmode] === done ===
+[libmode-retry] === build mainline sqlite_lib_bench ===
+[libmode-retry] main OK
+[libmode-retry] === build leap-c lib_bench (with scalar_json1.c patch) ===
+src-c/storage/fileformat_lib.c: In function 'decode_serial_value':
+src-c/storage/fileformat_lib.c:753:54: warning: left shift of negative value [-Wshift-negative-value]
+  753 |         if (v & ((int64_t)1 << 23)) v |= ~(int64_t)0 << 24;
+      |                                                      ^~
+src-c/storage/fileformat_lib.c:766:54: warning: left shift of negative value [-Wshift-negative-value]
+  766 |         if (v & ((int64_t)1 << 47)) v |= ~(int64_t)0 << 48;
+      |                                                      ^~
+src-c/parser/expr.c: In function 'parse_bp':
+src-c/parser/expr.c:1527:17: warning: pointer used after 'free' [-Wuse-after-free]
+ 1527 |                 free(items.items);
+      |                 ^~~~~~~~~~~~~~~~~
+src-c/parser/expr.c:1513:29: note: call to 'free' here
+ 1513 |                             free(items.items);
+      |                             ^~~~~~~~~~~~~~~~~
+src-c/compiler/select_compile.c: In function 'emitter_append_list':
+src-c/compiler/select_compile.c:220:21: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+  220 |                     if (c->as.goto_.target != PC_PLACEHOLDER) c->as.goto_.target += off; break;
+      |                     ^~
+src-c/compiler/select_compile.c:220:90: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+  220 |                     if (c->as.goto_.target != PC_PLACEHOLDER) c->as.goto_.target += off; break;
+      |                                                                                          ^~~~~
+src-c/compiler/select_compile.c:222:21: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+  222 |                     if (c->as.if_.target != PC_PLACEHOLDER) c->as.if_.target += off; break;
+      |                     ^~
+src-c/compiler/select_compile.c:222:86: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+  222 |                     if (c->as.if_.target != PC_PLACEHOLDER) c->as.if_.target += off; break;
+      |                                                                                      ^~~~~
+src-c/compiler/select_compile.c:224:21: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+  224 |                     if (c->as.if_not.target != PC_PLACEHOLDER) c->as.if_not.target += off; break;
+      |                     ^~
+src-c/compiler/select_compile.c:224:92: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+  224 |                     if (c->as.if_not.target != PC_PLACEHOLDER) c->as.if_not.target += off; break;
+      |                                                                                            ^~~~~
+src-c/compiler/select_compile.c:226:21: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+  226 |                     if (c->as.jump_if_null.target != PC_PLACEHOLDER) c->as.jump_if_null.target += off; break;
+      |                     ^~
+src-c/compiler/select_compile.c:226:104: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+  226 |                     if (c->as.jump_if_null.target != PC_PLACEHOLDER) c->as.jump_if_null.target += off; break;
+      |                                                                                                        ^~~~~
+src-c/compiler/select_compile.c:228:21: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+  228 |                     if (c->as.gosub.target != PC_PLACEHOLDER) c->as.gosub.target += off; break;
+      |                     ^~
+src-c/compiler/select_compile.c:228:90: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+  228 |                     if (c->as.gosub.target != PC_PLACEHOLDER) c->as.gosub.target += off; break;
+      |                                                                                          ^~~~~
+src-c/compiler/select_compile.c: In function 'sc_append_with_rebase':
+src-c/compiler/select_compile.c:1834:21: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+ 1834 |                     if (c->as.goto_.target != PC_PLACEHOLDER) c->as.goto_.target += offset; break;
+      |                     ^~
+src-c/compiler/select_compile.c:1834:93: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+ 1834 |                     if (c->as.goto_.target != PC_PLACEHOLDER) c->as.goto_.target += offset; break;
+      |                                                                                             ^~~~~
+src-c/compiler/select_compile.c:1836:21: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+ 1836 |                     if (c->as.if_.target != PC_PLACEHOLDER) c->as.if_.target += offset; break;
+      |                     ^~
+src-c/compiler/select_compile.c:1836:89: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+ 1836 |                     if (c->as.if_.target != PC_PLACEHOLDER) c->as.if_.target += offset; break;
+      |                                                                                         ^~~~~
+src-c/compiler/select_compile.c:1838:21: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+ 1838 |                     if (c->as.if_not.target != PC_PLACEHOLDER) c->as.if_not.target += offset; break;
+      |                     ^~
+src-c/compiler/select_compile.c:1838:95: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+ 1838 |                     if (c->as.if_not.target != PC_PLACEHOLDER) c->as.if_not.target += offset; break;
+      |                                                                                               ^~~~~
+src-c/compiler/select_compile.c:1840:21: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+ 1840 |                     if (c->as.jump_if_null.target != PC_PLACEHOLDER) c->as.jump_if_null.target += offset; break;
+      |                     ^~
+src-c/compiler/select_compile.c:1840:107: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+ 1840 |                     if (c->as.jump_if_null.target != PC_PLACEHOLDER) c->as.jump_if_null.target += offset; break;
+      |                                                                                                           ^~~~~
+src-c/compiler/select_compile.c:1842:21: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+ 1842 |                     if (c->as.gosub.target != PC_PLACEHOLDER) c->as.gosub.target += offset; break;
+      |                     ^~
+src-c/compiler/select_compile.c:1842:93: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+ 1842 |                     if (c->as.gosub.target != PC_PLACEHOLDER) c->as.gosub.target += offset; break;
+      |                                                                                             ^~~~~
+src-c/compiler/select_compile.c: At top level:
+src-c/compiler/select_compile.c:5736:12: warning: 'match_group_key_col' defined but not used [-Wunused-function]
+ 5736 | static int match_group_key_col(
+      |            ^~~~~~~~~~~~~~~~~~~
+In function 'compile_select_buffered',
+    inlined from 'leap_compiler_select_compile_compile_select_body' at src-c/compiler/select_compile.c:8260:16:
+src-c/compiler/select_compile.c:9367:12: warning: 'outer_schema' may be used uninitialized [-Wmaybe-uninitialized]
+ 9367 |         if (outer_schema == &outer_schema_owned) {
+      |            ^
+src-c/compiler/select_compile.c: In function 'leap_compiler_select_compile_compile_select_body':
+src-c/compiler/select_compile.c:9167:28: note: 'outer_schema' was declared here
+ 9167 |     const LeapTableSchema* outer_schema = schema;
+      |                            ^~~~~~~~~~~~
+src-c/compiler/select_compile.c: In function 'compile_single_table_src':
+src-c/compiler/select_compile.c:3980:21: warning: pointer 'key_indices' may be used after 'realloc' [-Wuse-after-free]
+ 3980 |                     free(key_indices); free(key_desc);                      \
+      |                     ^~~~~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:3992:17: note: in expansion of macro 'PUSH_KEY'
+ 3992 |                 PUSH_KEY(proj_count + i, stmt->order_by.items[i].desc);
+      |                 ^~~~~~~~
+src-c/compiler/select_compile.c:3976:44: note: call to 'realloc' here
+ 3976 |                 uint32_t* ki = (uint32_t*) realloc(key_indices, nc * sizeof(uint32_t)); \
+      |                                            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:3992:17: note: in expansion of macro 'PUSH_KEY'
+ 3992 |                 PUSH_KEY(proj_count + i, stmt->order_by.items[i].desc);
+      |                 ^~~~~~~~
+src-c/compiler/select_compile.c:3980:40: warning: pointer 'key_desc' may be used after 'realloc' [-Wuse-after-free]
+ 3980 |                     free(key_indices); free(key_desc);                      \
+      |                                        ^~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:3992:17: note: in expansion of macro 'PUSH_KEY'
+ 3992 |                 PUSH_KEY(proj_count + i, stmt->order_by.items[i].desc);
+      |                 ^~~~~~~~
+src-c/compiler/select_compile.c:3977:44: note: call to 'realloc' here
+ 3977 |                 bool*     kd = (bool*)     realloc(key_desc,    nc * sizeof(bool));     \
+      |                                            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:3992:17: note: in expansion of macro 'PUSH_KEY'
+ 3992 |                 PUSH_KEY(proj_count + i, stmt->order_by.items[i].desc);
+      |                 ^~~~~~~~
+src-c/compiler/select_compile.c:3980:21: warning: pointer 'key_indices' may be used after 'realloc' [-Wuse-after-free]
+ 3980 |                     free(key_indices); free(key_desc);                      \
+      |                     ^~~~~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:3999:21: note: in expansion of macro 'PUSH_KEY'
+ 3999 |                     PUSH_KEY(i, false);
+      |                     ^~~~~~~~
+src-c/compiler/select_compile.c:3976:44: note: call to 'realloc' here
+ 3976 |                 uint32_t* ki = (uint32_t*) realloc(key_indices, nc * sizeof(uint32_t)); \
+      |                                            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:3999:21: note: in expansion of macro 'PUSH_KEY'
+ 3999 |                     PUSH_KEY(i, false);
+      |                     ^~~~~~~~
+src-c/compiler/select_compile.c:3980:40: warning: pointer 'key_desc' may be used after 'realloc' [-Wuse-after-free]
+ 3980 |                     free(key_indices); free(key_desc);                      \
+      |                                        ^~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:3999:21: note: in expansion of macro 'PUSH_KEY'
+ 3999 |                     PUSH_KEY(i, false);
+      |                     ^~~~~~~~
+src-c/compiler/select_compile.c:3977:44: note: call to 'realloc' here
+ 3977 |                 bool*     kd = (bool*)     realloc(key_desc,    nc * sizeof(bool));     \
+      |                                            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:3999:21: note: in expansion of macro 'PUSH_KEY'
+ 3999 |                     PUSH_KEY(i, false);
+      |                     ^~~~~~~~
+In function 'compile_joined_select',
+    inlined from 'leap_compiler_select_compile_compile_select_multi.part.0' at src-c/compiler/select_compile.c:8506:16:
+src-c/compiler/select_compile.c:5210:17: warning: pointer 'tops_arr' may be used after 'free' [-Wuse-after-free]
+ 5210 |                 free(tops_arr); free(nexts_arr); free(afters_arr);
+      |                 ^~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:5163:5: note: call to 'free' here
+ 5163 |     free(tops_arr); free(nexts_arr); free(afters_arr);
+      |     ^~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:5196:17: warning: pointer 'tops_arr' may be used after 'free' [-Wuse-after-free]
+ 5196 |                 free(tops_arr); free(nexts_arr); free(afters_arr);
+      |                 ^~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:5163:5: note: call to 'free' here
+ 5163 |     free(tops_arr); free(nexts_arr); free(afters_arr);
+      |     ^~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:5242:23: warning: pointer 'tops_arr' may be used after 'free' [-Wuse-after-free]
+ 5242 |         if (em.oom) { free(tops_arr); free(nexts_arr); free(afters_arr); goto join_oom; }
+      |                       ^~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:5163:5: note: call to 'free' here
+ 5163 |     free(tops_arr); free(nexts_arr); free(afters_arr);
+      |     ^~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:5210:33: warning: pointer 'nexts_arr' may be used after 'free' [-Wuse-after-free]
+ 5210 |                 free(tops_arr); free(nexts_arr); free(afters_arr);
+      |                                 ^~~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:5163:21: note: call to 'free' here
+ 5163 |     free(tops_arr); free(nexts_arr); free(afters_arr);
+      |                     ^~~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:5196:33: warning: pointer 'nexts_arr' may be used after 'free' [-Wuse-after-free]
+ 5196 |                 free(tops_arr); free(nexts_arr); free(afters_arr);
+      |                                 ^~~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:5163:21: note: call to 'free' here
+ 5163 |     free(tops_arr); free(nexts_arr); free(afters_arr);
+      |                     ^~~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:5242:39: warning: pointer 'nexts_arr' may be used after 'free' [-Wuse-after-free]
+ 5242 |         if (em.oom) { free(tops_arr); free(nexts_arr); free(afters_arr); goto join_oom; }
+      |                                       ^~~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:5163:21: note: call to 'free' here
+ 5163 |     free(tops_arr); free(nexts_arr); free(afters_arr);
+      |                     ^~~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:5210:50: warning: pointer 'afters_arr' may be used after 'free' [-Wuse-after-free]
+ 5210 |                 free(tops_arr); free(nexts_arr); free(afters_arr);
+      |                                                  ^~~~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:5163:38: note: call to 'free' here
+ 5163 |     free(tops_arr); free(nexts_arr); free(afters_arr);
+      |                                      ^~~~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:5196:50: warning: pointer 'afters_arr' may be used after 'free' [-Wuse-after-free]
+ 5196 |                 free(tops_arr); free(nexts_arr); free(afters_arr);
+      |                                                  ^~~~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:5163:38: note: call to 'free' here
+ 5163 |     free(tops_arr); free(nexts_arr); free(afters_arr);
+      |                                      ^~~~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:5242:56: warning: pointer 'afters_arr' may be used after 'free' [-Wuse-after-free]
+ 5242 |         if (em.oom) { free(tops_arr); free(nexts_arr); free(afters_arr); goto join_oom; }
+      |                                                        ^~~~~~~~~~~~~~~~
+src-c/compiler/select_compile.c:5163:38: note: call to 'free' here
+ 5163 |     free(tops_arr); free(nexts_arr); free(afters_arr);
+      |                                      ^~~~~~~~~~~~~~~~
+src-c/compiler/delete_compile.c: In function 'dc_compile_expr_in_schema':
+src-c/compiler/delete_compile.c:117:5: warning: enumeration value 'LEAP_EXPR_PARAM' not handled in switch [-Wswitch]
+  117 |     switch (expr->kind) {
+      |     ^~~~~~
+src-c/scalar_json1.c:862:13: warning: 'array_insert_at' defined but not used [-Wunused-function]
+  862 | static bool array_insert_at(Arena* a, JsonArrayBody* arr, size_t at, JsonNode* v) {
+      |             ^~~~~~~~~~~~~~~
+built: src-c/build/lib_bench
+[libmode-retry] c lib_bench OK
+-rwxr-xr-x 1 root root  17592 Apr 27 15:36 /tmp/leap-libmode-retry-1/bench/baselines/bin/sqlite_lib_bench
+-rwxr-xr-x 1 root root 474024 Apr 27 15:37 /tmp/leap-libmode-retry-1/src-c/build/lib_bench
+[libmode-retry] === Lane 2 ===
+[libmode-retry]   parse-speed sqlite-leap-c ...
+[libmode-retry]     raw: elapsed_seconds=151.118619 statements=157373 errors=52122 qps=1041
+[libmode-retry] === Lane 3 ===
+[libmode-retry]   select-in-memory sqlite-leap-c ...
+[libmode-retry]     raw: elapsed_seconds=0.192899 statements=100000 errors=0 qps=518405
+[libmode-retry] === Lane 4 ===
+[libmode-retry]   insert-throughput sqlite-leap-c ...
+[libmode-retry]     raw: elapsed_seconds=0.170499 statements=100005 errors=0 qps=586544
+[libmode-retry] done

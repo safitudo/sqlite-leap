@@ -1,8 +1,24 @@
 {"new_change_counter":3,"assigned_rowid":2,"bytes_written":8192}
-38 | use zeroize::{Zeroize, Zeroizing};
-   |               ^^^^^^^
+42
+   |
+32 |     pager_allocate_page, pager_get_page, pager_get_page_mut, pager_new_in_memory,
+   |                                          ^^^^^^^^^^^^^^^^^^
    |
    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused imports: `build_leaf_page as pc_build_leaf_page` and `decode_interior_entries`
+  --> storage.rs:38:5
+   |
+38 |     build_leaf_page as pc_build_leaf_page, build_master_leaf,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+39 |     cell_pointers as pc_cell_pointers, decode_interior_entries,
+   |                                        ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `Zeroize`
+  --> encryption.rs:38:15
+   |
+38 | use zeroize::{Zeroize, Zeroizing};
+   |               ^^^^^^^
 
 warning: unused import: `RuntimeCondition`
   --> vtab.rs:11:19
@@ -11,19 +27,27 @@ warning: unused import: `RuntimeCondition`
    |                   ^^^^^^^^^^^^^^^^
 
 warning: value assigned to `content_used` is never read
-   --> storage_fileformat.rs:338:21
+   --> storage_fileformat.rs:343:21
     |
-338 |                     content_used += cell.len();
+343 |                     content_used += cell.len();
     |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
     |
     = help: maybe it is overwritten before being read?
     = note: `#[warn(unused_assignments)]` (part of `#[warn(unused)]`) on by default
 
 warning: value assigned to `cell_count` is never read
-   --> storage_fileformat.rs:339:21
+   --> storage_fileformat.rs:344:21
     |
-339 |                     cell_count += 1;
+344 |                     cell_count += 1;
     |                     ^^^^^^^^^^^^^^^
+    |
+    = help: maybe it is overwritten before being read?
+
+warning: value assigned to `remaining` is never read
+   --> storage_wal.rs:472:17
+    |
+472 |                 remaining = 0;
+    |                 ^^^^^^^^^^^^^
     |
     = help: maybe it is overwritten before being read?
 
@@ -45,13 +69,23 @@ warning: variable does not need to be mutable
      |         |
      |         help: remove this `mut`
 
-warning: constant `PAGE_TYPE_TABLE_LEAF` is never used
-   --> storage_fileformat.rs:271:7
+warning: field `table_name` is never read
+   --> storage.rs:213:5
     |
-271 | const PAGE_TYPE_TABLE_LEAF: u8 = 0x0D;
-    |       ^^^^^^^^^^^^^^^^^^^^
+199 | pub struct CursorHandle {
+    |            ------------ field in this struct
+...
+213 |     table_name: String,
+    |     ^^^^^^^^^^
     |
+    = note: `CursorHandle` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: constant `PAGE_TYPE_TABLE_LEAF` is never used
+   --> storage_fileformat.rs:276:7
+    |
+276 | const PAGE_TYPE_TABLE_LEAF: u8 = 0x0D;
+    |       ^^^^^^^^^^^^^^^^^^^^
 
 warning: field `region_index` is never read
    --> wal_shm.rs:124:5

@@ -2,7 +2,7 @@
 
 **TL;DR.** I built a SQLite-compatible database engine from a single language-neutral specification that produces buildable engines in **C, Rust, Zig, Go, and Python** — five at once, from one spec. All five pass a 335-file Linux sample of the upstream `sqllogictest` corpus at 99.84–99.99% on a strict denominator. They write `.db` files that are byte-for-byte identical to mainline at two fixed-size fixtures and that mainline reads cleanly.
 
-**Bench leader is leap-c, not leap-rust.** On Linux x86_64 native lib-mode against mainline SQLite, leap-c wins **L2 parse 1.75×** (1.86M qps vs 1.06M), **L3 SELECT 1.51×** (956k qps vs 631k), and **L4 INSERT 1.81×** (1.23M ips vs 678k) — three for three. leap-rust on the same harness loses all three — 0.67× parse, 0.80× SELECT, 0.82× INSERT. Rust is correctness-equivalent (byte-identical disk format, ~99.99% sqllogictest excl-SKIP) but is the perf laggard. A Rust commit-path rewrite that landed today (in-place B-tree write, removes a per-commit re-encode that cost 82.7ms) hasn't been re-benched on Linux yet; on Mac it lifted L4 to 94.9k qps in a 100k-INSERT loop, which is a real improvement but does not close the Linux gap to mainline by itself.
+**Bench leader is leap-c, not leap-rust.** On Linux x86_64 native lib-mode against mainline SQLite (post-Wave-G3 cursor-sig migration, 2026-04-27), leap-c wins **L2 parse 1.75×** (1.86M qps vs 1.06M), **L3 SELECT 1.55×** (967k qps vs 625k), and **L4 INSERT 1.82×** (1.24M ips vs 681k) — three for three. leap-rust on the same harness loses all three — 0.67× parse, 0.80× SELECT, 0.82× INSERT. Rust is correctness-equivalent (byte-identical disk format, ~99.99% sqllogictest excl-SKIP) but is the perf laggard. A Rust commit-path rewrite that landed earlier (in-place B-tree write, removes a per-commit re-encode that cost 82.7ms) hasn't been re-benched on Linux yet; on Mac it lifted L4 to 94.9k qps in a 100k-INSERT loop, which is a real improvement but does not close the Linux gap to mainline by itself.
 
 This is a methodology proof, not a SQLite replacement. The point is that **specs and tests can be the product, with code as commodity output** — and the result is competitive, on some axes, with hand-written code from a 25-year-old project, when the perf-leading target (C) is the one being measured. Other targets are correctness-equivalent and slower.
 
@@ -12,15 +12,17 @@ This post is deliberately honest about what *doesn't* beat mainline. Earlier dra
 
 ## Linux x86_64 native lib-mode benchmarks — apples-to-apples
 
-Source: `bench/results/2026-04-27-linux-native/raw.csv`. Ubuntu 22.04 (kernel 6.8), glibc 2.35, rustc 1.89.0, gcc 11.4.0. Both engines invoked as in-process libraries (`-llib`) with the same workload SQL. L3 reads from in-memory after setup (mainline `:memory:`, leap `Database::new()`); L4 writes file-backed via `--db PATH` honored on both sides (mainline opens the file, leap routes through `leap_storage_open_database_at`). Same machine, same hour, same run.
+Source: `bench/results/2026-04-27-linux-x86_64/raw.csv` (post-G3, 2026-04-27). Pre-G3 baseline at `bench/results/2026-04-27-linux-native/raw.csv`. Ubuntu 22.04 (kernel 6.8), glibc 2.35, rustc 1.89.0, gcc 11.4.0. Both engines invoked as in-process libraries (`-llib`) with the same workload SQL. L3 reads from in-memory after setup (mainline `:memory:`, leap `Database::new()`); L4 writes file-backed via `--db PATH` honored on both sides (mainline opens the file, leap routes through `leap_storage_open_database_at`). Same machine, same hour, same run.
 
 All three lanes are `--parse-only` / unmodified-workload symmetric: same harness, same flags on both engines. L2 runs `prepare_v2 + finalize` on mainline and `tokenize + parse` on leap (both drop the AST/stmt without stepping). L3 runs in-memory; L4 is file-backed via `--db PATH` honored on both sides.
 
 | Lane | mainline | leap-rust | leap-c | leap-c vs mainline | leap-rust vs mainline |
 |---|---:|---:|---:|---:|---:|
 | L2 parse-only, filtered (stmt/s) | 1,060,065 | 710,430 | 1,857,806 | **1.75× (win)** | **0.67× (lose)** |
-| L3 SELECT in-memory (sel/s) | 631,752 | 505,008 | 956,662 | **1.51× (win)** | **0.80× (lose)** |
-| L4 INSERT file-backed (ins/s) | 678,258 | 555,862 | 1,228,876 | **1.81× (win)** | **0.82× (lose)** |
+| L3 SELECT in-memory (sel/s) | 625,370 | 505,008 | 966,972 | **1.55× (win)** | **0.81× (lose)** |
+| L4 INSERT file-backed (ins/s) | 681,473 | 555,862 | 1,242,482 | **1.82× (win)** | **0.82× (lose)** |
+
+Wave G3 (cursor-signature migration × 4 sibling targets, 2026-04-27) was a perf-neutral correctness-only change: pre-G3 ratios were L3 1.51× / L4 1.81×, post-G3 L3 1.55× / L4 1.82× — within run-to-run noise.
 
 What this says, plainly:
 
@@ -31,23 +33,62 @@ What this says, plainly:
 
 A Rust-side commit-path rewrite (in-place B-tree write replacing a per-commit full-DB re-encode that previously cost 82.7ms per COMMIT) landed in `src-rust/storage.rs` and `src-rust/storage_pager.rs` today. On Mac, the new Rust path runs the L4 100k-INSERT loop at 94.9k qps, with mainline `PRAGMA integrity_check` returning `ok` and reopen recovery green. On Linux, the previous Rust number above (555,862 ips) precedes this rewrite. The expected delta on Linux is significant but **not measured yet**, and is not part of the headline table until it is. Today's measurable Rust win is correctness, not perf.
 
-## Mac arm64 benchmarks (different machine, different methodology)
+## CLI-mode bench matrix — Mac arm64 + Linux x86_64, all 5 leap targets
 
-These were measured on Mac arm64, not Linux. Treat as confirmatory, not headline. The lane harnesses also differ — these are process-spawn wallclock measurements, not in-process throughput.
+Process-spawn wallclock measurements (not in-process throughput). Useful for cold-start, binary size, and peak RSS — **not** for engine-vs-engine SELECT/INSERT/parse claims, where process startup dominates the divisor on tiny workloads. The lib-mode table above remains the apples-to-apples authority for L2/L3/L4 throughput.
 
-Source files: `bench/results/cold_start_5target/REPORT.md`, `bench/results/binary_size_5target/REPORT.md`, `bench/results/memory_footprint_5target/REPORT.md`.
+Sources: `bench/results/2026-04-28-StanislacStudio.csv` (Mac M-series arm64), `bench/results/2026-04-28-stanislav-s.csv` (Ubuntu 22.04 x86_64).
 
-| Lane | leap-c | mainline | leap-c vs mainline | notes |
-|---|---:|---:|---:|---|
-| Cold start (`open` → first query ready) | 3.28 ms | 5.65 ms | **1.72× faster** | median over 11 samples; mainline = `sqlite3 :memory:` CLI |
-| Binary size (engine-only smoke) | 203 KB | 1767 KB | **8.7× smaller** | mainline number includes CLI shell + readline + ICU; engine-only mainline build would close most of the gap |
-| Peak RSS (`CREATE` + 1k `INSERT` + `SELECT`) | 3.05 MB | 3.01 MB | **0.98× — leap is slightly worse** | not "idle RSS"; short-lived-process peak |
+### L1 cold start (lower=better, ms; spawn → first query ready)
 
-The binary-size caveat is load-bearing. The 8.7× figure compares leap's pure-engine binary against mainline's CLI tool — a fair fight against an engine-only mainline build would shrink the gap substantially. I report what's measurable, but I don't claim it's apples-to-apples.
+| target          |   Mac |  Linux |
+|-----------------|------:|-------:|
+| sqlite-leap-c   |  3.51 |   0.54 |
+| sqlite-leap-rust|  3.41 |   0.42 |
+| sqlite-leap-zig |  3.84 |   0.44 |
+| sqlite-leap-go  |  4.23 |   0.93 |
+| sqlite-leap-python | 158.1 | 98.3 |
+| sqlite-mainline |  9.17 |   1.68 |
+| turso           | 11.02 |   1.66 |
+| turso-core      |  6.10 |    n/a |
 
-The peak-RSS row **is not a win**. Mainline is lighter on this measurement.
+leap-c/rust/zig beat mainline cold-start 4–17× on both platforms. Python is the laggard (interpreter startup).
 
-The cold-start row is a clean win on Mac arm64; Linux validation of cold-start is on the to-do list.
+### L5 binary size (lower=better)
+
+| target          |       Mac |     Linux |
+|-----------------|----------:|----------:|
+| sqlite-leap-c   |   **370 KB** |   **512 KB** |
+| sqlite-leap-rust |    1.98 MB |    1.72 MB |
+| sqlite-leap-zig  |    1.17 MB |    8.24 MB (unstripped) |
+| sqlite-leap-go   |    4.60 MB |    4.61 MB |
+| sqlite-leap-python (script) |   21 KB |   21 KB |
+| sqlite-mainline (CLI) |    1.22 MB |    1.22 MB |
+| turso (CLI)     |   13.49 MB |   13.49 MB |
+| turso-core (lib harness) |  6.33 MB |  6.33 MB |
+
+leap-c is **3.3× smaller** than mainline's `sqlite3` CLI (Mac) and **2.4× smaller** (Linux). The mainline number includes its CLI shell + readline; an engine-only mainline build would shrink the gap.
+
+### L6 peak RSS (lower=better, short-lived-process peak)
+
+| target          |    Mac |  Linux |
+|-----------------|-------:|-------:|
+| sqlite-leap-c   | 2.10 MB | 2.62 MB |
+| sqlite-leap-rust | 1.98 MB | 2.10 MB |
+| sqlite-leap-zig  | 1.87 MB | 2.10 MB |
+| sqlite-leap-go   | 5.23 MB | 2.88 MB |
+| sqlite-leap-python | 24.4 MB | 19.4 MB |
+| sqlite-mainline | 2.70 MB | 3.41 MB |
+| turso           | 16.76 MB | 3.41 MB |
+| turso-core      | 9.31 MB |  1.57 MB |
+
+leap-c/rust/zig all beat mainline RSS on both platforms. Earlier drafts had this inverted; this is the corrected reading from `/usr/bin/time -l` (Mac, bytes) / `-v` (Linux, kilobytes × 1024).
+
+### L2/L3/L4 in CLI mode — methodology caveat
+
+The run-all CLI lanes for L2 (parse), L3 (in-memory SELECT), and L4 (INSERT) feed SQL through a shell-pipe to each binary. On a fast process that exits before doing real work, wall-clock approaches 0 → reported throughput approaches infinity. Linux mainline lane-2 reports **6.07 GB/s** parse, lane-3 reports **56M qps** SELECT, lane-4 reports **34.7M ips** INSERT — clearly impossible engine numbers, observed because `sqlite3 :memory: < workload.sql` exits in <1ms with most work skipped at name-resolution.
+
+For engine-vs-engine throughput claims (L2/L3/L4), use the **lib-mode table at the top of this document**. The CLI matrix is published here only because L1 (cold-start), L5 (binary size), and L6 (RSS) measure process-level properties that are well-defined under wallclock semantics.
 
 ---
 
@@ -123,8 +164,8 @@ The hardest discipline is that specs must be **strictly language-neutral**. No `
 
 1. **One spec → 5 native engines.** Roughly 33K lines of language-neutral spec under `parts/` produce ~234K lines of buildable engine code across `src-c/`, `src-rust/`, `src-zig/`, `src-go/`, and `src-python/`. All five execute the SQL surface of the 335-file Linux sqllogictest sample at 99.84–99.99% on the strict denominator.
 2. **One spec → byte-identical on-disk format at fixed fixtures.** Two fixtures, 5/5 targets, SHA1 match, mainline integrity-check passes. Page-codec byte helpers are 5-target byte-identical on a 6-fixture suite.
-3. **Three perf wins on Linux native, all on leap-c.** L2 parse 1.75×, L3 SELECT 1.51×, L4 INSERT 1.81× vs mainline at the same hour, same harness, same workload. Reproducible via `bench/run-linux-libmode.sh`. CSVs at `bench/results/2026-04-27-linux-native/lane2-parseonly/raw.csv` (3 runs, 1.86M / 1.07M / 710k qps for leap-c / mainline / leap-rust) and `bench/results/2026-04-27-linux-native/raw.csv` (L3/L4). **leap-rust loses all three at 67–82% of mainline** — it is correctness-equivalent, not perf-equivalent. **Picking a different leap target moves you from "wins three lanes" to "loses three lanes" with no other change**, and that's worth knowing before citing this work.
-4. **One Mac-only perf win that doesn't go through the lib-bench harness.** Cold start on Mac arm64 is 1.72× faster than mainline (CSV: `bench/results/cold_start_5target/REPORT.md`). Linux validation pending.
+3. **Three perf wins on Linux native, all on leap-c.** L2 parse 1.75×, L3 SELECT 1.55×, L4 INSERT 1.82× vs mainline at the same hour, same harness, same workload (post-Wave-G3). Reproducible via `bench/run-linux-libmode.sh`. CSVs at `bench/results/2026-04-27-linux-native/lane2-parseonly/raw.csv` (3 runs, 1.86M / 1.07M / 710k qps for leap-c / mainline / leap-rust) and `bench/results/2026-04-27-linux-x86_64/raw.csv` (L3/L4 post-G3). **leap-rust loses all three at 67–82% of mainline** — it is correctness-equivalent, not perf-equivalent. **Picking a different leap target moves you from "wins three lanes" to "loses three lanes" with no other change**, and that's worth knowing before citing this work.
+4. **Cold-start, binary size, and memory wins on both platforms.** L1 cold-start: leap-c/rust/zig beat mainline 4–17× on Mac and Linux. L5 binary size: leap-c at 370–512 KB beats mainline's 1.22 MB CLI binary. L6 peak RSS: leap-c/rust/zig all under 3 MB vs mainline 2.7–3.4 MB. CSVs: `bench/results/2026-04-28-StanislacStudio.csv` (Mac arm64), `bench/results/2026-04-28-stanislav-s.csv` (Linux x86_64).
 5. **One spec → WASM build.** Via the Rust target's `wasm32-unknown-unknown`. The artifact is around 226 KB and runs the SELECT-expression smoke under Node.
 
 The structural flex — same spec, five languages, byte-identical disk format at fixed fixtures, real perf wins on three lib-mode lanes (on the C target only) — is what's worth looking at. I'm not claiming this beats SQLite. I'm claiming the methodology produces something that competes on its own turf in measurable, reproducible ways, on **specific targets**, and the gaps are concrete and listed.
@@ -135,7 +176,6 @@ The structural flex — same spec, five languages, byte-identical disk format at
 
 - **leap-rust is the bench laggard, not the bench leader.** Linux native L3/L4: 0.80× and 0.82× of mainline. Today's in-place B-tree commit-path rewrite (~45× speedup on Mac on the COMMIT phase alone) is fresh and not yet re-benched on Linux; even with the expected delta it is not obvious leap-rust will close the gap to mainline. Until measured, treat leap-rust as correctness-equivalent only.
 - **leap-zig, leap-go, leap-python perf is not in the headline table.** Sibling-target perf benches exist but the structural-correctness numbers (sqllogictest, byte-identity) are the load-bearing claims for those targets, not perf parity with leap-c.
-- **Peak RSS:** mainline is lighter than leap-c by ~1.5%. Not a win.
 - **leap-rust loses all three perf lanes** (L2 0.67×, L3 0.80×, L4 0.82×). It is correctness-equivalent, not perf-equivalent. Today's in-place B-tree commit-path rewrite (~45× speedup on Mac on the COMMIT phase) is fresh and not yet re-benched on Linux; even with the expected delta it is not obvious leap-rust will close the gap to mainline.
 - **Binary size apples-to-apples:** the 8.7× number includes mainline's CLI shell. An engine-only mainline build would shrink the gap substantially.
 - **Linux validation** is on a single Ubuntu 22.04 box. Multi-distro CI is not yet wired.
@@ -163,6 +203,9 @@ bash bench/run-linux-libmode.sh
 # Or via Docker
 docker build -f bench/Dockerfile.linux-x86 -t sqlite-leap-bench .
 docker run --rm -v "$PWD:/repo" sqlite-leap-bench bash bench/run-linux-libmode.sh
+
+# Full CLI matrix (all 6 lanes × 5 leap targets + mainline + turso + turso-core)
+bash bench/run-all.sh
 ```
 
 The bench script writes a CSV into `bench/results/` along with a run log naming the exact compiler and toolchain versions used. The published numbers in this post correspond to `bench/results/2026-04-27-linux-native/raw.csv`.

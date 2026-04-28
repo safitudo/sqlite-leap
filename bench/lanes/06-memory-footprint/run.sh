@@ -47,7 +47,7 @@ case "$TARGET" in
         # Library variant: takes --db=PATH and --sql-file=PATH explicitly.
         cmd=("$bin" "--mode=run" "--db=$DB" "--sql-file=$WORKLOAD")
         ;;
-    sqlite-leap-c|sqlite-leap-rust)
+    sqlite-leap-c|sqlite-leap-rust|sqlite-leap-zig|sqlite-leap-go|sqlite-leap-python)
         wrapped="$(mktemp)"
         {
             printf 'statement ok\n'

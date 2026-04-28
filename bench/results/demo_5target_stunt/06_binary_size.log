@@ -1,11 +1,26 @@
 >>> Rust (release-small: opt-level=z, lto=fat, panic=abort, strip)
+   Compiling leap_sqlite v0.1.0 (/Users/stanislav/code/sqlite-leap/src-rust)
+warning: unused import: `pager_get_page_mut`
+  --> storage.rs:32:42
+   |
+32 |     pager_allocate_page, pager_get_page, pager_get_page_mut, pager_new_in_memory,
+   |                                          ^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused imports: `build_leaf_page as pc_build_leaf_page` and `decode_interior_entries`
+  --> storage.rs:38:5
+   |
+38 |     build_leaf_page as pc_build_leaf_page, build_master_leaf,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+39 |     cell_pointers as pc_cell_pointers, decode_interior_entries,
+   |                                        ^^^^^^^^^^^^^^^^^^^^^^^
+
 warning: unused import: `Zeroize`
   --> encryption.rs:38:15
    |
 38 | use zeroize::{Zeroize, Zeroizing};
    |               ^^^^^^^
-   |
-   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
 
 warning: unused import: `RuntimeCondition`
   --> vtab.rs:11:19
@@ -14,19 +29,27 @@ warning: unused import: `RuntimeCondition`
    |                   ^^^^^^^^^^^^^^^^
 
 warning: value assigned to `content_used` is never read
-   --> storage_fileformat.rs:338:21
+   --> storage_fileformat.rs:343:21
     |
-338 |                     content_used += cell.len();
+343 |                     content_used += cell.len();
     |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
     |
     = help: maybe it is overwritten before being read?
     = note: `#[warn(unused_assignments)]` (part of `#[warn(unused)]`) on by default
 
 warning: value assigned to `cell_count` is never read
-   --> storage_fileformat.rs:339:21
+   --> storage_fileformat.rs:344:21
     |
-339 |                     cell_count += 1;
+344 |                     cell_count += 1;
     |                     ^^^^^^^^^^^^^^^
+    |
+    = help: maybe it is overwritten before being read?
+
+warning: value assigned to `remaining` is never read
+   --> storage_wal.rs:472:17
+    |
+472 |                 remaining = 0;
+    |                 ^^^^^^^^^^^^^
     |
     = help: maybe it is overwritten before being read?
 
@@ -48,13 +71,23 @@ warning: variable does not need to be mutable
      |         |
      |         help: remove this `mut`
 
-warning: constant `PAGE_TYPE_TABLE_LEAF` is never used
-   --> storage_fileformat.rs:271:7
+warning: field `table_name` is never read
+   --> storage.rs:213:5
     |
-271 | const PAGE_TYPE_TABLE_LEAF: u8 = 0x0D;
-    |       ^^^^^^^^^^^^^^^^^^^^
+199 | pub struct CursorHandle {
+    |            ------------ field in this struct
+...
+213 |     table_name: String,
+    |     ^^^^^^^^^^
     |
+    = note: `CursorHandle` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: constant `PAGE_TYPE_TABLE_LEAF` is never used
+   --> storage_fileformat.rs:276:7
+    |
+276 | const PAGE_TYPE_TABLE_LEAF: u8 = 0x0D;
+    |       ^^^^^^^^^^^^^^^^^^^^
 
 warning: field `region_index` is never read
    --> wal_shm.rs:124:5
@@ -92,38 +125,23 @@ warning: function `ident_text` is never used
 93 | fn ident_text<'src>(tokens: &[Token<'src>], i: u32) -> Option<&'src str> {
    |    ^^^^^^^^^^
 
-warning: `leap_sqlite` (lib) generated 12 warnings (run `cargo fix --lib -p leap_sqlite` to apply 4 suggestions)
-    Finished `release-small` profile [optimized] target(s) in 0.02s
->>> C (-Os, strip, dead-code eliminations)
->>> Zig (-Doptimize=ReleaseSmall, strip)
-OK: Zig SELECT steel thread green
->>> Go (-ldflags '-s -w' -trimpath)
->>> Python (source bytes; interpreter footprint reported separately)
-# Lane 5 — 5-target binary size
+warning: `leap_sqlite` (lib) generated 16 warnings (run `cargo fix --lib -p leap_sqlite` to apply 6 suggestions)
+error[E0308]: mismatched types
+   --> examples/select_behavioral_smoke.rs:74:9
+    |
+ 69 |     let mut state = VdbeState::new(
+    |                     -------------- arguments to this function are incorrect
+...
+ 74 |         db,
+    |         ^^ types differ in mutability
+    |
+    = note: expected mutable reference `&mut leap_sqlite::storage::Database`
+                       found reference `&leap_sqlite::storage::Database`
+note: associated function defined here
+   --> vdbe/mod.rs:245:12
+    |
+245 |     pub fn new(
+    |            ^^^
 
-Generated 2026-04-27T19:10:48Z on Darwin arm64.
-Mainline sqlite3 baseline: `/Users/stanislav/miniconda3/bin/sqlite3` = 1809536 bytes (1767.1 KB).
-
-Each row builds the same SELECT behavioral smoke (parser + compiler + VDBE + storage)
-with the smallest-binary flags available in that toolchain.
-
-| target | bytes | KB | vs sqlite3 mainline | notes |
-|---|---:|---:|---:|---|
-| c | 207912 | 203.0 | 0.11x | gcc -Os -ffunction-sections + dead-strip + strip |
-| rust | 586112 | 572.4 | 0.32x | cargo --profile release-small |
-| zig | 2879192 | 2811.7 | 1.59x | zig build -Doptimize=ReleaseSmall + strip |
-| go | 2681042 | 2618.2 | 1.48x | go build -trimpath -ldflags '-s -w' |
-| python | 968674 | 946.0 | 0.54x | .py source only; interpreter python3.10 = 33816 bytes (excluded) |
-| sqlite3 (mainline) | 1809536 | 1767.1 | 1.00x | system `3.41.2` |
-
-**Smallest binary target:** c at 207912 bytes (203.0 KB).
-**C target beats mainline sqlite3:** YES (0.11x of mainline).
-
-Notes:
-- Python is reported as engine-package `.py` source bytes; the CPython interpreter
-  (python3.10, 33816 bytes) is NOT bundled and not counted.
-- Mainline sqlite3 includes the CLI shell, readline, ICU shim — apples-to-oranges
-  vs leap-sqlite which only embeds the engine; we report it as published.
-- All builds invoked from this script are reproducible: see source for flags.
-
-report written to: /Users/stanislav/code/sqlite-leap/bench/results/binary_size_5target/REPORT.md
+For more information about this error, try `rustc --explain E0308`.
+error: could not compile `leap_sqlite` (example "select_behavioral_smoke") due to 1 previous error

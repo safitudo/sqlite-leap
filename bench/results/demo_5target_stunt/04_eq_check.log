@@ -1,14 +1,14 @@
-build rust   ... ok
+build rust   ... FAIL (see /var/folders/vl/xgdd28sx5hl5dwfv599xjtlm0000gn/T/tmp.ckSOAuXfpV/build.rust.log)
 build python ... ok
 build go     ... ok
 build zig    ... ok
-build c      ... FAIL (see /var/folders/vl/xgdd28sx5hl5dwfv599xjtlm0000gn/T/tmp.0fL02ie0JT/build.c.log)
+build c      ... FAIL (see /var/folders/vl/xgdd28sx5hl5dwfv599xjtlm0000gn/T/tmp.ckSOAuXfpV/build.c.log)
 
 == count_star_x3 ==
-  rust   OK   (reference)
-  python OK   (matches rust)
-  go     OK   (matches rust)
-  zig    OK   (matches rust)
+  rust   SKIP (build failed)
+  python OK   (reference)
+  go     OK   (matches python)
+  zig    OK   (matches python)
   c      SKIP (build failed)
 
 RESULT: all targets agree on canonical output across 1 corpus file(s)
