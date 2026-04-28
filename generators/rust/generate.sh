@@ -1,23 +1,43 @@
 #!/usr/bin/env bash
-# Generate the Rust implementation of sqlite-leap into ../../src-rust/
+# Regenerate one part for the Rust target.
 #
-# Inputs (read-only):
-#   CLAUDE.md, master.md, spec/**, schema/**, parts/**, tests/**
-# Output:
-#   src-rust/**  — self-contained cargo crate
+# Usage:
+#   generators/rust/generate.sh <part-path>
 #
-# Forbidden sources: mainline SQLite source, Turso source, rusqlite, sqlx internals,
-# `_original/`. See CLAUDE.md for the full list.
+# Example:
+#   generators/rust/generate.sh storage/btree-write
 #
-# This stub exists so the generator contract is visible from day one. Phase 1
-# replaces the body with a real AI-agent invocation.
+# This script is the per-target entry point; the actual brief assembly
+# lives in generators/leapgen.py (--target rust). The emission step itself
+# is an LLM agent run, not a deterministic compiler — that is the honest
+# state of the LEAP pipeline as of 2026-04-28. See docs/DASHBOARD.md for
+# regen envelope notes (some monolithic files exceed agent regen reliability).
 
 set -euo pipefail
 
 cd "$(dirname "$0")/../.."
 REPO_ROOT="$(pwd)"
 
-echo "[generators/rust] Target: $REPO_ROOT/src-rust/"
-echo "[generators/rust] Inputs: CLAUDE.md, master.md, spec/, schema/, parts/, tests/"
-echo "[generators/rust] NOT IMPLEMENTED YET — wire up in Phase 1."
-exit 2
+if [ $# -lt 1 ]; then
+  cat >&2 <<'EOF'
+usage: generators/rust/generate.sh <part-path>
+
+Examples:
+  generators/rust/generate.sh vdbe/opcodes-rows
+  generators/rust/generate.sh storage/btree-write
+  generators/rust/generate.sh parser/tokenizer
+
+The script prints the universal LEAP build brief for <part-path> × Rust
+target to stdout. Pipe it to your agent harness (Claude Code Agent tool,
+Anthropic API, etc.) to produce src-rust/ output.
+
+The emission is NOT deterministic; it is an LLM agent run. Inspect the
+brief, run the agent, then diff its output against the existing src-rust/
+tree to evaluate the regeneration.
+EOF
+  exit 2
+fi
+
+PART="$1"
+
+exec python3 "$REPO_ROOT/generators/leapgen.py" --part "$PART" --target rust

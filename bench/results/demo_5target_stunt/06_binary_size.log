@@ -1,5 +1,4 @@
 >>> Rust (release-small: opt-level=z, lto=fat, panic=abort, strip)
-   Compiling leap_sqlite v0.1.0 (/Users/stanislav/code/sqlite-leap/src-rust)
 warning: unused import: `pager_get_page_mut`
   --> storage.rs:32:42
    |
@@ -126,22 +125,38 @@ warning: function `ident_text` is never used
    |    ^^^^^^^^^^
 
 warning: `leap_sqlite` (lib) generated 16 warnings (run `cargo fix --lib -p leap_sqlite` to apply 6 suggestions)
-error[E0308]: mismatched types
-   --> examples/select_behavioral_smoke.rs:74:9
-    |
- 69 |     let mut state = VdbeState::new(
-    |                     -------------- arguments to this function are incorrect
-...
- 74 |         db,
-    |         ^^ types differ in mutability
-    |
-    = note: expected mutable reference `&mut leap_sqlite::storage::Database`
-                       found reference `&leap_sqlite::storage::Database`
-note: associated function defined here
-   --> vdbe/mod.rs:245:12
-    |
-245 |     pub fn new(
-    |            ^^^
+   Compiling leap_sqlite v0.1.0 (/Users/stanislav/code/sqlite-leap/src-rust)
+    Finished `release-small` profile [optimized] target(s) in 5.07s
+>>> C (-Os, strip, dead-code eliminations)
+>>> Zig (-Doptimize=ReleaseSmall, strip)
+OK: Zig SELECT steel thread green
+>>> Go (-ldflags '-s -w' -trimpath)
+>>> Python (source bytes; interpreter footprint reported separately)
+# Lane 5 — 5-target binary size
 
-For more information about this error, try `rustc --explain E0308`.
-error: could not compile `leap_sqlite` (example "select_behavioral_smoke") due to 1 previous error
+Generated 2026-04-28T05:34:13Z on Darwin arm64.
+Mainline sqlite3 baseline: `/Users/stanislav/miniconda3/bin/sqlite3` = 1809536 bytes (1767.1 KB).
+
+Each row builds the same SELECT behavioral smoke (parser + compiler + VDBE + storage)
+with the smallest-binary flags available in that toolchain.
+
+| target | bytes | KB | vs sqlite3 mainline | notes |
+|---|---:|---:|---:|---|
+| c | 207976 | 203.1 | 0.11x | gcc -Os -ffunction-sections + dead-strip + strip |
+| rust | 602896 | 588.8 | 0.33x | cargo --profile release-small |
+| zig | 2879192 | 2811.7 | 1.59x | zig build -Doptimize=ReleaseSmall + strip |
+| go | 2816082 | 2750.1 | 1.56x | go build -trimpath -ldflags '-s -w' |
+| python | 973930 | 951.1 | 0.54x | .py source only; interpreter python3.10 = 33816 bytes (excluded) |
+| sqlite3 (mainline) | 1809536 | 1767.1 | 1.00x | system `3.41.2` |
+
+**Smallest binary target:** c at 207976 bytes (203.1 KB).
+**C target beats mainline sqlite3:** YES (0.11x of mainline).
+
+Notes:
+- Python is reported as engine-package `.py` source bytes; the CPython interpreter
+  (python3.10, 33816 bytes) is NOT bundled and not counted.
+- Mainline sqlite3 includes the CLI shell, readline, ICU shim — apples-to-oranges
+  vs leap-sqlite which only embeds the engine; we report it as published.
+- All builds invoked from this script are reproducible: see source for flags.
+
+report written to: /Users/stanislav/code/sqlite-leap/bench/results/binary_size_5target/REPORT.md

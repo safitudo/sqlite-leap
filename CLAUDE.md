@@ -1,6 +1,6 @@
 # sqlite-leap
 
-A LEAP project. The flagship stunt: rewrite SQLite from a language-neutral spec that generates **both C and Rust** implementations. WASM via the Rust target is a third build. One spec, two languages, six benchmarks, all green.
+A LEAP project. The flagship stunt: rewrite SQLite from a language-neutral spec that generates **five** implementations — **C, Rust, Zig, Go, Python** — plus a WASM build via the Rust target. One spec, five languages, six benchmark lanes. Every public number traces to a CSV at `bench/PUBLISHED.md`; if a doc claim doesn't appear there, it isn't published.
 
 **Stunt plan (source of truth for scope):** `L4-inbox/2026-04-17-stunt-sqlite.md` in the user's Obsidian vault (accessible via the `leapfrog-vault` / `mcpvault` MCP servers). Always read it before making scope decisions.
 
@@ -20,13 +20,18 @@ If a test contradicts a prompt, **the test wins**.
 
 ## What makes sqlite-leap different from standard LEAP
 
-Standard LEAP targets one language per project. sqlite-leap targets **three builds from one spec**:
+Standard LEAP targets one language per project. sqlite-leap targets **five language builds plus WASM from one spec**:
 
-1. **C** — competes with mainline SQLite on its own turf (binary size, perf, deployability)
-2. **Rust** — competes with Turso's hand-coded Rust rewrite
-3. **WASM** — via the Rust target (`wasm32-unknown-unknown`), competes with `sql.js` / `sqlite-wasm`
+1. **C** — the binary-size + perf headline target
+2. **Rust** — the storage-write canonical target (Pin 18.1d / 19) and WASM source
+3. **Zig** — small-binary native target with explicit allocator discipline
+4. **Go** — runtime-managed memory comparison
+5. **Python** — pure-spec readability check; if the spec is clean, Python emission stays small
+6. **WASM** — produced by `wasm32-unknown-unknown` from the Rust target
 
-This is the core claim: **Turso has one spec (their Rust code). We have a language-neutral spec that produces equivalent implementations in multiple languages, same tests pass on all.** That is the flex Turso structurally cannot match.
+This is the core claim: **Turso has one spec (their Rust code). We have a language-neutral spec that produces equivalent implementations in five languages, same tests pass on all.** That is the flex Turso structurally cannot match — when it holds. It currently holds for byte-format at fixed fixtures, for SLT parity on a 335-file sample, and for the SQL surface at the leaf-emission level. It does not yet hold for monolithic files (`compiler.rs` ~19K LOC) which exceed an agent's reliable regen envelope; those are maintained as source. See `docs/DASHBOARD.md` for the live regen-debt accounting.
+
+**Honesty norm.** No publication doc (`README.md`, `docs/PUBLICATION.md`) may carry a number that isn't in `bench/PUBLISHED.md` with a CSV citation. When a number is retracted, it is removed from `PUBLISHED.md` and the doc auto-stales. Cross-doc number drift is the project's most-cited integrity failure; the registry is the fix.
 
 **Hardest discipline of the project:** specs must be strictly language-neutral. If a spec leaks a C idiom or a Rust idiom, the other build breaks. First time an idiom leaks = hardest failure mode to recover from.
 
@@ -53,14 +58,15 @@ sqlite-leap/
 │   ├── tcl/                    # ported SQLite public tcl suite
 │   ├── fuzz/                   # AFL-generated; results must match mainline byte-for-byte on deterministic ops
 │   └── cross-build/            # C vs Rust equivalence: same query → identical results
-├── generators/                 # one subdirectory per language target; invokes LEAP generation
-│   ├── c/
-│   ├── rust/
-│   └── wasm/                   # thin wrapper: compiles the Rust generation to wasm32
-├── bench/                      # reproducible harness for all 6 lanes
-├── src-c/                      # GITIGNORED — generated C implementation
-├── src-rust/                   # GITIGNORED — generated Rust implementation
-└── src-wasm/                   # GITIGNORED — WASM artifact (built from src-rust)
+├── generators/                 # leapgen.py brief assembler + per-target generate.sh invokers
+│   ├── leapgen.py              # walks parts/ inheritance graph, prints universal brief
+│   ├── c/, rust/, zig/, go/, python/   # each: generate.sh shells out to leapgen.py
+│   └── wasm/                   # thin wrapper: compiles the Rust target to wasm32
+├── bench/
+│   ├── PUBLISHED.md            # SINGLE SOURCE OF TRUTH for every public number
+│   └── lanes/, results/        # harness + raw CSVs
+├── src-c/, src-rust/, src-zig/, src-go/, src-python/   # GITIGNORED — agent-emitted, hand-maintained
+└── src-wasm/                   # GITIGNORED — built from src-rust
 ```
 
 `_original/` may temporarily exist during rewrite-mode setup (extracting test fixtures, porting sqllogictest). **Must not be read during code generation.** See "DO NOT CHEAT" below.
@@ -159,8 +165,9 @@ If the prototype exposes a spec pattern that doesn't stay language-neutral clean
 ## Working norms
 
 - **Read the stunt plan before scoping anything** (`L4-inbox/2026-04-17-stunt-sqlite.md` in the vault).
-- **Specs first, schemas second, tests third, code never** (it's generated).
-- **Never write code into `src-c/`, `src-rust/`, or `src-wasm/` manually.** Those are generator output.
+- **Specs first, schemas second, tests third, code last** (and last is "regenerable, hand-maintained where regen-debt is documented").
+- **Prefer regeneration over direct edits in `src-*/`.** Where you must edit directly (regen-envelope-too-large), log it in `docs/DASHBOARD.md` regen-debt section.
 - **When tests fail:** first ask if the spec was ambiguous. Fix the spec, regenerate, not the code directly.
 - **Mac-native dev is fine for daily loop**, but benchmark claims require Linux cross-validation before publication.
 - **Reputation asymmetry matters.** SQLite has a "bug-free" reputation. Ship as "compatibility implementation, not production drop-in" until confidence earned.
+- **Numbers register in `bench/PUBLISHED.md` before they appear in any doc.** No exceptions. Every README/PUBLICATION number cites a CSV path; if it doesn't exist in `PUBLISHED.md`, it can't be published.

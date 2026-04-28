@@ -1,8 +1,8 @@
-build rust   ... FAIL (see /var/folders/vl/xgdd28sx5hl5dwfv599xjtlm0000gn/T/tmp.ckSOAuXfpV/build.rust.log)
+build rust   ... FAIL (see /var/folders/vl/xgdd28sx5hl5dwfv599xjtlm0000gn/T/tmp.eoxivOqJXk/build.rust.log)
 build python ... ok
 build go     ... ok
 build zig    ... ok
-build c      ... FAIL (see /var/folders/vl/xgdd28sx5hl5dwfv599xjtlm0000gn/T/tmp.ckSOAuXfpV/build.c.log)
+build c      ... FAIL (see /var/folders/vl/xgdd28sx5hl5dwfv599xjtlm0000gn/T/tmp.eoxivOqJXk/build.c.log)
 
 == count_star_x3 ==
   rust   SKIP (build failed)
