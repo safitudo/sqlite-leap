@@ -10,7 +10,7 @@
     "Database":         "/parts/storage/parts/mem-store",
     "CursorHandle":     "/parts/storage/parts/mem-store",
     "LockManager":      "/parts/storage/parts/locking",
-    "SyncLevel":        "/parts/compiler/parts/statements/pragma"
+    "SyncLevel":        "/parts/storage/parts/wal"
   },
 
   "types": {
