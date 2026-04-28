@@ -98,10 +98,22 @@
       "params": [],
       "returns": "usize"
     },
+    "PageCache::is_empty": {
+      "self": "&",
+      "params": [],
+      "returns": "bool",
+      "doc": "Equivalent to `len() == 0`. Convenience observer."
+    },
     "PageCache::capacity": {
       "self": "&",
       "params": [],
       "returns": "usize"
+    },
+    "PageCache::peek": {
+      "self": "&",
+      "params": [{ "name": "page_id", "type": "PageId" }],
+      "returns": "option<Page>",
+      "doc": "Pin 19.1a perf bridge — return the page if present WITHOUT touching LRU order. Read-only; never moves the entry to MRU. Used by callers that need to inspect a page without recording a hit (e.g. write-path probes that may not actually consume the page)."
     },
     "PageCache::clear": {
       "self": "&mut",

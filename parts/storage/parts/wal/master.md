@@ -428,9 +428,12 @@ explicitly requires.
 
 The fsync calls in `wal_commit`, `wal_checkpoint`, and the
 file-format atomic-rename commit are gated by the connection's
-`SyncLevel` (defined in
+`SyncLevel` — a closed enum `{Off, Normal, Full, Extra}` whose
+**canonical home is this part's `shapes.json` `types.SyncLevel`**.
+Every fsync site lives in storage, so SyncLevel is owned here;
 `parts/compiler/parts/statements/pragma/master.md` §Synchronous
-semantics, pins S1..S6).
+semantics (pins S1..S6) is the user-facing surface that maps
+`PRAGMA synchronous = X` onto the same enum and re-imports it.
 
 The matrix below is **normative**: targets MUST consult
 `connection_get_synchronous(state)` at each site and skip or

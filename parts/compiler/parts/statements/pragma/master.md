@@ -50,10 +50,13 @@ WAL-mode default per the v1 production roadmap §1.2).
 ### Pin S1 — four-level enum
 
 The synchronous level is a closed enum with exactly four members:
-`Off (0)`, `Normal (1)`, `Full (2)`, `Extra (3)`. Targets emit
-this as an idiomatic enum (Rust `enum`, C `enum`, Zig `enum`,
-Go `iota`-block, Python `IntEnum`). The integer codes are part
-of the on-the-wire pragma surface — `PRAGMA synchronous = 2` and
+`Off (0)`, `Normal (1)`, `Full (2)`, `Extra (3)`. **Canonical home
+of the type is `parts/storage/parts/wal/shapes.json::SyncLevel`**
+(every fsync site lives in storage; pragma is the user-facing
+surface that re-imports the same type). Targets emit this as an
+idiomatic enum (Rust `enum`, C `enum`, Zig `enum`, Go `iota`-block,
+Python `IntEnum`). The integer codes are part of the on-the-wire
+pragma surface — `PRAGMA synchronous = 2` and
 `PRAGMA synchronous = FULL` are equivalent, both produce
 `SyncLevel::Full`.
 

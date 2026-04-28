@@ -63,8 +63,13 @@ Each `CacheEntry` carries:
 7. `flush_dirty()`: return the list of `(page_id, page)` for every
    entry with `dirty == true`, in ascending `page_id` order. Clears
    the `dirty` flag on each returned entry. Does not evict.
-8. `len() / capacity()`: query observers.
-9. `clear()`: drop every entry; `lru_order` becomes empty.
+8. `len() / capacity() / is_empty()`: query observers.
+9. `peek(page_id)`: if `page_id` in `entries`, return the page
+   image **without** moving the entry in `lru_order`; else return
+   *absent*. Pin 19.1a perf bridge — used by write-path probes
+   that need to inspect a page before deciding whether to consume
+   it. Strictly read-only on LRU state.
+10. `clear()`: drop every entry; `lru_order` becomes empty.
 
 ## LRU eviction discipline
 
