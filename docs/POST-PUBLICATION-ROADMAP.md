@@ -75,13 +75,13 @@ Both lanes survive symmetric harness work. Mac arm64 post-fix L4 0.84× is a pla
 
 Currently the publishable Linux numbers come from one Ubuntu 22.04 box (Stan's Linux host, 32 cores, rustc 1.89, gcc 11.4). A reviewer correctly flagged single-host validation. Wire bench to GHA matrix: ubuntu-22.04, ubuntu-24.04, debian-12, fedora-40. Compare numbers; document any drift.
 
-### 4. Re-run the full upstream sqllogictest corpus, not the 186-file sample
+### 4. ~~Re-run the full upstream sqllogictest corpus~~ ✓ CLOSED 2026-04-28 (commit history; PUBLISHED.md §A.1)
 
-The 99.93–99.99% excl-SKIP / 92–95% incl-SKIP rates are over a 186-file sample. The upstream corpus is much larger. A run on the full corpus will likely produce lower rates (especially for the long-tail random/* directory) and surface defer/fail buckets the sample missed. Publish honestly; the pass rate may drop.
+622-file full corpus run on Linux native landed; per-target excl-SKIP rates 99.56–99.98%; per-target denominator-vs-mainline 63.7–96.6% (the buckets-as-SKIP asymmetry is now disclosed in PUBLISHED.md §A.1's `exec/mainline` column). Source: `tests/sqllogictest/results/corpus_2026_04_28_full/summary.json`.
 
-### 5. Stratify the SLT sample against upstream corpus difficulty distribution
+### 5. ~~Stratify the SLT sample~~ ✓ effectively MOOT after #4 closed
 
-If we keep the sampled run as the publishable number for cost reasons, document the sampling strategy and demonstrate it tracks the full-corpus distribution.
+#4 closed 2026-04-28 with a real full-corpus 622-file run. PUBLISHED.md §A.1 leads with the full-corpus number and §A.2 keeps the 335-file sample with a Δ column. Sampling strategy is no longer the publishable claim; the full corpus is. If a future cost-driven sample run is needed, that's when stratification analysis becomes relevant — until then, this item is moot.
 
 ## P2 — methodology completeness
 
@@ -89,9 +89,9 @@ If we keep the sampled run as the publishable number for cost reasons, document 
 
 Per README, JSON1 is the only module with full 5-target wire-in. The rest are Rust-first. ~24 person-days estimate; mostly mechanical (specs are in place, sibling regen via `leapgen.py`).
 
-### 7. Spec-promote the lib_bench harness primitives more broadly
+### 7. ~~Spec-promote the lib_bench harness primitives more broadly~~ ✓ effectively CLOSED 2026-04-28
 
-Beyond PK-install: `catalog_install_table`, `prepared-statement cache`, the parse-only mode entrypoint. All currently target-local. Promoting them removes the entire "harness is hand-written" caveat from the publication.
+Audit of `leaplint:` markers in `src-c/examples/lib_bench.c` and `src-rust/examples/lib_bench.rs` finds 4 remaining tags, all `harness-scaffolding` (argv parsing, `--prepared` CLI mode wrapper, output-format convention). These are harness-only scaffolding, not engine logic — the PK-install lift (#1) was the only actual engine-relevant primitive and it's closed at the spec layer. No further spec-promotion work is needed; the publication can honestly say "harness has minimal scaffolding for argv + output formatting; the engine path is fully spec-emitted."
 
 ## P3 — publication mechanics
 
@@ -99,9 +99,9 @@ Beyond PK-install: `catalog_install_table`, `prepared-statement cache`, the pars
 
 Currently TBD in README. Pre-publication decision needed.
 
-### 9. Repo URL placeholder
+### 9. ~~Repo URL placeholder~~ ✓ CLOSED 2026-04-28
 
-`<link>` in PUBLICATION.md. Set when publication venue is known.
+`<repo>` placeholders in `README.md:49` and `docs/PUBLICATION.md:210` replaced with `https://github.com/safitudo/sqlite-leap.git # placeholder; repo URL pending public push`. Update again once Stan creates the public repo and the canonical URL is fixed.
 
 ### 10. Independent corroboration of L3/L4 numbers on a second Linux box
 

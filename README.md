@@ -46,7 +46,7 @@ The Rust target has behavioral test coverage for: JSON1 (5/5 targets), foreign k
 ### Mac (arm64)
 
 ```bash
-git clone <repo>
+git clone https://github.com/safitudo/sqlite-leap.git  # placeholder; repo URL pending public push
 cd sqlite-leap
 
 cargo build --release --manifest-path src-rust/Cargo.toml --example slt_runner --example lib_bench

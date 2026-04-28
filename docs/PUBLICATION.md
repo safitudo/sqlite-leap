@@ -207,7 +207,7 @@ The structural flex — same spec, five languages, byte-identical disk format at
 ## Reproduction
 
 ```bash
-git clone <repo>
+git clone https://github.com/safitudo/sqlite-leap.git  # placeholder; repo URL pending public push
 cd sqlite-leap
 
 # Mac (arm64) — 5-target sqllogictest parity + on-disk byte-identity + Mac-only lanes
