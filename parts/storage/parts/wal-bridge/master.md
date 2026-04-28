@@ -101,9 +101,25 @@ they only resolve a table name and don't touch pages until rewind.
 
 `close_cursor` keeps its old signature — it's a no-op.
 
-The deferred stubs (open_index_cursor, cursor_seek_*, cursor_idx_*,
-cursor_prev) gain `pager: &mut Pager` for forward compat but their
-bodies still return `Err(RuntimeCondition::IoError)` in Phase 18.1.
+`cursor_seek_rowid(cursor, pager, rowid) -> Result<bool, RuntimeCondition>`
+is **LIVE** (was lifted in v5; all five targets implement it). It joins
+the LIVE table above with the `pager` parameter threaded — body uses
+the in-memory rowid index in v18.2; pager will gate paged-read shortcut
+in pin 19.
+
+`open_index_cursor` keeps its **cursor-open** signature
+`(db: &Database, index_name: &str)` — same carve-out as
+`open_read_cursor` / `open_write_cursor`, since cursor-open doesn't
+touch pages until rewind.
+
+The remaining deferred stubs (`cursor_seek_ge`/`gt`/`le`/`lt`,
+`cursor_idx_next`, `cursor_idx_rowid`, `cursor_prev`) gain
+`pager: &mut Pager` for forward compat but their bodies still return
+`Err(RuntimeCondition::IoError)` in Phase 18.1.
+
+This list was reconciled in Wave G3 (2026-04-27) when all 4 sibling
+agents independently kept SeekRowid LIVE and open_index_cursor
+no-pager — converging on the same correct shape.
 
 ### VDBE call-site migration
 
