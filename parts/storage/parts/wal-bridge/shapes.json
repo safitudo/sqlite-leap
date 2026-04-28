@@ -114,7 +114,7 @@
     },
 
     "pager_commit_transaction": {
-      "doc": "Persist the database state per the journal mode. Memory: no-op. Delete: serialize Database to db_path via fileformat-write atomic-rename, fsync per synchronous. Wal: encode Database into pages, push them through the cache as dirty, acquire WalLockSlot::Write, append each dirty page as a wal frame, wal_commit (fsync per synchronous matrix). Phase 18.1 implementation re-encodes the whole DB each commit (no per-page dirty tracking yet); pin 19 tightens this. Borrow note: this function reads the Database to encode pages and mutates the Pager — callers MUST pass disjoint borrows via the borrow-split helper on Database.",
+      "doc": "Persist the database state per the journal mode. Memory: no-op. Delete: serialize Database to db_path via fileformat-write atomic-rename, fsync per synchronous. Wal (pin 19): the page cache is the source of truth — cursor write paths have already mutated page images in place via pager_get_page_mut. COMMIT acquires WalLockSlot::Write, calls cache.flush_dirty() to obtain the dirty set in ascending page_no order, appends each as a wal frame, then wal_commit (fsync per synchronous matrix). new_db_size for the commit frame == p.db_size_pages (the running total maintained by pager_allocate_page). Borrow note: this function reads the Database (for catalog inspection on rollback recovery) and mutates the Pager — callers MUST pass disjoint borrows via the borrow-split helper on Database.",
       "params": [
         { "name": "p",  "type": { "borrow_mut": "Pager" } },
         { "name": "db", "type": { "borrow":     "Database" } }
@@ -144,14 +144,6 @@
         { "name": "p", "type": "Pager" }
       ],
       "returns": { "result": { "ok": "unit", "err": "RuntimeCondition" } }
-    },
-
-    "encode_database_to_pages": {
-      "doc": "Serialize the current Database into a list of (page_number, page_image) pairs by running the existing fileformat-write encoder. Page 1 is the database header + sqlite_master. Pages 2..N are table b-tree pages. Phase 18.1 hard-codes the encoder's page_size constant (4096); page-size variability is pin 19+ work, so this function takes no page_size parameter. Used by pager_commit_transaction to materialize the DB state for WAL frame emission. Phase 18.1 implementation may delegate via a temp-file roundtrip (serialize_database_to_with_sync → read back → slice into pages) if the existing encoder's internal helpers are not pub; pin 19 replaces this with cache-aware in-place encoding.",
-      "params": [
-        { "name": "db", "type": { "borrow": "Database" } }
-      ],
-      "returns": { "result": { "ok": { "list": { "tuple": ["u32", "PageImage"] } }, "err": "RuntimeCondition" } }
     }
   }
 }

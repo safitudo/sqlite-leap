@@ -24,20 +24,25 @@ fn pager_free_page(page_id) -> Result<()>
 fn pager_flush() -> Result<()>
 ```
 
-## Pager dirty-set (Phase 4b)
+## Pager dirty-set (pin 19)
 
-The snapshot-diff v1 dirty-set is the authoritative tracker:
+The page cache's per-entry `dirty` bit is the authoritative tracker:
 
-- On `begin_session`, snapshot the current page-image set.
-- On each `get_page_mut`, mark the page dirty in a per-session set.
-- On `commit`, hand the dirty set (+ current page images) to
-  `storage/wal` for frame emission.
-- On commit-or-rollback, reset dirty set to empty.
+- On each `pager_get_page_mut(p, page_no)`, the cache marks that page
+  dirty (page-cache pin 13). Cursor write paths in
+  `parts/storage/parts/btree-write/master.md` go through this entry
+  point exclusively — there is no path that mutates a page image
+  without setting the bit.
+- On `pager_commit_transaction`, `cache.flush_dirty()` returns the
+  dirty pages in ascending `page_no` order and clears their bits;
+  WAL frames are appended in that order.
+- On `pager_rollback_transaction`, `cache.clear()` drops every
+  in-memory page image; subsequent `pager_get_page` re-faults from
+  disk-or-WAL.
 
-v1's single-bool `dirty` flag is replaced; the new structure is a
-page-granular set. The snapshot-diff approach was chosen over
-write-barrier interception because it requires no changes to
-`btree`'s write path.
+The pre-pin-19 snapshot-diff design is retired: the page cache's
+per-entry dirty bit subsumes it, and cursor writes are responsible
+for honoring the boundary by routing through `pager_get_page_mut`.
 
 ## Cache eviction
 
@@ -47,8 +52,10 @@ commit or rollback. Clean pages evict at configurable threshold
 
 ## Phase pins
 
-- **Phase 4b** — pager dirty-set (snapshot-diff v1) for WAL frame
-  emission.
+- **Phase 4b** (deprecated; superseded) — pager dirty-set
+  (snapshot-diff v1). Replaced at pin 19 by per-page dirty tracking
+  in the page cache; cursor writes route through
+  `pager_get_page_mut` per `parts/storage/parts/btree-write/master.md`.
 
 ## Regeneration envelope
 

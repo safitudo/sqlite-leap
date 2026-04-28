@@ -202,31 +202,25 @@ if p.journal_mode == Memory:
     return Ok(())   # in-memory; nothing to flush
 
 if p.journal_mode == Wal:
-    # Phase 18.1 implementation: re-encode the whole database state
-    # into pages via the existing fileformat-write encoder, push
-    # every page through the cache as dirty, then flush dirty pages
-    # to the WAL.
+    # Pin 19 implementation: the page cache is the source of truth.
+    # Cursor write paths (insert/update/delete) have already mutated
+    # in-memory page images via pager_get_page_mut, marking each
+    # touched page dirty. COMMIT iterates only the dirty set —
+    # never the whole database. See parts/storage/parts/btree-write.
 
-    let wal = p.wal.as_mut().expect("WAL state present in Wal mode")
-
-    # 1. Encode the database into a page list.
-    let pages: Vec<(u32, PageImage)> = encode_database_to_pages(db, p.page_size)
-
-    # 2. Push each page through the cache as dirty.
-    for (pn, img) in &pages:
-        p.cache.put(pn, img.clone(), dirty=true)
-
-    # 3. Acquire the WAL writer lock.
     p.lock.wal_acquire(WalLockSlot::Write, WalLockKind::Exclusive)?
 
-    # 4. Flush dirty pages to WAL frames in ascending page_no order.
-    for (pn, img) in p.cache.flush_dirty():
+    let wal = p.wal.as_mut().expect("WAL state present in Wal mode")
+    let dirty: Vec<(u32, PageImage)> = p.cache.flush_dirty()
+                                              # ascending page_no order, clears bits
+
+    for (pn, img) in &dirty:
         wal_append_frame(wal, pn, &img)?
 
-    # 5. Commit: bake the new db_size_after_commit into the last frame
-    #    and (per W9/W15/W16) fsync iff synchronous >= Full, OR for
-    #    Normal accumulate without fsync (mainline WAL default).
-    let new_db_size = pages.len() as u32
+    # Commit: bake new_db_size into the last frame; fsync per W9/W15/W16.
+    # P19-8: new_db_size == p.db_size_pages (the running total updated
+    # by pager_allocate_page; written into page-1 offset 28 at commit time).
+    let new_db_size = p.db_size_pages
     let info = wal_commit(wal, &p.db_path, new_db_size)?
 
     # The fsync inside wal_commit is gated on p.synchronous;
@@ -246,14 +240,11 @@ if p.journal_mode == Delete:
     return serialize_database_to_with_sync(db, &p.db_path, p.synchronous)
 ```
 
-**Phase 18.1 limitation (intentional, will be lifted in pin 19):**
-the WAL bridge re-encodes the whole DB into pages each commit. There
-is no per-row dirty-page tracking yet — that requires in-place B-tree
-mutation, which is pin 19. The L4 single-commit bench
-(`BEGIN; 100K INSERT; COMMIT;`) is unaffected: mainline writes the
-same total bytes to its WAL; we write the same total bytes to ours;
-both fsync once. For multi-commit workloads, pin 18 is O(db_size) per
-commit while mainline-WAL is O(dirty_pages); pin 19 closes that gap.
+**Pin 19 closes the per-commit O(db_size) walker.** The page cache is
+the live row store for path-backed databases; cursor writes mutate
+page images in place via `pager_get_page_mut`, and COMMIT iterates
+only `cache.flush_dirty()`. The boundary spec for the cursor write
+path lives in `parts/storage/parts/btree-write/master.md`.
 
 `pager_rollback_transaction(p)`:
 - If `journal_mode == Wal`: call `wal_rollback(state)` to discard
@@ -329,12 +320,11 @@ Sketched in §"File-backed Pager"; expanded:
    sees the WAL'd image if present). Use this to enumerate tables
    via the existing `deserialize_database_from_bytes` flow — but
    route page reads through `pager_get_page` instead of slicing
-   raw bytes. (Phase 18.1 simplification: we reuse the existing
-   in-memory `deserialize_database_from(path)` which reads the
-   raw file bytes; AFTER recovery loads the WAL'd pages into the
-   cache, we emit the WAL'd page images back to the file under
-   atomic-rename, then re-read. This is a temporary bootstrap;
-   pin 19 makes the deserializer cache-aware.)
+   raw bytes. (Pin 19 amendment: the deserializer is cache-aware —
+   recovery reads page 1 via `pager_get_page(p, 1)`, decodes
+   sqlite_master, and faults each table root through the cache on
+   demand. mem-store is populated lazily on first cursor_rewind,
+   per P19-12.)
 
 The Phase 18.1 bootstrap is correct but inefficient: we read the
 WAL, materialize it into a temp file, then re-read that file into
@@ -442,8 +432,6 @@ considered green at Phase 18.1.
 ## Out of scope (Phase 18.2+)
 
 - 4-target sibling emission (C/Zig/Go/Python). Pin 18 phase 18.2 wave.
-- In-place B-tree mutation. Pin 19. Without it, every commit
-  re-encodes the whole DB into pages.
 - `wal-shm`-mediated multi-process WAL. Pin 20+.
 - `PASSIVE` vs `RESTART` vs `TRUNCATE` checkpoint variants. v1 is
   PASSIVE.
@@ -476,8 +464,9 @@ considered green at Phase 18.1.
   WAL byte-format encoder/decoder lifts from
   `parts/storage/parts/wal/` (currently Rust-only) to all 5 targets.
   Cursor signature migration on each target.
-- **Phase 19** — In-place B-tree mutation. Per-commit cost drops
-  from O(db_size) to O(dirty_pages). Multi-commit workloads
+- **Phase 19** — In-place B-tree mutation (lifted; see
+  `parts/storage/parts/btree-write/master.md`). Per-commit cost drops
+  from O(db_size) to O(dirty_pages); multi-commit and L4 workloads
   approach mainline parity.
 - **Phase 20** — `wal-shm` multi-process coordination. Cross-process
   reader/writer protocols.

@@ -11,8 +11,12 @@ emits:
 
 # Part: storage/btree
 
-B-tree operations: insert, lookup, delete, range scan. Both table
-b-trees (rowid → record) and index b-trees (key → rowid).
+Read-only framing of the B-tree shape: descent, cursor positioning,
+and range scan. Mutation entry points (insert, update, delete, page
+split / merge) are owned by `parts/storage/parts/btree-write/master.md`
+(pin 19). This leaf documents the shared read-side machinery; the
+write-side spec carries the dirty-bit propagation contract that pin 19
+makes normative.
 
 ## Public interface
 

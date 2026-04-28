@@ -157,7 +157,7 @@
     },
 
     "cursor_rewind": {
-      "doc": "Position the cursor on the first row of the table. Returns Ok(true) if the table has at least one row; Ok(false) if the table is empty (the cursor is marked not-valid and subsequent cursor_column will error). Pin 18.1c (2026-04-27): takes `pager: &mut Pager` per the wal-bridge contract — pin 18.1c is structural (interior-mutability mem-store mutation path STAYS), but the pager threading is now in place so pin 19's incremental B-tree faulting can route reads through the pager without re-touching every call site.",
+      "doc": "Position the cursor on the first row of the table. Returns Ok(true) if the table has at least one row; Ok(false) if the table is empty (the cursor is marked not-valid and subsequent cursor_column will error). Pin 18.1c (2026-04-27): takes `pager: &mut Pager` per the wal-bridge contract — pin 18.1c is structural; pin 19 (`parts/storage/parts/btree-write/master.md`) routes path-backed reads through `pager_get_page` via this parameter.",
       "params": [
         { "name": "cursor", "type": { "borrow_mut": "CursorHandle" } },
         { "name": "pager",  "type": { "borrow_mut": "Pager" } }
@@ -194,7 +194,7 @@
     },
 
     "cursor_insert_row": {
-      "doc": "Append a new row to the cursor's table. If column_names is Some, its length equals values.len() and each name corresponds positionally to values[i] (the caller has already validated this against the table's schema); the row stored is built by starting from an all-Null row of the schema's width and writing each named value into its index — for the probe, column_names is passed through untouched because the smoke uses no-column-list INSERTs primarily. If column_names is None, values is stored directly as the row (the caller has validated arity against the schema). Returns the new rowid (the 1-based position in the table after the append). Cursor position is NOT advanced by this call. Pin 18.1c (2026-04-27): takes `pager: &mut Pager`. Row-vector mutation still flows through interior mutability on MemTable (Rc<RefCell<>> in Rust); the pager param is structural — pin 19 will route the actual page write through it.",
+      "doc": "Append a new row to the cursor's table. If column_names is Some, its length equals values.len() and each name corresponds positionally to values[i] (the caller has already validated this against the table's schema); the row stored is built by starting from an all-Null row of the schema's width and writing each named value into its index — for the probe, column_names is passed through untouched because the smoke uses no-column-list INSERTs primarily. If column_names is None, values is stored directly as the row (the caller has validated arity against the schema). Returns the new rowid (the 1-based position in the table after the append). Cursor position is NOT advanced by this call. Pin 18.1c (2026-04-27): takes `pager: &mut Pager`. Row-vector mutation still flows through interior mutability on MemTable (Rc<RefCell<>> in Rust); the pager param is structural — pin 19 (`parts/storage/parts/btree-write/master.md`) routes the page write through it.",
       "params": [
         { "name": "cursor",       "type": { "borrow_mut": "CursorHandle" } },
         { "name": "pager",        "type": { "borrow_mut": "Pager" } },

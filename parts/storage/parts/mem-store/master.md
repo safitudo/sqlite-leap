@@ -362,7 +362,7 @@ inherit the parameter list from there).
   — returns disjoint mutable borrows of the non-pager fields and the
   Pager. The disjoint-borrow guarantee is essential: every VDBE opcode
   handler that mutates rows (insert/update/delete) AND consults the
-  Pager (B-tree page faulting in pin 19+; cursor-threading in 18.1c)
+  Pager (B-tree page faulting in pin 19, cursor-threading in 18.1c)
   must hold both borrows simultaneously. The Rust borrow checker
   accepts this via field-destructuring; equivalent disjoint-borrow
   patterns exist in C (struct-field pointer aliasing), Zig (separate
@@ -708,10 +708,11 @@ write paths use the same Pager mutability for this reason.
 **P18c-3.** Cursor body semantics at pin 18.1c are otherwise
 unchanged from pin 17. Mem-store cursor mutation still flows through
 interior mutability on `MemTable.rows / rowids / pk_index`. The Pager
-is structural prep — pin 19's incremental B-tree page faulting will
-route reads through `pager_get_page_mut` and writes through
-`pager_mark_dirty`. At pin 18.1c the pager parameter exists but is
-not yet consulted by any LIVE cursor body for in-memory mode.
+is structural prep — pin 19 (see `parts/storage/parts/btree-write/master.md`)
+routes reads through `pager_get_page_mut` and writes through
+`pager_mark_dirty` for path-backed mode. At pin 18.1c the pager parameter
+exists but is not yet consulted by any LIVE cursor body for in-memory
+mode; pin 19 is the leaf that lights it up for path-backed mode.
 
 **P18c-4.** Deferred-stub cursor functions (cursor_seek_ge/gt/le/lt,
 cursor_idx_next, cursor_idx_rowid, cursor_prev, open_index_cursor)
