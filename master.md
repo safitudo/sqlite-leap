@@ -2,7 +2,7 @@
 name: root
 inherits:
   - /CLAUDE.md
-  - /ARCHITECTURE-v2.md
+  - /docs/ARCHITECTURE.md
   - /spec/durability.spec.md
 ---
 
@@ -10,7 +10,7 @@ inherits:
 
 You are orchestrating a LEAP project. Specs and tests are the source
 of truth. Code is the output. Read `CLAUDE.md` for project framing
-and `ARCHITECTURE-v2.md` for the recursive-parts model. Those two
+and `docs/ARCHITECTURE.md` for the recursive-parts model. Those two
 documents plus this file define the contract you work against.
 
 ## What this project is
@@ -82,7 +82,7 @@ longer live in `/spec/`.
 
 ## Generation flow (v2)
 
-1. Read `CLAUDE.md`, `ARCHITECTURE-v2.md`, this file.
+1. Read `CLAUDE.md`, `docs/ARCHITECTURE.md`, this file.
 2. Pick a target language (C or Rust).
 3. The generator walks `parts/` recursively. For each part:
    - If **leaf**: resolve `inherits`; concatenate ancestor chain;

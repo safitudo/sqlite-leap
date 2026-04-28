@@ -8,11 +8,11 @@
 
 **v1 is frozen.** All numbers and claims below are v1 results on `main`. This branch
 (`v2-recursive-parts`) is the structural rewrite of the parts tree per
-`ARCHITECTURE-v2.md`.
+`docs/ARCHITECTURE.md`.
 
 - **Landed on this branch:** recursive `parts/` tree, 55 sub-parts, every part has a
   conformant `master.md` with `inherits:` front-matter. Root `master.md` and
-  `ARCHITECTURE-v2.md` are the v2 contract.
+  `docs/ARCHITECTURE.md` are the v2 contract.
 - **Not yet landed on this branch:** generator refactor (generators still target v1
   shape); content migration from `/spec/*.spec.md` into leaf master.md files
   (specs stay as source-of-truth during migration — part master.md files carry

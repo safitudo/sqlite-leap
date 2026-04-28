@@ -1,0 +1,55 @@
+=== parts/without-rowid/tests/wr_smoke.slt ===
+[1m═══════════════════════════════════════════════════════════════[0m
+[1m  5-target sqllogictest matrix[0m
+[1m═══════════════════════════════════════════════════════════════[0m
+
+Fixture: parts/without-rowid/tests/wr_smoke.slt
+
+[1m── Building per-target drivers ──[0m
+  rust    ... [0;32mok[0m
+  python  ... [0;32mok[0m
+  c       ... [0;32mok[0m
+  zig     ... [0;32mok[0m
+  go      ... [0;32mok[0m
+
+[1m── Running each target on the fixture ──[0m
+
+line    kind       rust    python  c       zig     go     
+20      statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+23      statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+26      statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+29      statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+34      query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+46      query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+53      statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m
+56      query      [0;32mPASS   [0m [0;32mPASS   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m
+62      statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+65      query      [0;32mPASS   [0m [0;32mPASS   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m
+75      statement  [0;32mPASS   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m
+79      query      [0;32mPASS   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m
+87      statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+90      statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+93      statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+96      statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+100     query      [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+106     statement  [0;32mPASS   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m
+110     query      [0;32mPASS   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m
+124     statement  [0;32mPASS   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m
+
+[1m── Per-target summary ──[0m
+  SUMMARY target=rust pass=20 fail=0 defer=0 skip=0 total=20
+  SUMMARY target=python pass=15 fail=5 defer=0 skip=0 total=20
+  SUMMARY target=c pass=12 fail=7 defer=1 total=20
+  SUMMARY target=zig pass=12 fail=7 defer=1 skip=0 total=20
+  SUMMARY target=go pass=12 fail=7 defer=1 skip=0 total=20
+
+[1m── Cross-target equivalence ──[0m
+  [0;31mDIVERGE[0m line=56 kind=query: targets disagree
+  [0;31mDIVERGE[0m line=65 kind=query: targets disagree
+  [0;31mDIVERGE[0m line=75 kind=statement: targets disagree
+  [0;31mDIVERGE[0m line=79 kind=query: targets disagree
+  [0;31mDIVERGE[0m line=106 kind=statement: targets disagree
+  [0;31mDIVERGE[0m line=110 kind=query: targets disagree
+  [0;31mDIVERGE[0m line=124 kind=statement: targets disagree
+
+[1m[0;31mRESULT: failure or divergence detected (see above).[0m

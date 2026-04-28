@@ -1,0 +1,102 @@
+{
+  "rust": {
+    "pass": 1619257,
+    "fail": 169,
+    "defer": 65,
+    "skip": 123255,
+    "total": 1742746,
+    "incl_skip": 92.91411370331649,
+    "excl_skip": 99.98555101572038,
+    "timeouts": [
+      "select4.test",
+      "select5.test",
+      "random/expr/slt_good_0.test",
+      "random/expr/slt_good_111.test",
+      "random/expr/slt_good_45.test",
+      "random/expr/slt_good_72.test"
+    ],
+    "crashes": [],
+    "fail_files": [
+      [
+        "evidence/slt_lang_aggfunc.test",
+        4
+      ],
+      [
+        "evidence/slt_lang_createview.test",
+        3
+      ],
+      [
+        "evidence/slt_lang_dropindex.test",
+        2
+      ],
+      [
+        "evidence/slt_lang_droptable.test",
+        3
+      ],
+      [
+        "evidence/slt_lang_dropview.test",
+        2
+      ],
+      [
+        "evidence/slt_lang_replace.test",
+        7
+      ],
+      [
+        "index/commute/10/slt_good_21.test",
+        10
+      ],
+      [
+        "index/in/10/slt_good_0.test",
+        30
+      ],
+      [
+        "index/in/10/slt_good_1.test",
+        15
+      ],
+      [
+        "index/in/10/slt_good_5.test",
+        15
+      ],
+      [
+        "index/in/10/slt_good_4.test",
+        15
+      ],
+      [
+        "random/expr/slt_good_18.test",
+        9
+      ],
+      [
+        "random/expr/slt_good_31.test",
+        12
+      ],
+      [
+        "random/expr/slt_good_59.test",
+        11
+      ],
+      [
+        "random/expr/slt_good_86.test",
+        3
+      ],
+      [
+        "select4.test",
+        7
+      ],
+      [
+        "random/expr/slt_good_0.test",
+        5
+      ],
+      [
+        "random/expr/slt_good_111.test",
+        4
+      ],
+      [
+        "random/expr/slt_good_45.test",
+        9
+      ],
+      [
+        "random/expr/slt_good_72.test",
+        3
+      ]
+    ]
+  }
+}

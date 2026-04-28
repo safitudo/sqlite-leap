@@ -1,0 +1,109 @@
+=== parts/foreign-keys/tests/fkey_smoke.slt ===
+[1m═══════════════════════════════════════════════════════════════[0m
+[1m  5-target sqllogictest matrix[0m
+[1m═══════════════════════════════════════════════════════════════[0m
+
+Fixture: parts/foreign-keys/tests/fkey_smoke.slt
+
+[1m── Building per-target drivers ──[0m
+  rust    ... [0;32mok[0m
+  python  ... [0;32mok[0m
+  c       ... [0;32mok[0m
+  zig     ... [0;32mok[0m
+  go      ... [0;32mok[0m
+
+[1m── Running each target on the fixture ──[0m
+
+line    kind       rust    python  c       zig     go     
+10      statement  [0;32mPASS   [0m [0;33mDEFER  [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+14      statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+17      statement  [0;32mPASS   [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m
+20      statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+23      statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+26      statement  [0;32mPASS   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m
+29      statement  [0;32mPASS   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m
+32      statement  [0;32mPASS   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m
+35      statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+39      query      [0;32mPASS   [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m
+46      statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+49      statement  [0;32mPASS   [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m
+52      statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+55      statement  [0;32mPASS   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m
+58      statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+61      query      [0;32mPASS   [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m
+68      statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+71      statement  [0;32mPASS   [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m
+74      statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+77      statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+80      statement  [0;32mPASS   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m
+83      statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+87      query      [0;32mPASS   [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m
+94      statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+97      statement  [0;32mPASS   [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m
+100     statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+103     statement  [0;32mPASS   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m
+107     statement  [0;32mPASS   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m
+111     query      [0;32mPASS   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m
+116     query      [0;32mPASS   [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m
+123     statement  [0;32mPASS   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m
+126     statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+130     statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+133     statement  [0;32mPASS   [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m
+136     statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+139     statement  [0;32mPASS   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m
+142     statement  [0;32mPASS   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m
+145     statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m
+149     query      [0;32mPASS   [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m
+158     statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+161     statement  [0;32mPASS   [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m
+164     statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+167     statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+170     statement  [0;32mPASS   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m
+173     statement  [0;32mPASS   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m
+176     statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+180     query      [0;32mPASS   [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m
+190     statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+193     statement  [0;32mPASS   [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m
+199     statement  [0;32mPASS   [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m
+202     statement  [0;32mPASS   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m
+205     statement  [0;32mPASS   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m
+208     statement  [0;32mPASS   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m
+211     statement  [0;32mPASS   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m
+215     query      [0;32mPASS   [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m
+220     statement  [0;32mPASS   [0m [0;33mDEFER  [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+223     statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+226     statement  [0;32mPASS   [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m
+230     statement  [0;32mPASS   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m [0;31mFAIL   [0m
+233     query      [0;32mPASS   [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m [0;33mDEFER  [0m
+240     statement  [0;32mPASS   [0m [0;33mDEFER  [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+243     statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+246     statement  [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m [0;32mPASS   [0m
+
+[1m── Per-target summary ──[0m
+  SUMMARY target=rust pass=63 fail=0 defer=0 skip=0 total=63
+  SUMMARY target=python pass=25 fail=18 defer=20 skip=0 total=63
+  SUMMARY target=c pass=27 fail=18 defer=18 total=63
+  SUMMARY target=zig pass=27 fail=18 defer=18 skip=0 total=63
+  SUMMARY target=go pass=27 fail=18 defer=18 skip=0 total=63
+
+[1m── Cross-target equivalence ──[0m
+  [0;31mDIVERGE[0m line=26 kind=statement: targets disagree
+  [0;31mDIVERGE[0m line=29 kind=statement: targets disagree
+  [0;31mDIVERGE[0m line=32 kind=statement: targets disagree
+  [0;31mDIVERGE[0m line=55 kind=statement: targets disagree
+  [0;31mDIVERGE[0m line=80 kind=statement: targets disagree
+  [0;31mDIVERGE[0m line=103 kind=statement: targets disagree
+  [0;31mDIVERGE[0m line=107 kind=statement: targets disagree
+  [0;31mDIVERGE[0m line=111 kind=query: targets disagree
+  [0;31mDIVERGE[0m line=123 kind=statement: targets disagree
+  [0;31mDIVERGE[0m line=139 kind=statement: targets disagree
+  [0;31mDIVERGE[0m line=142 kind=statement: targets disagree
+  [0;31mDIVERGE[0m line=170 kind=statement: targets disagree
+  [0;31mDIVERGE[0m line=173 kind=statement: targets disagree
+  [0;31mDIVERGE[0m line=202 kind=statement: targets disagree
+  [0;31mDIVERGE[0m line=205 kind=statement: targets disagree
+  [0;31mDIVERGE[0m line=208 kind=statement: targets disagree
+  [0;31mDIVERGE[0m line=211 kind=statement: targets disagree
+  [0;31mDIVERGE[0m line=230 kind=statement: targets disagree
+
+[1m[0;31mRESULT: failure or divergence detected (see above).[0m

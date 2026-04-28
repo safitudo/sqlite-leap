@@ -1,0 +1,5 @@
+# corpus_files=622 jobs=4 timeout_s=90 query_timeout_s=0 target=rust
+# binary=/Users/stanislav/code/sqlite-leap/src-rust/target/release/sqllogictest
+# corpus=/Users/stanislav/code/sqlite-leap/tests/sqllogictest/upstream/test
+# date_utc=2026-04-27T12:56:51Z
+# format: <STATUS> <relative-path> <elapsed-ms>
