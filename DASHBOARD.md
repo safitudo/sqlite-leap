@@ -73,7 +73,13 @@ Full 2026-04-21 campaign writeup: `tests/fuzz/results/2026-04-21-README.md`.
 Phase 9h post-fix logs: `tests/fuzz/results/2026-04-23-sql-exec-rust-phase9h.log`,
 `tests/fuzz/results/2026-04-23-sql-exec-c-phase9h.log`.
 
-### Bench (macOS arm64, M2 Ultra — validated CSV after harness fix)
+### Bench — current numbers in `docs/PUBLICATION.md`
+
+**Source of truth for publication numbers is `docs/PUBLICATION.md` and `bench/results/2026-04-27-linux-native/`.** Linux native lib-mode (Ubuntu 22.04, rustc 1.89, gcc 11.4): leap-c wins L2 parse 1.75×, L3 SELECT 1.51×, L4 INSERT 1.81× vs mainline. leap-rust loses all three (0.67×/0.80×/0.82×). Mac process-spawn lanes: L1 cold start leap-c 1.72× win, L5 binary 8.7× smaller (caveat: mainline has CLI+readline+ICU), L6 RSS leap loses 1.5%.
+
+The legacy table below from 2026-04-20 is **stale** — it predates the lib-mode harness, the parse-only lane fix, the storage_pager.rs in-place B-tree write, and the lane2 corpus methodology fix. Kept for archive only.
+
+### Bench (macOS arm64, M2 Ultra — 2026-04-20 LEGACY, see PUBLICATION.md for current)
 
 | Lane | leap-c | leap-rust | mainline | tursodb CLI | turso-core lib |
 |---|---|---|---|---|---|
@@ -97,8 +103,7 @@ Phase 9h post-fix logs: `tests/fuzz/results/2026-04-23-sql-exec-rust-phase9h.log
 - Methodology + caveats: `bench/lanes/07-wasm/README.md`. CSV: `bench/results/2026-04-21-wasm.csv`.
 
 - **Decisive wins** (footprint axes — cold start, binary size, memory): leap-c beats **mainline, tursodb CLI, and turso-core library** on every lane. Ratios: 2.7× / 2.96× / 1.63× vs mainline; 3.4× / 32.7× / 10× vs tursodb; 3.0× / 15.3× / 5.6× vs turso-core.
-- **Honest losses** (throughput axes — SELECT, INSERT, parse+exec): mainline beats leap-c by **80× on SELECT, 35× on INSERT, 99× on parse+exec**. sqlite-leap has no async I/O in v1 (Phase 5 wired but harness DB-mode prevents lane 4 uplift — see tech debt) and the VDBE is un-tuned. Don't publish as a speed claim.
-- **Lane 2 methodology note (updated 2026-04-21):** corpus now pre-seeds 64 tables (`t0..t63(id,c1..c5)`) so the prior "83% fast-reject on undefined tables" path is gone; every statement targets real tables/columns. That ELIMINATED the false 31 MB/s claim. The lane now legitimately measures parse+execute throughput on a 10 MiB, 131 233-statement mixed workload; single-run (not median-of-5) given leap's 6-minute per-target runtime. 2× priors rule is satisfied — mainline 77× faster than leap-rust, 99× faster than leap-c, no spec-violating inversions. CSV: `bench/results/2026-04-21-lane2-fixed.csv`. For publication we plan to re-measure after VDBE tuning so the gap narrows.
+- **STALE — superseded 2026-04-27.** The "80× SELECT / 35× INSERT / 99× parse+exec" losses above were process-spawn end-to-end measurements run via the slt_runner / sqlite3 CLI shell, not lib-mode parse-only. The current Linux lib-mode bench (`bench/results/2026-04-27-linux-native/`) shows leap-c **wins** all three: 1.75× L2 parse-only, 1.51× L3 SELECT, 1.81× L4 INSERT. Treat the loss numbers above as artifacts of the legacy `02-parse-speed/run-once.sh` harness which divides corpus bytes by full-execution wallclock — not a parse benchmark. See `docs/PUBLICATION.md` §"Linux x86_64 native lib-mode benchmarks" for the apples-to-apples numbers.
 
 ### Linux x86_64 cross-validation
 
