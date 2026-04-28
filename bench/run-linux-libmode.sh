@@ -20,7 +20,7 @@ rsync -a --quiet \
     "$HOST_REPO/" "$SCRATCH/"
 cd "$SCRATCH"
 
-OUT_DIR="$HOST_REPO/bench/results/2026-04-27-linux-x86_64"
+OUT_DIR="${OUT_DIR:-$HOST_REPO/bench/results/$(date +%Y-%m-%d)-linux-native-libmode}"
 mkdir -p "$OUT_DIR"
 LOG="$OUT_DIR/run.log"
 CSV="$OUT_DIR/raw.csv"
