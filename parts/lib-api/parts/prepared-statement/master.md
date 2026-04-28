@@ -207,6 +207,52 @@ own `OpenRead`/`OpenWrite` re-opens them fresh.
    Value>` of bindings, calling `step(&db) -> StepResult` directly)
    so long as Pins 1–6 hold observable.
 
+8. **Auto-prepare INSERT-VALUES cache (per-connection).** When a
+   connection's eager-execute API (the path that takes a raw SQL
+   string and runs it end-to-end without an explicit prepare/bind/
+   step ceremony) receives an INSERT statement matching the shape
+
+       INSERT INTO <ident> [(<column>, ...)] VALUES (<lit>, ...);
+
+   where every `<lit>` is one of {integer, real, single-quoted
+   string with `''` escape, NULL}, the connection MUST:
+     1. Normalize the SQL by replacing each literal with `?N`
+        (1-based, in left-to-right order), capturing the literal
+        values in parallel.
+     2. Hash the normalized SQL into a per-connection cache.
+     3. On cache miss, run prepare() against the normalized SQL
+        and store the resulting Program (or target-equivalent
+        compiled artifact) in the cache. The original SQL string
+        does NOT need to be retained; the cache key is the
+        normalized template only.
+     4. Bind the captured literal values via the bind() path,
+        then step().
+   This is the load-bearing optimization for Lane 4 INSERT
+   throughput on file-driven workloads where each statement has
+   the same shape but different literal values. Empirically: at
+   100k same-shape INSERTs in one transaction (the L4 corpus),
+   skipping tokenize+parse+compile via this cache is +70% qps
+   on the Rust target's --db-WAL bench (332k → 562k qps) and
+   +92% on in-memory (590k → 1130k qps).
+
+   Multi-row VALUES tuples, RETURNING, ON CONFLICT, expressions
+   beyond bare literals, blob literals (`X'...'`), and any shape
+   the spec'd literal grammar does not admit MUST fall through
+   to the slow path (full prepare-from-original-SQL). The
+   normalizer is intentionally narrow: false-negative cache
+   misses are correct; false-positive cache hits are forbidden.
+
+   Cache invalidation: any DDL that mutates the schema (CREATE,
+   DROP, or ALTER on a TABLE / INDEX / VIEW / TRIGGER) MUST
+   clear the auto-prepare cache before executing. Targets MAY
+   choose finer-grained invalidation (per-table) but MUST NOT
+   leave the cache stale across schema changes.
+
+   This pin describes the eager-execute path. The explicit
+   prepare/bind/step API of pins 1-7 is unaffected and remains
+   the surface callers reach for when they want to amortize
+   compile across many calls themselves.
+
 ## Ambiguities and v1 scope decisions
 
 - **`?` in projection** — Admitted by the parser; `Param` is a

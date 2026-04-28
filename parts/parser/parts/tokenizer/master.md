@@ -298,6 +298,19 @@ non-overlapping and strictly monotonic. Sum of all token spans + whitespace
     147-entry flat table. No inline tests. Plain byte-indexed single-pass
     code.
 
+15. **Keyword lookup is O(bucket) not O(147)** — the keyword-table lookup
+    of pin 1+2 MUST run in expected O(k) where k is the average size of a
+    same-first-letter bucket (≈ 6 entries), NOT O(147). Targets MUST
+    precompute a 26-entry first-letter index `[A..Z] → (lo, hi)` from the
+    sorted KEYWORDS table at first call (lazy `OnceLock` / static-init /
+    equivalent), then probe only the bucket whose first byte matches the
+    upper-cased lexeme's first byte. The flat KEYWORDS table from pin 14
+    remains the source of truth; the index is a precomputed bucket map
+    over it, not a separate data structure. Empirically: at the L4 INSERT
+    bench (100k inserts, single shape), linear lookup costs ~430ns/insert;
+    bucketed lookup costs ~180ns/insert (-58%). Targets MAY use a perfect
+    hash or trie if it achieves the same bound; linear scan is forbidden.
+
 ## Regeneration envelope
 
 - Line budget: **~450–650 lines** of Rust. The 178-case enum alone is
