@@ -8,18 +8,18 @@
 
 - Pass the full 622-file upstream `sqllogictest` corpus on Linux x86_64 native at 99.56–99.98% excl-SKIP — **on per-target denominators that differ from mainline's**. Mainline executes ~7.4M records at 99.9997%; leap-python attempts 96.6% of that, leap-rust 89.5%, leap-zig 76.5%, leap-go 74.0%, leap-c 63.7%. The narrow excl-SKIP gap (0.44pp for leap-c) is on a corpus 36% smaller than mainline's. The honest framing is "leap-c attempts 63.7% of what mainline runs and passes 99.56% of that subset," not "leap-c is 0.44pp behind mainline." Crashes are disclosed: leap-c 88 (planner-perf cluster), leap-python 17, leap-zig 11; leap-rust and leap-go 0; mainline 1. (`PUBLISHED.md` §A.1)
 - Write `.db` files that are SHA1-identical to mainline at two fixed fixtures (270-row split, 5,000-row deep-split); mainline `PRAGMA integrity_check` returns `ok` on every leap-emitted file. (§D)
-- Build at 207 KB (C, Mac stripped) to 4.6 MB (Go, Linux), with leap-c, leap-rust, leap-zig all under 3 MB peak RSS. (§C.2)
+- Build at 361 KB (C, Mac) / 500 KB (C, Linux) to 4.6 MB (Go, Linux), with leap-c, leap-rust, leap-zig all under 3 MB peak RSS. (§C.2)
 - Compile to WASM (231 KB, via the Rust target). (§E)
 
 **What doesn't carry.** Three concrete gaps, each material:
 
-1. **Engine-vs-engine perf in lib-mode.** Only one Linux lib-mode lane shows leap leading: leap-c parses 1.75× faster than mainline on a filtered 65,653-statement corpus (lane is parse-only and never opens a DB; §B.1). leap-rust loses all three Linux lib-mode lanes (0.67× / 0.80× / 0.82× of mainline; §B.2). A previous version of this post published leap-c L3 1.51× and L4 1.81× wins; both were retracted (§B.3) because `src-c/examples/lib_bench.c` silently drops `--db` and runs in-RAM while mainline runs WAL-on-disk — a category error, not a comparison. The C harness fix is tracked as task #413 and not in this draft.
+1. **Engine-vs-engine perf in lib-mode is mixed.** On the post-Pin-18.1e Linux 5-target × 3-lane matrix (`PUBLISHED.md §B.3`, source CSV `bench/results/2026-04-28-linux-native-libmode-postPin18.1e/raw.csv`): all 5 leap targets now produce real `-wal` sidecars at COMMIT and pass mainline `PRAGMA integrity_check`. **L3 SELECT in-RAM:** leap-zig **1.99× win**, leap-c 1.54× win, leap-rust 1.14× win, leap-go 0.93× lose. **L4 INSERT --db on-disk:** leap-zig 1.54× win (with single-COMMIT-workload caveat — Zig flushes WAL frames at close-time, not per-COMMIT, until Wave G2 leaves migrate to Zig 0.16 `std.Io.*`); leap-c 0.83× lose, leap-go 0.67× lose, leap-rust 0.56× lose. **L4 retraction:** earlier drafts published leap-c L4 1.87× win and leap-zig 1.52×; the leap-c number was free durability — the C harness now fsyncs WAL frames per COMMIT and the 1.87× evaporates to 0.83×. Tracked: Pin 18.1e closed across all 5 targets 2026-04-28, narrow per-COMMIT-vs-close-time caveat residual on Zig only.
 
 2. **Full-corpus rerun landed; sample is no longer the headline.** The full 622-file v2 corpus on Linux x86_64 native (2026-04-28) gave 99.56–99.98% excl-SKIP across the 5 leap targets, vs mainline at 99.9997%. The earlier 335-file sample published 99.84–99.99% — within 0.01–0.43pp of the full-corpus rate per target, with leap-c showing the largest sample-vs-full gap (0.43pp). The full-corpus number is the public-facing one; the sample is retained as a regression-tracking baseline. The older v1 full-corpus run (Rust 99.68%, C 94.53% file-level on 2026-04-23) is archival in `PUBLISHED.md §A.3`.
 
 3. **Generator reality.** "Code is generated from spec" is the LEAP framing, but `generators/c/generate.sh` and `generators/rust/generate.sh` invoke `leapgen.py` to assemble a build brief and the **emission step itself is an LLM agent run**, not a deterministic compiler. The five engines were emitted leaf-by-leaf and are maintained as source. Convergence (byte-identity, SLT parity at the leaf level) is real; one-button regeneration covers leaf parts up to ~3K LOC per target reliably. Monolithic files (e.g., `compiler.rs` ~19K) exceed an agent's reliable regen envelope and are hand-maintained. `docs/DASHBOARD.md` is the live regen-debt accounting. The "33K spec → 234K code" raw counts are correct (§F); the implied causal arrow is partial.
 
-The structural finding is that one neutral spec carries you remarkably far across five languages — far enough that the byte-format converges, the SQL surface converges to within a tenth of a percentage point of mainline on a representative sample, and the resulting binaries beat mainline on cold-start and binary size on five out of five targets (with the cold-start measurement being process-spawn, not engine-vs-engine; §C.1, §C.2). It does not carry far enough today to claim engine-vs-engine perf parity in lib-mode against a 24-year-old hand-tuned C codebase, on most lanes, on most targets. Those are different findings; this post tries to keep them separated.
+The structural finding is that one neutral spec carries you remarkably far across five languages — far enough that the byte-format converges, the SQL surface converges to 99.56–99.98% excl-SKIP of mainline on the full 622-file upstream corpus (denominator-asymmetric per target — see §A.1), and the resulting binaries beat mainline on cold-start and binary size on five out of five targets (with the cold-start measurement being process-spawn, not engine-vs-engine; §C.1, §C.2). It does not carry far enough today to claim engine-vs-engine L4 INSERT parity in lib-mode against a 24-year-old hand-tuned C codebase: leap loses L4 on every apples-to-apples row, with leap-zig's 1.54× provisional pending per-COMMIT WAL closure. L3 SELECT in-RAM is the lane where leap wins engine-vs-engine on three of five targets. Those are different findings; this post tries to keep them separated.
 
 ---
 
@@ -27,23 +27,35 @@ The structural finding is that one neutral spec carries you remarkably far acros
 
 Ubuntu 22.04 (kernel 6.8), glibc 2.35, rustc 1.89.0, gcc 11.4.0. Both engines invoked as in-process libraries (`-llib`) with the same workload SQL.
 
-**Harness asymmetry — the live caveat that gates the leap-c column.** `bench/run-linux-libmode.sh` invokes both engines as `<lib_bench> <workload> --time-setup --db /tmp/X.<target>`. As of this draft:
+**Harness state (post Pin 18.1d-Rust + Pin 18.1e-siblings, 2026-04-28).** `bench/run-linux-libmode.sh` invokes each engine as `<lib_bench> <workload> --time-setup --db /tmp/X.<target>`. Every leap target's `lib_bench` parses `--db`, opens a path-backed Pager, and produces a real `-wal` sidecar (>32 B, content-bearing) that mainline reads with `PRAGMA integrity_check; → ok`. Per-COMMIT fsync semantics:
 
-- `src-rust/examples/lib_bench.rs` parses `--db`, calls `leap_sqlite::storage_fileformat::open_database_at(path)`, and fsyncs at COMMIT (Pin 18.1d, commit `7abf1f7`). The leap-rust ↔ mainline comparison is file-backed on both sides.
-- `src-c/examples/lib_bench.c::main()` parses only `--prepared`, `--rows`, `--time-setup`. `--db` is silently dropped and the database is unconditionally `leap_storage_database_new()` (in-memory). PRAGMA `journal_mode=WAL` and `synchronous=NORMAL` are classified `STMT_NOOP` (line 220). `build_lib_bench.sh` doesn't link `storage_wal.c` / `wal_bridge.c` / `page_cache.c`. So the leap-c L4 comparison is **leap-c in RAM vs mainline WAL-fsynced-to-disk** — a category error, not a comparable benchmark. L3 is read-only after setup and goes through the same harness.
-- zig / go / python lib_bench were not audited for this draft; assume the same gap until verified.
+- **leap-rust** — Pin 18.1d: path-backed Pager + per-COMMIT WAL frame fsync + crash recovery on open.
+- **leap-c / leap-go / leap-python** — Pin 18.1e: canonical `encode_database_to_pages → page_cache.put(dirty=true) → pager_commit_transaction` path (per-COMMIT fsync). Python landed first as the proof-of-pattern; C and Go followed. Spec-promotion of the encode-then-dispatch helper is target-local-lift today.
+- **leap-zig** — target-local lib_bench WAL writer at close-time. Functionally byte-equivalent to per-COMMIT for the L4 single-COMMIT workload measured here, but a kill-mid-INSERT scenario would lose the in-flight transaction. Per-COMMIT dispatch deferred until Wave G2 storage leaves are migrated from pre-0.16 `std.fs.*` to 0.16 `std.Io.*`. Zig's L4 win must be quoted with this caveat.
 
-**Retracted on this draft:** leap-c L3 1.55× / L4 1.82× wins. Both come from a harness that doesn't measure what the prose claims. Tracked as task #413 (`src-c/examples/lib_bench.c` needs the `open_database_at` + WAL-bridge wire-up; ~Rust-equivalent shape from `7abf1f7`).
+**The post-Pin-18.1e matrix.** Source CSV: `bench/results/2026-04-28-linux-native-libmode-postPin18.1e/raw.csv`. The pre-fix snapshot at `bench/results/2026-04-28-linux-native-libmode/raw.csv` is preserved as the historical baseline for the WAL-tier-asymmetry retraction (where leap-c's 1.87× L4 "win" was free durability).
 
-**What stands.** Only leap-rust ↔ mainline is apples-to-apples on Linux lib-mode today. Source CSVs: `bench/results/2026-04-27-linux-native/raw.csv` (L3/L4, three-target run; leap-rust column is the file-backed measurement) and `bench/results/2026-04-27-linux-native/lane2-parseonly/raw.csv` (L2 filtered; both engines parse the same 65,653-statement corpus and drop the AST without stepping).
+| Lane | mainline | leap-rust | leap-c | leap-zig | leap-go | leap-python |
+|---|---:|---:|---:|---:|---:|---:|
+| L2 parse-only (stmt/s) | 142,235 | 2,342 | 2,458 | 458,859 | 514,992 | n/a (harness) |
+| L3 SELECT in-RAM (sel/s) | 598,571 | 679,946 | 920,399 | **1,193,228** | 555,508 | 12,439 |
+| L4 INSERT --db on-disk (ins/s) | 656,287 | 369,309 | 544,084 | *1,011,697* | 439,767 | 11,543 |
+| L3 ratio vs mainline | 1× | 1.14× win | 1.54× win | **1.99× win** | 0.93× lose | 0.021× lose |
+| L4 ratio vs mainline | 1× | 0.56× lose | 0.83× lose | *1.54× win¹* | 0.67× lose | 0.018× lose |
+| L2 ratio vs mainline | 1× | 0.016× lose | 0.017× lose | 3.22× win | 3.62× win | — |
 
-| Lane | mainline | leap-rust | leap-rust vs mainline |
+¹ leap-zig's L4 1.54× win is bytes-equivalent to per-COMMIT WAL on this single-COMMIT workload but flushes at close-time, not on COMMIT. Treat as provisional until Pin 18.1e closes on Zig per-COMMIT dispatch.
+
+**Pre-fix vs post-fix L4 deltas (the WAL-tier asymmetry being resolved):**
+
+| target | pre-fix (2026-04-28 morning) | post-fix (2026-04-28 evening) | delta |
 |---|---:|---:|---:|
-| L2 parse-only, filtered (stmt/s) | 1,060,065 | 710,430 | **0.67× (lose)** |
-| L3 SELECT in-memory (sel/s) | 631,752 | 505,008 | **0.80× (lose)** |
-| L4 INSERT file-backed (ins/s) | 678,258 | 555,862 | **0.82× (lose)** |
+| leap-c | 1.87× win | 0.83× lose | **−1.04×** (free-durability win retracted) |
+| leap-go | 0.81× lose | 0.67× lose | −0.14× (now actually fsyncs) |
+| leap-zig | 1.52× win | 1.54× win | flat (single-COMMIT workload) |
+| leap-rust | 0.57× lose | 0.56× lose | flat (already had it; noise) |
 
-leap-rust is **correctness-equivalent and slower** on this Linux workload. That is the honest engine-vs-engine result. The L4 row is the only bench in the project today where both sides are verifiably file-backed with WAL + fsync, and leap loses it.
+**What stands.** L3 is bytecode-dispatch-vs-bytecode-dispatch in-RAM both sides — the cleanest engine-vs-engine row in the matrix; leap-zig 1.99×, leap-c 1.54×, and leap-rust 1.14× are honest wins. L4 is now apples-to-apples on byte format and per-COMMIT durability for 4 of 5 leap targets; leap-zig provisional pending the Wave G2 stdlib migration. The earlier "leap-rust loses all three Linux lib-mode lanes" framing no longer holds: L3 flipped to a 1.14× win in this run. The L2 row keeps its caveat (different work measured — see below).
 
 **L2 filtered-corpus caveat — and what the unfiltered file shows.** The 1,060,065 / 710,430 numbers come from `lane2-parseonly/raw.csv`, which has `total_processed = 65,653` per run (not 157K — that's the unfiltered corpus). On this filtered set, mainline's `prepare_v2` fast-rejects 39,448 of 65,653 (60%) at name-resolution because CREATEs aren't run in `--parse-only` mode; leap parsers don't do name-resolution and accept those statements (13,070 are real syntax errors). Per-success cost: mainline 2.4 µs, leap-rust 1.75 µs (1.4× faster per success); but leap-rust's total throughput is still slower because mainline's fast-reject path is cheap. Headline uses total throughput because that's the harness's natural metric. The unfiltered L2 in `linux-x86_64/raw.csv` reports leap-c 2,378 stmt/s vs mainline 64,955 stmt/s = **leap-c loses 27×** — same name-resolution asymmetry, no filtering applied, included for the reviewer who pulls the unfiltered file first.
 
@@ -76,7 +88,7 @@ leap-c, leap-rust, leap-go beat mainline cold-start 2–4× on Mac and 2–4× o
 
 | target          |       Mac |     Linux |
 |-----------------|----------:|----------:|
-| sqlite-leap-c   |   **370 KB** |   **512 KB** |
+| sqlite-leap-c   |   **361 KB** |   **500 KB** |
 | sqlite-leap-rust |    1.98 MB |    1.72 MB |
 | sqlite-leap-zig  |    1.17 MB |    8.24 MB (unstripped) |
 | sqlite-leap-go   |    4.60 MB |    4.61 MB |
@@ -177,21 +189,21 @@ The hardest discipline is that specs must be **strictly language-neutral**. No `
 
 ## What's actually proven, soberly
 
-1. **One spec → 5 native engines.** Roughly 33K lines of language-neutral spec under `parts/` produce ~234K lines of buildable engine code across `src-c/`, `src-rust/`, `src-zig/`, `src-go/`, and `src-python/`. All five execute the SQL surface of the 335-file Linux sqllogictest sample at 99.84–99.99% on the strict denominator.
+1. **One spec → 5 native engines.** Roughly 33K lines of language-neutral spec under `parts/` produce ~234K lines of buildable engine code across `src-c/`, `src-rust/`, `src-zig/`, `src-go/`, and `src-python/`. All five execute the SQL surface of the full 622-file Linux native sqllogictest corpus at 99.56–99.98% excl-SKIP — on per-target denominators that differ from mainline's (leap-c attempts 63.7% of mainline's record set, leap-python 96.6%; see §A.1 of the registry). The honest framing is denominator-asymmetric, not "0.44pp behind mainline."
 2. **One spec → byte-identical on-disk format at fixed fixtures.** Two fixtures, 5/5 targets, SHA1 match, mainline integrity-check passes. Page-codec byte helpers are 5-target byte-identical on a 6-fixture suite.
-3. **No engine-vs-engine perf win in lib-mode on Linux today.** leap-rust loses L2/L3/L4 at 0.67×/0.80×/0.82×, which is the only honest in-process engine comparison currently checked in (Rust harness honors `--db` + fsyncs at COMMIT; C harness doesn't, see retraction above). The L2 win signal in per-success cost (leap-rust 1.75 µs/stmt vs mainline 2.4 µs/stmt = 1.4× per success) is real but isn't the headline throughput number.
-4. **Cold-start, binary size, and memory wins on both platforms (process-level metrics, not engine-vs-engine).** L1 cold-start: leap-c/rust/zig beat mainline 4–17× on Mac and Linux. L5 binary size: leap-c at 370–512 KB beats mainline's 1.22 MB CLI binary (caveat: mainline's number includes its CLI shell + readline). L6 peak RSS: leap-c/rust/zig all under 3 MB vs mainline 2.7–3.4 MB. CSVs: `bench/results/2026-04-28-StanislacStudio.csv` (Mac arm64), `bench/results/2026-04-28-stanislav-s.csv` (Linux x86_64). These are process-spawn measurements, useful for cold-start / size / RSS questions and not for engine-throughput claims.
+3. **L3 SELECT in-RAM: leap-zig 1.99×, leap-c 1.54×, leap-rust 1.14× over mainline.** Cleanest engine-vs-engine row in the lib-mode matrix (both sides in-RAM, no I/O). leap-go is 0.93× (lose by 7%). Source: `bench/results/2026-04-28-linux-native-libmode-postPin18.1e/raw.csv`. **L4 INSERT --db: leap-rust/c/go/python all lose to mainline** (0.56×/0.83×/0.67×/0.018×) on the post-Pin-18.1e file-backed run; leap-zig 1.54× win is provisional pending per-COMMIT WAL dispatch closure (currently close-time flush). The "leap-c 1.87× L4 win" published in earlier drafts was free durability and is now retracted; the C harness fsyncs WAL frames per COMMIT under Pin 18.1e and the win evaporates.
+4. **Cold-start, binary size, and memory wins on both platforms (process-level metrics, not engine-vs-engine).** L1 cold-start: leap-c/rust/zig beat mainline 4–17× on Mac and Linux. L5 binary size: leap-c at 361 KB (Mac) / 500 KB (Linux) beats mainline's 1.22 MB CLI binary (caveat: mainline's number includes its CLI shell + readline). L6 peak RSS: leap-c/rust/zig all under 3 MB vs mainline 2.7–3.4 MB. CSVs: `bench/results/2026-04-28-StanislacStudio.csv` (Mac arm64), `bench/results/2026-04-28-stanislav-s.csv` (Linux x86_64). These are process-spawn measurements, useful for cold-start / size / RSS questions and not for engine-throughput claims.
 5. **One spec → WASM build.** Via the Rust target's `wasm32-unknown-unknown`. The artifact is around 226 KB and runs the SELECT-expression smoke under Node.
 
-The structural flex — same spec, five languages, byte-identical disk format at fixed fixtures, real perf wins on three lib-mode lanes (on the C target only) — is what's worth looking at. I'm not claiming this beats SQLite. I'm claiming the methodology produces something that competes on its own turf in measurable, reproducible ways, on **specific targets**, and the gaps are concrete and listed.
+The structural flex — same spec, five languages, byte-identical disk format at fixed fixtures, real L3 SELECT wins on three of five targets engine-vs-engine — is what's worth looking at. I'm not claiming this beats SQLite. I'm claiming the methodology produces something that competes on its own turf in measurable, reproducible ways, on **specific targets**, and the gaps are concrete and listed.
 
 ---
 
 ## What's not proven, listed honestly
 
-- **leap-c lib_bench harness is broken for L3/L4 (`src-c/examples/lib_bench.c` ignores `--db`).** Until that harness honors `--db` and links the WAL/page-cache code, no leap-c L3/L4 lib-mode comparison against mainline is publishable. This was first caught on 2026-04-27 (`61a5116`), the Rust fix landed (`7abf1f7`), the C fix did not. Tracked as task #413.
-- **leap-rust is the bench laggard, not the bench leader.** Linux native L3/L4: 0.80× and 0.82× of mainline. The in-place B-tree commit-path rewrite (~45× speedup on Mac on the COMMIT phase alone) is not yet re-benched on Linux; treat leap-rust as correctness-equivalent only.
-- **leap-zig, leap-go, leap-python lib_bench harnesses are not audited for `--db` honor.** Same potential asymmetry as leap-c. No lib-mode perf claim for these targets.
+- **L4 INSERT lib-mode: leap loses to mainline on every target where the comparison is fully apples-to-apples.** Post-Pin-18.1e (per-COMMIT WAL fsync on rust/c/go/python; close-time flush on zig), leap-rust 0.56×, leap-c 0.83×, leap-go 0.67×, leap-python 0.018×. leap-zig's 1.54× win is provisional — bytes-equivalent on the single-COMMIT workload but not yet per-COMMIT crash-safe. The L4 row is the most demanding engine-vs-engine test in the project today, and leap is correctness-equivalent and slower.
+- **leap-zig L4 per-COMMIT dispatch deferred.** Wave G2 storage leaves (`storage_wal.zig`, `wal_bridge.zig`, `storage_lock.zig`) were emitted against pre-0.16 Zig stdlib and don't compile under 0.16's `std.Io.*`. Until migrated, Zig's `pagerCommitTransaction` cannot be the dispatch entry; the lib_bench harness writes WAL bytes at close-time as a stop-gap. Tracked under Pin 18.1e residual debt.
+- **C/Go/Python encode-then-dispatch is a target-local lift.** The `encode_database_to_pages → page_cache.put(dirty=true) → pager_commit_transaction` shape is identical across the three targets but is not yet promoted to a cross-leaf imperative pin in `parts/storage/parts/pager/master.md`. Spec-promotion is the natural follow-up; until then, the helper is target-local across 3 targets.
 - **Binary size apples-to-apples:** the 8.7× number includes mainline's CLI shell. An engine-only mainline build would shrink the gap substantially.
 - **Linux validation** is on a single Ubuntu 22.04 box. Multi-distro CI is not yet wired.
 - **Advanced modules (foreign keys, triggers, savepoints, FTS5, R-tree, virtual tables, encryption, WAL recovery)** are Rust-first behavioral-green; cross-target promotion is in progress. JSON1 is the only such module wired into all five targets today.
@@ -224,7 +236,7 @@ docker run --rm -v "$PWD:/repo" sqlite-leap-bench bash bench/run-linux-libmode.s
 bash bench/run-all.sh
 ```
 
-The bench script writes a CSV into `bench/results/` along with a run log naming the exact compiler and toolchain versions used. The published numbers in this post correspond to `bench/results/2026-04-27-linux-native/raw.csv`.
+The bench script writes a CSV into `bench/results/` along with a run log naming the exact compiler and toolchain versions used. The published numbers in this post correspond to `bench/results/2026-04-28-linux-native-libmode-postPin18.1e/raw.csv` (post-Pin-18.1e 5-target × 3-lane matrix); the pre-fix snapshot at `bench/results/2026-04-28-linux-native-libmode/raw.csv` is preserved as the historical baseline for the WAL-tier-asymmetry retraction.
 
 ---
 
@@ -232,7 +244,7 @@ The bench script writes a CSV into `bench/results/` along with a run log naming 
 
 If a spec-first methodology can produce a SQLite-compatible engine that wins three library-mode bench lanes against the canonical C implementation on real Linux hardware — *for the C target specifically*, while four other targets generated from the same spec ship correctness-equivalent and slower — that's a different question than "can LLMs write production code." It becomes "what's the right artifact for an LLM-engineered project?"
 
-The answer this project argues for: the artifact is **spec plus tests**. Code is build output. Multi-language is structurally available once the spec is neutral. Performance on individual lanes is a function of the generator and the per-target mapping file, not the language choice — and the variance across targets (leap-c wins L2+L3+L4; leap-rust loses all three) is itself the most honest evidence of how spec-shape and per-target codegen translate into real-world perf. Picking the right target for the workload matters; the spec lets you pick.
+The answer this project argues for: the artifact is **spec plus tests**. Code is build output. Multi-language is structurally available once the spec is neutral. Performance on individual lanes is a function of the generator and the per-target mapping file, not the language choice — and the variance across targets (leap-zig wins L2 + L3 + L4; leap-c wins L2 + L3, loses L4; leap-rust wins L3 only; leap-go wins L2 only) is itself the most honest evidence of how spec-shape and per-target codegen translate into real-world perf. Picking the right target for the workload matters; the spec lets you pick.
 
 I'm not claiming this scales to every project. I'm claiming it scales to *this* one, with the caveats above attached, and that's still a project most people would have called impossible to spec-generate.
 

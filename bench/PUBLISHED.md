@@ -86,41 +86,48 @@ Source CSVs: `bench/results/2026-04-27-linux-native/raw.csv` (L3, L4) and `bench
 
 leap-rust is **correctness-equivalent and slower**. The L4 row is the only bench in the project today where both sides are verifiably file-backed with WAL + fsync (Pin 18.1d, commit `7abf1f7`).
 
-### B.3 — 5-target × 3-lane Linux native lib-mode (2026-04-28)
+### B.3 — 5-target × 3-lane Linux native lib-mode, post-Pin-18.1e (2026-04-28)
 
-Source CSV: `bench/results/2026-04-28-linux-native-libmode/raw.csv`. Hardware: Ubuntu 22.04 / kernel 6.8 / glibc 2.35; rustc 1.89.0 / gcc 11.4.0 / zig 0.16.0 / go 1.25.0 / Python 3.10.12. Runner: `bench/run-linux-libmode.sh`. Library-mode = each engine invoked as a `lib_bench` binary (no CLI shell), workload SQL piped in.
+Source CSV: `bench/results/2026-04-28-linux-native-libmode-postPin18.1e/raw.csv`. Hardware: Ubuntu 22.04 / kernel 6.8 / glibc 2.35; rustc 1.89.0 / gcc 11.4.0 / zig 0.16.0 / go 1.25.0 / Python 3.10.12. Runner: `bench/run-linux-libmode.sh`. Library-mode = each engine invoked as a `lib_bench` binary (no CLI shell), workload SQL piped in.
 
-**The full matrix:**
+**Pin 18.1e closure:** all 5 leap targets now produce a real `-wal` sidecar (>32 B, content-bearing). C / Go / Python use the canonical encode→dirty-mark→`pager_commit_transaction` path (per-COMMIT fsync). Zig writes WAL frames at close-time via a target-local lib_bench writer (functionally equivalent for single-COMMIT workloads; per-COMMIT dispatch deferred until Wave G2 storage leaves are migrated to Zig 0.16 `std.Io.*`). Verified: all 4 sibling DBs return `PRAGMA integrity_check; → ok` and full row count after `lib_bench --db ... --time-setup`; sidecar sizes 4.4 MB on the 100K-row workload.
+
+**The full matrix (post-Pin-18.1e):**
 
 | Lane | mainline | leap-rust | leap-c | leap-zig | leap-go | leap-python |
 |---|---:|---:|---:|---:|---:|---:|
-| L2 parse-only (stmt/s) | 142,494 | 2,313 | 2,459 | 458,465 | 545,307 | n/a (harness) |
-| L3 SELECT in-RAM (sel/s) | 600,922 | 679,354 | 934,236 | **1,223,621** | 595,546 | 12,408 |
-| L4 INSERT --db on-disk (ins/s) | 656,211 | 371,758 | **1,225,436** | 995,349 | 533,899 | 12,393 |
-| L3 ratio vs mainline | 1× | 1.13× win | 1.55× win | **2.04× win** | 0.99× ~tied | 0.021× lose |
-| L4 ratio vs mainline | 1× | 0.57× lose | **1.87× win** | 1.52× win | 0.81× lose | 0.019× lose |
-| L2 ratio vs mainline | 1× | 0.016× lose | 0.017× lose | 3.22× win | 3.83× win | — |
+| L2 parse-only (stmt/s) | 142,235 | 2,342 | 2,458 | 458,859 | 514,992 | n/a (harness) |
+| L3 SELECT in-RAM (sel/s) | 598,571 | 679,946 | 920,399 | **1,193,228** | 555,508 | 12,439 |
+| L4 INSERT --db on-disk (ins/s) | 656,287 | 369,309 | 544,084 | **1,011,697** | 439,767 | 11,543 |
+| L3 ratio vs mainline | 1× | 1.14× win | 1.54× win | **1.99× win** | 0.93× lose | 0.021× lose |
+| L4 ratio vs mainline | 1× | 0.56× lose | 0.83× lose | **1.54× win** | 0.67× lose | 0.018× lose |
+| L2 ratio vs mainline | 1× | 0.016× lose | 0.017× lose | 3.22× win | 3.62× win | — |
 
-**Caveats — every L4 number above must be quoted with caveat (1):**
+**Pre-fix vs post-fix L4 deltas (the WAL-tier asymmetry being resolved):**
 
-1. **L4 WAL-tier asymmetry — only leap-rust is like-for-like with mainline.** Mainline writes a real `-wal` sidecar with synced frames per COMMIT. leap-rust does the same via Pin 18.1d (path-backed Pager + per-COMMIT WAL frame fsync + crash recovery on open). The other 4 leap targets do NOT:
-   - **leap-c**: writes a 32-byte WAL header on open, no committed frames. Pager.commit doesn't call wal_bridge.append.
-   - **leap-zig / leap-go / leap-python**: no `-wal` sidecar at all. Use atomic-rename close-time durability (`closeDatabaseAt` / `close_database_at` serialize the whole DB and rename).
-   The honest like-for-like row is **leap-rust 0.57× vs mainline** — both have full WAL semantics. The leap-c 1.87× / leap-zig 1.52× wins reflect that those engines are doing strictly less durability work than mainline. They produce mainline-readable `.db` files at process exit (integrity_check ok, full row count) but not crash-safe in the SQLite sense.
-   Closing this gap (Pin 18.1e — WAL frame fsync wire-in for C/Zig/Go/Python) is tracked as a separate workstream; until it lands, the L4 column is NOT a true engine-vs-engine comparison for the 4 siblings.
+| target | pre-fix | post-fix | delta | reason |
+|---|---:|---:|---:|---|
+| leap-rust | 0.57× | 0.56× | flat | already had full WAL fsync; noise |
+| leap-c | 1.87× win | 0.83× lose | **−1.04×** | now actually fsyncs frames; "win" was free durability |
+| leap-zig | 1.52× win | 1.54× win | flat | wins held — single-COMMIT workload, close-time WAL ≈ per-COMMIT WAL bytes-wise |
+| leap-go | 0.81× lose | 0.67× lose | −0.14× | now fsyncs frames per COMMIT |
+
+**Caveats:**
+
+1. **L4 is now apples-to-apples on byte-format and durability for the workload class measured.** All 5 leap targets and mainline produce mainline-readable `.db` + `-wal` files; integrity_check ok on all. Per-COMMIT crash-safety: mainline ✓, leap-rust ✓, leap-c ✓, leap-go ✓, leap-python ✓. **leap-zig: close-time flush only** — the Zig harness writes WAL bytes once at close (not per COMMIT), so a kill-mid-INSERT scenario would lose the in-flight transaction. For the L4 workload (single batched COMMIT) this is byte-equivalent to per-COMMIT semantics; for general-purpose use it is not. Tracked as residual Pin 18.1e debt — closure requires migrating Wave G2 storage leaves (`storage_wal.zig`, `wal_bridge.zig`, `storage_lock.zig`) from pre-0.16 `std.fs.*` to 0.16 `std.Io.*` so `pagerCommitTransaction` becomes the dispatch entry. Zig L4 win marked **bold-italic** when this caveat is material.
 
 2. **L2 corpus-acceptance asymmetry.** mainline's `prepare_v2` fast-rejects 131K of 157K statements at name-resolution because the corpus has CREATEs interleaved with refs to undeclared tables. leap-rust and leap-c both run a full prepare-pipeline → ~60s for 157K accepted-or-errored stmts. leap-zig and leap-go run a parse-only pre-binding pass → 0.3s. So this row is "different work being measured" — leap-zig/go are measuring tokenize+parse without name-resolution, mainline+leap-rust+leap-c are measuring full prepare. The publishable L2 number is still the filtered-corpus result in B.1 (1.75× leap-c win on a 65K-stmt subset where every CREATE is honored).
 
-3. **L3 is in-RAM both sides.** Mainline `sqlite_lib_bench.c` defaults to `:memory:` when `--db` is absent; the runner does not pass `--db` on L3. So L3 is bytecode-dispatch-vs-bytecode-dispatch with no I/O. leap-zig's 2.04× win is the cleanest engine-vs-engine claim in this matrix.
+3. **L3 is in-RAM both sides.** Mainline `sqlite_lib_bench.c` defaults to `:memory:` when `--db` is absent; the runner does not pass `--db` on L3. So L3 is bytecode-dispatch-vs-bytecode-dispatch with no I/O. leap-zig's 1.99× win is the cleanest engine-vs-engine claim in this matrix.
 
 4. **leap-python L2 SKIP.** Python `lib_bench.py` does not implement `--parse-only` mode (always exec-mode). Documented harness gap, not a perf signal.
 
-**Publishable headlines (with caveats):**
-- L3 SELECT in-RAM: leap-zig **2.04× over mainline**, leap-c 1.55×, leap-rust 1.13×, leap-go ~tied.
-- L4 INSERT (with WAL-tier asymmetry): leap-rust 0.57× (the only honest engine-vs-engine number); leap-c 1.87× / leap-zig 1.52× / leap-go 0.81× — **explicitly noted as comparing weaker durability vs mainline's full WAL until Pin 18.1e closes**.
-- L2 parse: leap-go 3.83× / leap-zig 3.22× win on parse-only; leap-rust/c lose 60× because their lib_bench paths through full prepare not parse-only.
+**Publishable headlines:**
+- L3 SELECT in-RAM: leap-zig **1.99× over mainline**, leap-c 1.54×, leap-rust 1.14×, leap-go 0.93×.
+- L4 INSERT --db (post-Pin-18.1e, all 5 targets WAL-bearing): leap-zig 1.54× (with single-COMMIT-workload caveat — see (1)); leap-c 0.83×, leap-go 0.67×, leap-rust 0.56× (all engine-vs-engine apples-to-apples on byte-format and per-COMMIT WAL fsync). leap-c's earlier 1.87× win was free durability and is now retracted.
+- L2 parse: leap-go 3.62× / leap-zig 3.22× win on parse-only; leap-rust/c lose 60× because their lib_bench paths through full prepare not parse-only.
 
-Earlier iterations of this table (B.1, B.2 above) are kept for the filtered-L2 pinned baseline and the leap-rust apples-to-apples row — **superseded for the matrix view by this table**.
+Earlier iterations of this table (B.1, B.2 above) are kept for the filtered-L2 pinned baseline and the leap-rust apples-to-apples row — **superseded for the matrix view by this table**. The pre-Pin-18.1e snapshot at `bench/results/2026-04-28-linux-native-libmode/raw.csv` is preserved as the historical baseline for the WAL-tier-asymmetry retraction.
 
 ---
 
@@ -205,6 +212,8 @@ Source: `generators/wasm/build.sh` (shells out to `cargo build --target wasm32-u
 ---
 
 ## Changelog
+
+- **2026-04-28** (post-Pin-18.1e rerun, Linux native) — All 4 sibling targets (C/Zig/Go/Python) now produce real `-wal` sidecars at COMMIT. C/Go/Python use the canonical `encode_database_to_pages → cache.dirty-mark → pager_commit_transaction` path (per-COMMIT fsync); Python first to land it, C+Go followed via the same pattern. Zig writes WAL bytes via a target-local lib_bench writer at close-time (per-COMMIT dispatch deferred — Wave G2 leaves pinned to pre-0.16 `std.fs.*`). All 4 produce mainline-readable DBs with `integrity_check ok`. L4 numbers shifted: leap-c 1.87× win → 0.83× lose (free-durability win retracted); leap-go 0.81× → 0.67× (now actually fsyncs); leap-zig 1.52× → 1.54× held (single-COMMIT workload bytes-equivalent). The WAL-tier-asymmetry caveat is removed for L4; replaced by a narrower per-COMMIT-vs-close-time caveat affecting only Zig. Source CSV: `bench/results/2026-04-28-linux-native-libmode-postPin18.1e/raw.csv`. Roadmap §2.5 closed.
 
 - **2026-04-28** (5-target × 3-lane matrix, Linux native) — runner extended to all 5 leap targets. Toolchains installed on Linux box: zig 0.16.0 (`~/tools/zig-0.16.0`), go 1.25.0 (`~/tools/go-1.25`). Honest 16-cell measurement (1 cell SKIP — python L2 harness gap). Surprising findings: **leap-zig wins L3 2.04× over mainline** (fastest in the matrix); leap-go matches mainline on L3; both leap-zig and leap-go beat mainline on L2 by 3-4× (different work being measured — see caveat 2). L4 column kept with WAL-tier asymmetry caveat — Pin 18.1e (WAL frame fsync wire-in for C/Zig/Go/Python) tracked as next workstream. Source CSV: `bench/results/2026-04-28-linux-native-libmode/raw.csv`. §B.3 rewritten as full matrix.
 

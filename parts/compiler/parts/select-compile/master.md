@@ -385,10 +385,30 @@ SKIP_EMIT:
 ```
 
 Notes:
-- **No-FROM aggregate** (e.g. `SELECT count(*)` with no FROM) is
-  rejected as `CompileError "aggregate without FROM is unsupported"`
-  for the probe. (Trivially handled by emitting one synthetic row,
-  but not exercised here.)
+- **No-FROM aggregate** (e.g. `SELECT count(*)`, `SELECT sum(5)`,
+  `SELECT 1 + count(*)`) is admitted via a one-synthetic-row
+  lowering. Since there is no source table, the aggregation has
+  exactly one input row whose values come from the aggregate-call
+  argument expressions themselves (each evaluated with no Col scope).
+  Emission shape:
+  ```
+  AggReset  { acc_slot: i, kind: <slot kind> }     for each slot
+  AggStep   { acc_slot: i, kind, arg_reg, sep }    for each slot
+                                                   (arg compiled with
+                                                   compile_expr — no
+                                                   schema)
+  AggFinal  { acc_slot: i, kind, dest_reg: r_i }   for each slot
+  # Projection compile against a synthetic schema whose columns are
+  # the aggregate-result registers; then ResultRow + Halt.
+  ResultRow { start_reg: <packed>, count: proj_count }
+  Halt
+  ```
+  Star projection (`SELECT count(*) FROM (no-from)`) and Col
+  references that survive aggregate rewriting (i.e. bare table
+  columns in the projection) remain rejected (no schema to resolve
+  against). WHERE / GROUP BY / HAVING / ORDER BY / LIMIT in this
+  arm are deferred (unusual surface — fold in if a corpus query
+  surfaces them).
 - **Empty table**: Rewind jumps directly to AGG_FINALIZE; per
   `aggregate_final` empty-group rules in `parts/vdbe/shapes.json`,
   Count* → Integer(0), Sum/Avg/Min/Max → Null, Total → Real(0.0),
@@ -438,6 +458,19 @@ overload `compile_select_multi`. Both forms are exercised.)
 scratch starts at `column_base[s]`.
 
 #### Nested-loop emission
+
+N-way JOIN is admitted: any number of sources combine via left-
+associative nested loops. The flattener walks the recursive
+`TableRef::Joined` tree (always left-deep — the parser builds JOINs
+left-associatively) into a left-to-right list of sources of any
+length ≥ 2. Each source past the first allocates one cursor, one TOP
+label, one NEXT label, and (for LEFT) one matched flag. Inner-source
+emission is structurally recursive: depth `d ∈ [1, nsrc-1]` opens
+cursor `d`, scans, evaluates source-d's ON, and either recurses to
+`d+1` (when `d < nsrc-1`) or emits the inner body (WHERE / OFFSET /
+projection / ResultRow / LIMIT) at the deepest level. Cursor IDs
+match source index. Column-scratch base for source `s` is
+`column_base[s] = sum(schemas[i].columns.len) for i < s`.
 
 For sources S0, S1, ..., Sn (left-to-right):
 
@@ -504,6 +537,25 @@ schema in order. If one match: use it. If 0 matches: CompileError
 USING list, CompileError `"ambiguous column: <name>"`. USING-listed
 columns resolve unambiguously to the LEFT-most source that contributes
 the column (so `SELECT k FROM t JOIN u USING (k)` selects `t.k`).
+
+**Pin 36 — collect FIRST, then disambiguate via USING.** The
+implementation MUST follow this two-phase order:
+
+1. Phase 1 — collect ALL `(source_idx, col_idx)` matches across every
+   source in the FROM list, **without filtering on USING**.
+2. Phase 2 — if `len(matches) >= 2`: check whether `name` is listed in
+   any active USING clause. If yes: pick the leftmost match. If no:
+   CompileError `"ambiguous column: <name>"`.
+
+Filtering USING-eliminated sources DURING phase 1 produces the
+silent bug: derived-table outputs (`col0`, `col1`, …) that
+co-occur with a base-table column of the same name in another
+source get incorrectly resolved to the derived side, masking real
+ambiguity that the spec expects to surface as a compile error.
+Cross-target observation: when 3 siblings (C, Go, Python) emit
+`compile: ambiguous column: pk` while Rust resolves cleanly,
+the siblings are filtering USING-eliminated sources during phase 1
+instead of phase 2.
 
 #### `*` and `t.*` expansion under JOINs
 
@@ -830,6 +882,22 @@ opcodes — no new VDBE instructions needed.
      a*2` is admitted; the key expression is compiled against the
      original schema each row and stored in the sort-key portion of
      the buffer row.
+12b-pos. **ORDER BY positional reference** — when an ORDER BY item
+     is an integer literal `k` (1-based), it refers to the k-th
+     projection column. The sort key is the value already computed
+     into the projection register for that column — emitters MUST
+     copy `proj_reg_base + (k-1)` into the key register rather
+     than re-evaluating `IntLit("k")` (which would produce a
+     constant). `k` must satisfy `1 <= k <= proj_count`; otherwise
+     `CompileError "ORDER BY position out of range: <k>"`. This rule
+     applies in **every** compile path that lowers a SELECT with its
+     own ORDER BY: single-table, JOIN, subquery-aware (when WHERE /
+     projection contains a scalar / EXISTS / IN subquery), and the
+     outer ORDER BY of a compound SELECT (already handled by
+     `resolve_outer_orderby`). Path-specialised emitters MUST NOT
+     skip the positional rewrite — the lowering is identical
+     regardless of what else the SELECT contains, because it depends
+     only on the projection register layout.
 12c. **DISTINCT single-table semantics** — `SELECT DISTINCT a FROM t`
      emits one row per unique value of `a` under the SQLite total
      order. Output ordering is sort-order (a documented side effect
@@ -988,6 +1056,39 @@ the materialized buffer.
   SQL NULL-semantics case (no match but buffer contains NULL → result
   is NULL) is simplified to `0` — documented probe deviation.
 
+#### Inner buffer-slot rebasing (Pin α23-c-bufslot)
+
+The materialize-inner helper compiles each inner SELECT standalone.
+That standalone compile uses its own natural buffer-slot layout
+(starting at slot 0 for any DISTINCT/ORDER BY/aggregation buffers).
+Without rebasing, an inner SELECT's slot 0 collides with the OUTER
+program's slot 0 (the outer's DISTINCT/ORDER BY buffer when one is
+present, or the outer aggregation's sort buffer). The inner program's
+re-execution of `BufferOpen { slot: 0 }` then clears the outer's
+in-progress accumulation, yielding "all rows return the same value"
+symptoms.
+
+**Rule:** before splicing the inner program (whether into the
+shared expression prelude for uncorrelated subqueries, or into the
+per-outer-row inline body for correlated subqueries), the materialize
+helper must scan the inner's emitted opcodes for the maximum
+`buffer_slot` operand actually used, reserve that many fresh slots
+from the parent SubCtx counter, and add the resulting offset (the
+parent's previous `next_buffer_slot`) to every `buffer_slot` field
+in the inner's BufferOpen / BufferAppend / BufferRewind / BufferRead /
+BufferNext / BufferSort / BufferDedup operands. After this rebase,
+the helper allocates one additional fresh slot to serve as the
+inner→outer ResultRow capture buffer and rewrites inner `ResultRow`
+opcodes to `BufferAppend` against THAT slot. The outer's slot 0 (and
+all higher outer-allocated slots) remain untouched by the inner.
+
+This rebase is the inner-subquery analog of the compound-SELECT
+buffer-slot rebase already specified for `WITH ... SELECT ... UNION ...`
+composition: the inner program references its own buffer slots at their
+absolute (post-rebase) addresses; ResultRow→BufferAppend conversion
+emits the new BufferAppend with the helper's freshly-allocated capture
+slot, which lives above the inner's rebased slot range.
+
 ### Derived table and CTE (α19)
 
 Derived-table FROM (`FROM (SELECT ...) AS x`) and non-recursive CTE
@@ -1036,6 +1137,31 @@ Non-recursive CTE lowering:
    order guarantees an earlier CTE's buffer slot is live when a later
    CTE compiles and in turn when the outer SELECT compiles.
 4. `WITH RECURSIVE` is a parse-time clean-stop (α15 rule).
+
+#### Compound SELECT under WITH (composition with α20/α22)
+
+A `WITH x AS (...) SELECT ... <UNION|INTERSECT|EXCEPT> SELECT ...`
+form is the composition of α19 (CTE materialization) and α20/α22
+(compound SELECT). It is admitted: after registering each CTE in
+the registry per the rules above, the outer compound dispatches to
+the compound compiler with `with_clauses` cleared. Each compound
+core's `FROM` resolves through the CTE registry exactly as for a
+non-compound outer SELECT — no new mechanism is needed.
+
+The compound compiler's natural buffer-slot layout (slot 0 for the
+final output, slot 1..=n for per-core buffers, n+1.. for mixed-fold
+accumulators) is **rebased above the highest CTE buffer slot** so
+the compound's own buffers do not alias the CTE materializations.
+The buffer-slot rebase is opaque to the cores: each core's emitted
+opcodes still reference CTE buffer slots at their absolute (pre-
+rebase) addresses, since those references entered through
+`cte_lookup` in the buffered single-table path.
+
+Composition with derived-table FROM (`SELECT ... FROM (SELECT ...)
+UNION SELECT ...`) is a clean-stop in v1; the derived table would
+need to be shared across cores, which the compound compiler does
+not yet wire. Clean-stops with `"deferred: compound SELECT with
+derived-table FROM"`.
 
 Deferred forms (clean-stop):
 
@@ -1102,6 +1228,23 @@ iteration jumps and would otherwise produce infinite loops.
     buffer is empty, the result register is set to `Value::Null` (not
     a runtime error). Matches SQLite for a scalar subquery that
     returns zero rows.
+
+**Pin 37 — Aggregate slot indices are program-global.** When a
+parent SELECT materializes an inner SELECT for a scalar / EXISTS /
+IN subquery (or a correlated lowering), the inner program is
+spliced into the parent's opcode stream. Aggregate accumulator
+slots (`AggInit/AggStep/AggValue` `acc_slot` operands) index a
+single flat array per program; nested compiles MUST rebase the
+inner program's `acc_slot` operands by the parent's current
+`num_aggregates` and widen the parent's `num_aggregates` by the
+inner's count. Failing to rebase produces silent OOB writes /
+crosstalk between outer and inner aggregates. Same rule applies
+to register operands of `AGG_*` opcodes: rebase by `reg_off`. The
+materialize-prelude splice MUST widen `num_aggregates` BEFORE the
+inner's slot indices are referenced. Cross-target observation
+2026-04-25: C target hit this on the scalar-subquery enable path
+because the splice routine forgot the widening; Rust avoided it
+implicitly because its single compile context numbers slots flat.
 24. **Scalar subquery multi-row** — SQLite-standard behavior would
     error on > 1 row. The probe takes the FIRST row's first column
     without policing. Documented deviation; a follow-up could add a
@@ -1139,6 +1282,32 @@ iteration jumps and would otherwise produce infinite loops.
     `BufferRewind` / `BufferNext` which both helpers already rebase.
     Ongoing maintenance hazard; a spec follow-up should unify these
     into a single `walk_pcs(&mut Opcode, f)` primitive.
+30. **Splice-loop offset MUST be constant** — when splicing a child
+    opcode list `child_code` into a parent at parent position `base`,
+    every opcode in `child_code` must be rebased by **the single
+    constant `base`**, captured BEFORE the splice loop. The naive
+    pattern
+    ```
+    for op in child_code:
+        merged.append(rebase_pc(op, len(merged)))   # WRONG
+    ```
+    inflates the offset by 1 per iteration — each successive op gets
+    `len(merged)` re-evaluated, which is the previous offset + the
+    ops already appended this loop. The result is that PC-bearing
+    opcodes (Goto/If/IfNot/BufferRewind/BufferNext) inside the child
+    point to wildly wrong addresses; visible effects include CASE
+    expressions inside `BinaryOp.rhs` jumping past Halt and producing
+    empty result sets. Correct pattern:
+    ```
+    base = len(merged)
+    for op in child_code:
+        merged.append(rebase_pc(op, base))           # RIGHT
+    ```
+    Or use the slice form `rebase_pcs(child_code, base)` then extend.
+    This rule is target-language-neutral; every emitter MUST follow
+    it. Particularly note for Python (where `len(list)` is cheap and
+    looks innocent inline). Surfaced 2026-04-25 as a Python-only bug
+    affecting ~99k md5-empty FAILs + ~200k empty-actual records.
 
 ## Regeneration envelope
 

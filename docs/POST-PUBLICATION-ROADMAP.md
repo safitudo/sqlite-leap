@@ -44,9 +44,11 @@ Both lanes survive symmetric harness work. Mac arm64 post-fix L4 0.84× is a pla
 - Re-run L4 with both engines doing the same transactional dance.
 - Publish whatever number that produces — including if the win shrinks to 1.2× or disappears.
 
-### 2.5. Pin 18.1e — WAL frame fsync wire-in for C/Zig/Go/Python
+### 2.5. ~~Pin 18.1e — WAL frame fsync wire-in for C/Zig/Go/Python~~ ✓ CLOSED 2026-04-28
 
-**Status:** open as of 2026-04-28. Surfaced by 5-target lib-mode bench rerun (`bench/results/2026-04-28-linux-native-libmode/raw.csv`).
+All 4 sibling targets now produce real `-wal` sidecars (4.4 MB on the 100K-row workload) with mainline `PRAGMA integrity_check; → ok`. **C / Go / Python** use the canonical `encode_database_to_pages → page_cache.put(dirty=true) → pager_commit_transaction` path (per-COMMIT fsync), spec-promoted via the encode-then-dispatch helper. **Python landed first** (proof-of-pattern); C and Go followed using the same shape. **Zig** writes WAL frames via a target-local lib_bench writer at close-time — functionally equivalent for single-COMMIT workloads (the L4 workload class measured in §B.3) but **not per-COMMIT crash-safe**; closure requires migrating Wave G2 storage leaves (`storage_wal.zig`, `wal_bridge.zig`, `storage_lock.zig`) from pre-0.16 `std.fs.*` to 0.16 `std.Io.*` so `pagerCommitTransaction` can be the dispatch entry. Tracked as residual Zig debt; not a publication blocker for the post-Pin-18.1e §B.3 rerun. Post-fix L4: leap-c 1.87× win → 0.83× lose (free-durability win retracted); leap-go 0.81× → 0.67× (now fsyncs per COMMIT); leap-zig 1.52× → 1.54× held; leap-rust 0.57× flat. PUBLISHED.md §B.3 rewritten; CSV at `bench/results/2026-04-28-linux-native-libmode-postPin18.1e/raw.csv`.
+
+**Historical context (pre-fix; preserved for diff-against):** Surfaced by 5-target lib-mode bench rerun (`bench/results/2026-04-28-linux-native-libmode/raw.csv`).
 
 **The gap:** Pin 18.1d (path-backed Pager + per-COMMIT WAL frame fsync + crash recovery on open) landed on leap-rust only. Wave G2 emitted the wal-bridge spec to all 4 sibling targets so the *types* and *byte-layout helpers* exist, but the call site that should invoke `wal_bridge.append_commit_frames()` from `Pager.commit_transaction()` is Rust-only. So:
 

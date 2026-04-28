@@ -30,8 +30,20 @@ Read `a = regs[lhs]`, `b = regs[rhs]` (borrow). Dispatch on kind.
   coerce `Blob` to number by its bytewise interpretation as text.
   Non-numeric `Text` → `0` (SQLite semantics).
 - Integer⊕Integer promotes to Real on overflow (Add/Subtract/
-  Multiply). Division of two Integers with exact integer result
-  stays Integer; otherwise Real.
+  Multiply).
+- **`Divide` Integer/Integer = Integer division with truncation
+  toward zero** (Pin 82). `7/2 → 3`, `(-7)/2 → -3`, `7/(-2) → -3`,
+  `(-7)/(-2) → 3`. The result is Integer, never Real, regardless of
+  whether the division is exact. To get a Real result, at least one
+  operand must already be Real (e.g. `7.0/2 → 3.5`). This matches
+  SQLite mainline semantics; the prior LEAP rule "exact stays
+  Integer; otherwise Real" promoted int-by-int divisions to Real
+  on inexact results, which is a divergence caught by corpus probe
+  2026-04-25.
+- **`Modulo` Integer/Integer = Integer remainder with sign of the
+  dividend** (Pin 82 cont.). `7 % 2 → 1`, `(-7) % 2 → -1`,
+  `7 % (-2) → 1`, `(-7) % (-2) → -1`. Matches C99/Rust `%`
+  semantics for signed integers.
 - **`Divide`/`Modulo` by zero → `Null`** (NOT
   `RuntimeCondition::DivZero`; pin Phase 6l / #120 / #121). The
   DivZero condition exists for diagnostics but is not raised

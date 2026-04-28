@@ -490,3 +490,57 @@ test "truthy null is false" {
     try std.testing.expect(!valueIsTruthy(&v));
 }
 ```
+
+## Runtime allocator (mandatory for harness/runner contexts)
+
+Harness, runner, and corpus-driving entry points (`examples/slt_runner.zig`,
+`examples/eq_runner.zig`, smoke `main`s) MUST use `std.heap.c_allocator`
+(libc malloc/free) as the top-level allocator passed into VDBE/storage.
+**Do not use `std.heap.page_allocator` for general-purpose allocation.**
+
+Reason — measured on macOS arm64 (Zig 0.16, ReleaseFast):
+`page_allocator` performs a `mmap`/`munmap` syscall **per allocation**. At
+sqllogictest corpus scale (~40k rows × N allocations per row for cloned
+Text values, register slots, ArrayList growth), this turns
+`tests/sqllogictest/upstream/test/index/commute/10/slt_good_0.test`
+(40k lines) into a >135-second wall-clock run that exceeds the 60s
+per-file harness timeout. Result: 167 corpus files time out and are
+counted FAIL despite producing correct output. Sibling targets (Rust
+`std::alloc`, C `malloc`, Go runtime, Python) all use libc-grade
+allocators; Zig must match.
+
+`page_allocator` is **reserved** for whole-page-aligned use cases:
+file mmap windows, page-cache buffers, anything where the API is
+literally "give me a 4096-byte aligned region." It is not a
+general-purpose allocator on Darwin or Linux.
+
+Hot-path call sites that currently bake `std.heap.page_allocator` into
+storage/compiler scratch (e.g. `storage.cursorColumn`'s Value clones,
+`select_compile.resolveCol`'s scratch ArrayList) MUST also migrate to
+`c_allocator` — these are called from inside the corpus loop and inherit
+the same per-call mmap penalty. Long term these helpers should take an
+explicit `std.mem.Allocator` parameter (spec gap: `cursor_column` lacks
+one); until that gap is closed the in-tree fallback is `c_allocator`,
+not `page_allocator`.
+
+Build implication: `zig build-exe` invocations that link these leaves
+must pass `-lc` (already true for slt_runner and the smokes via
+`build_slt_runner.sh` / `build.zig`).
+
+## Set-op idiom: hash-based dedup is mandatory
+
+Compound-SELECT INTERSECT/EXCEPT MUST use hash-based row-key dedup, not
+nested rowsEqualTotalOrder loops. The naive triple-nested form
+(O(N×M×K×C)) makes large-corpus runs (sqllogictest random/* and
+index/commute/*) wall-clock indefinite under Zig's debug interpreter
+loop. Sibling targets (Rust/C/Go/Python) all use hash-based set ops;
+Zig must match.
+
+Encoding contract for the row key (see `encodeRowKey` in
+`src-zig/vdbe/mod.zig`):
+- Per cell: tag byte (ValueTag) || payload || NUL separator.
+- Integer/Real payloads: 8-byte little-endian (real bit-cast to u64).
+- Text/Blob payloads: u64 LE length prefix || raw bytes.
+- The encoding is injective and matches the total order used by
+  `valueCompare`, so identical rows hash to identical keys regardless
+  of source-buffer provenance.

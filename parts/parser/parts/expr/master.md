@@ -170,14 +170,18 @@ not admitted by this probe.
 | 8    | `*` `/` `%`           | `Mul` `Div` `Mod`              |
 | 9    | `||`                  | `Concat`                       |
 
-Prefix unary operators bind **tighter than any binary** (effective
-precedence 10):
-- `-` → `UnaryOp::Neg`.
-- `NOT` → `UnaryOp::Not`. Despite the SQLite docs placing NOT just
-  above AND, in practice SQLite treats `NOT a = b` as `NOT (a = b)`.
-  For this probe we adopt the simpler "NOT binds tighter than any
-  binary" rule; tests use `NOT (expr)` where grouping matters. This
-  is a documented probe simplification, not a final parser decision.
+Prefix unary operators:
+- `-` → `UnaryOp::Neg`. Binds **tighter than any binary** (effective
+  precedence 10).
+- `NOT` → `UnaryOp::Not`. **Special case:** binds at bp = 4 — tighter
+  than `AND` (lbp=3) but **looser than** the comparison-tier postfix
+  operators (`IS NULL`, `IS NOT NULL`, `BETWEEN`, `IN`, `LIKE`,
+  `GLOB`, lbp=5) and binary comparisons (`=`, `<`, etc., lbp ≥ 5).
+  Per SQLite: `NOT a IS NULL` parses as `NOT (a IS NULL)`, `NOT a = b`
+  parses as `NOT (a = b)`, and `NOT a AND b` parses as `(NOT a) AND b`.
+  Implementation: the prefix handler for `KwNot` calls `parse_bp`
+  with `min_bp = 4` for the operand. This pin (NOT_PREFIX_BP=4) is
+  load-bearing — see §Correctness pin 15.
 
 Tokens `=` and `==` both map to `BinaryOp::Eq`; `!=` and `<>` both
 map to `BinaryOp::NotEq`. The parser does not preserve the surface
@@ -440,8 +444,12 @@ bind tighter than every binary.
     with message `"deferred: IS operator"`.
 15. **IS NULL in larger expressions** — `a IS NULL AND b` parses as
     `Binary(And, IsNull(a, false), b)`. `NOT a IS NULL` parses as
-    `Unary(Not, IsNull(a, false))` because unary NOT binds tighter
-    than IS NULL per §Precedence (unary at bp 19, IS NULL at bp 5).
+    `Unary(Not, IsNull(a, false))` because `NOT` (NOT_PREFIX_BP=4)
+    is **looser** than the IS-NULL postfix (lbp=5), so when NOT
+    parses its operand at min_bp=4 the IS-NULL postfix extends.
+    Symmetrically `NOT a = b` parses as `Unary(Not, Binary(Eq, a, b))`.
+    `NOT a AND b` still parses as `Binary(And, Unary(Not, a), b)`
+    because AND lbp=3 is below NOT_PREFIX_BP=4.
 16. **BETWEEN desugar** — `a BETWEEN 1 AND 10` parses to
     `Binary(And, Binary(Ge, a, 1), Binary(Le, a, 10))`. The `a`
     node is **cloned** (deep-copied) so both comparisons own an

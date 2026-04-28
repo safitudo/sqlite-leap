@@ -6,7 +6,7 @@ Built using [LEAP](https://github.com/safitudo/leap) methodology: tests and spec
 
 > **The question this project answers**
 >
-> Not "does it beat SQLite" — it doesn't, on most measures, and where it does the comparison usually has a caveat. The interesting question is *how far* a single neutral spec carries you. This repo says: far enough that five hand-emitted engines agree byte-for-byte with mainline at fixed `.db` fixtures, run the same SQL surface to within ≤0.16 percentage points of mainline on a 335-file sqllogictest sample, and ship as 207 KB (C) to 4.6 MB (Go) binaries.
+> Not "does it beat SQLite" — it doesn't, on most measures, and where it does the comparison usually has a caveat. The interesting question is *how far* a single neutral spec carries you. This repo says: far enough that five hand-emitted engines agree byte-for-byte with mainline at fixed `.db` fixtures, run the full 622-file upstream sqllogictest corpus on Linux native at 99.56–99.98% excl-SKIP (mainline 99.9997%, on per-target denominators that differ — see `bench/PUBLISHED.md §A.1`), and ship as 361 KB (C, Mac) / 500 KB (C, Linux) to 4.6 MB (Go) binaries.
 
 **Single source of truth for every published number:** [`bench/PUBLISHED.md`](bench/PUBLISHED.md). Each claim cites the CSV path and date. The TL;DR below is a digest of that file; if the two ever disagree, `PUBLISHED.md` wins.
 
@@ -20,7 +20,7 @@ Built using [LEAP](https://github.com/safitudo/leap) methodology: tests and spec
 
 3. **Three builds from the Rust target.** Native, cross-compiled, and `wasm32-unknown-unknown` (231 KB). The WASM smoke runs SELECT-expression cases under Node.
 
-4. **One survivable Linux lib-mode perf signal.** leap-c parses a filtered 65,653-statement corpus 1.75× faster than mainline (lane-2-parseonly). Lane is parse-only and does not open a database, so the harness asymmetry that broke L3/L4 (below) does not apply here. Source: `bench/results/2026-04-27-linux-native/lane2-parseonly/raw.csv`.
+4. **L3 SELECT in-RAM lib-mode wins on three of five targets** (post-Pin-18.1e, all 5 targets producing real `-wal` sidecars with mainline `integrity_check; → ok`): leap-zig 1.99×, leap-c 1.54×, leap-rust 1.14× over mainline. leap-go 0.93× (lose 7%). L2 parse-only on a filtered 65,653-statement corpus: leap-c 1.75× win (parse-only, no DB open). L4 INSERT --db: leap loses to mainline on every fully apples-to-apples row; leap-zig 1.54× provisional. Source: `bench/results/2026-04-28-linux-native-libmode-postPin18.1e/raw.csv` and `bench/results/2026-04-27-linux-native/lane2-parseonly/raw.csv`.
 
 5. **Process-level metrics, not engine-vs-engine.** L1 cold start: leap-c/rust/zig 4–17× faster than mainline `sqlite3` on Mac and Linux. L5 binary size: leap-c at 207 KB (Mac) / 512 KB (Linux) vs mainline `sqlite3` CLI at 1.22 MB — apples-to-oranges; the mainline number includes the CLI shell + readline + ICU. L6 RSS is run-to-run noisy and the latest demo run shows leap-c at 0.98× mainline (i.e., loses by 2%); we no longer publish a fixed L6 win claim. Sources: `bench/results/{cold_start,binary_size,memory_footprint}_5target/REPORT.md`.
 
@@ -28,8 +28,7 @@ Built using [LEAP](https://github.com/safitudo/leap) methodology: tests and spec
 
 - **Not a SQLite drop-in.** Reputation asymmetry is real. Treat sqlite-leap as a compatibility-tier implementation, not a substitute for `sqlite3.so`.
 - **Not generated end-to-end yet.** `generators/c/generate.sh` and `generators/rust/generate.sh` invoke `generators/leapgen.py` to assemble a build brief; the actual emission step is an LLM agent run, not a deterministic compiler. The five engines were emitted leaf-by-leaf and are maintained as source. The cross-target convergence (byte-identity, SLT parity, file-format agreement) is real; the one-button regeneration loop covers leaf parts and is partial on monolithic ones (e.g., `compiler.rs` at ~19K LOC is past the size where an agent reliably regenerates). See `docs/DASHBOARD.md` for the regen-debt accounting.
-- **Not a perf leader engine-vs-engine.** leap-rust loses all three Linux lib-mode lanes (L2 0.67×, L3 0.80×, L4 0.82× of mainline). leap-c L3/L4 wins published earlier are retracted because `src-c/examples/lib_bench.c` silently drops `--db` and runs in-RAM while mainline runs WAL-on-disk — a category error, not a comparison. Tracked as task #413.
-- **Not the full corpus.** The 99.84–99.99% rates are on a 335-file sample. The full upstream corpus is 622 files. The full-corpus v2 number is what should be quoted publicly; it isn't measured yet on the v2 spec.
+- **Mixed engine-vs-engine perf in lib-mode.** Post-Pin-18.1e Linux 5-target × 3-lane matrix (`bench/results/2026-04-28-linux-native-libmode-postPin18.1e/raw.csv`): **L3 SELECT in-RAM** — leap-zig 1.99× win, leap-c 1.54× win, leap-rust 1.14× win, leap-go 0.93× lose, leap-python 0.021×. **L4 INSERT --db** — leap-zig 1.54× win (provisional, close-time WAL flush vs per-COMMIT — see `bench/PUBLISHED.md §B.3`); leap-c 0.83× lose, leap-rust 0.56× lose, leap-go 0.67× lose, leap-python 0.018×. The "leap-c L4 1.87× win" published in earlier drafts was free durability (the C harness wasn't fsyncing); under Pin 18.1e it now does, and the win evaporates. leap loses L4 against mainline on every fully apples-to-apples row.
 
 See `docs/PUBLICATION.md` for full per-lane methodology and caveats.
 
