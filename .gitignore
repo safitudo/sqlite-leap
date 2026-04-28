@@ -57,3 +57,6 @@ bench/results/binary_size_5target/zig/
 
 # Agent staging output (worktree-orchestration pattern)
 .claude/agent-output/
+
+# Heavy intermediate corpus dumps (per-record logs from autonomous runs)
+tests/sqllogictest/results/**/raw_records.log
