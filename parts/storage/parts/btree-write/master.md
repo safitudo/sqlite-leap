@@ -656,6 +656,52 @@ actually shrinks the COMMIT working set).
   at 19.1–19.3; promoted when delete-heavy workloads are added
   to the bench corpus.
 
+## Pin 19.1 implementation strategies (target-flexible)
+
+The cursor read path (descent + decode-from-cache) is canonical and
+MUST be implementable on every target. Two strategies are admitted
+for the cursor *write* path mutation under DELETE / UPDATE / non-
+monotonic INSERT — both produce mainline-readable bytes at COMMIT:
+
+**Strategy A — per-cell in-place page mutation (canonical).**
+DELETE/UPDATE locate the leaf via descent, fetch via
+`pager_get_page_mut`, splice the cell out / in, rebuild the leaf via
+`page_codec.build_leaf_page`, mark dirty. Non-monotonic INSERT does
+the same plus split-on-overflow per §"Page splits". Commit flushes
+exactly the touched pages — `O(modified pages)`. This is the
+strategy spec'd in §"The cursor write path".
+
+**Strategy B — deferred re-encode at COMMIT (Rust prototype 19.1).**
+DELETE/UPDATE/non-monotonic-INSERT mark a per-table
+`stream_invalid` flag on the path-builder. Mem-store rows / rowids
+remain authoritative for the transaction. At COMMIT,
+`finalize_path_btrees` re-encodes invalid tables from sorted
+mem-store into fresh leaves (allocated via `pager_allocate_page`)
+and written through `pager_replace_page`. Cost:
+`O(rows_in_invalid_tables)` not `O(modified pages)`. Stale leaves
+remain unreferenced post-commit; mainline `PRAGMA integrity_check`
+tolerates them.
+
+**P19-S1.** Both strategies MUST produce mainline-readable bytes
+post-commit (PRAGMA integrity_check ok, mainline can SELECT).
+
+**P19-S2.** Strategy choice is target-local and MUST be declared in
+`parts/targets/<lang>/mapping.md`. Targets MAY upgrade B→A in a
+follow-up landing without spec changes.
+
+**P19-S3.** Targets that adopt Strategy B MUST keep the streaming-
+append fast path for monotonic-rowid INSERT to preserve the L4
+benchmark win (`O(dirty pages)` commit on the bench-leader path).
+
+**P19-S4.** Cursor read path is unaffected by the strategy choice.
+Paged reads decode from the page cache via
+`page_codec.decode_leaf_cell`. Targets MAY ship a runtime flag
+(e.g. Rust's `cursor_use_paged_reads: bool`) that keeps mem-store
+rows as the in-session read source while paged reads are exercised
+by validation probes; this flag is target-local and MUST default
+to whichever value preserves existing corpus pass rate at the time
+of pin 19.1 landing.
+
 ## Open questions for follow-up
 
 The two pre-19 prerequisites (pk_index migration → Pin 19a; page-codec

@@ -362,6 +362,26 @@ functions. `#[cfg(test)]` inline tests at the bottom.
   soft rule enforced by Rust's borrow checker — generator does not
   need to add extra logic.
 
+## Pin 19.1 strategy declarations
+
+Per `parts/storage/parts/btree-write/master.md` §"Pin 19.1
+implementation strategies":
+
+- **btree-write mutation strategy: B (deferred re-encode at COMMIT).**
+  `cursor_delete_row` / `cursor_update_row` / non-monotonic
+  `cursor_insert_row` mark `MemTable.btree.stream_invalid = true`;
+  `pager_commit_transaction` calls `finalize_path_btrees` which
+  re-encodes invalid tables from sorted mem-store. Monotonic-rowid
+  INSERT keeps the streaming-append fast path (P19-S3).
+- **Paged-read flag default:** `Pager.cursor_use_paged_reads = false`
+  at pin 19.1. Mem-store rows remain the in-session read source;
+  paged reads are exercised by validation probes only. Lifting the
+  flag to `true` requires a corpus regression check.
+
+Sibling targets (C/Zig/Go/Python) are free to adopt either Strategy
+A or B at their pin 19.3 landing; their mapping.md declares the
+choice.
+
 ## Panics policy
 
 `panic = "abort"` is assumed at the crate level (declared in
