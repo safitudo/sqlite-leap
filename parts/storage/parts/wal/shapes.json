@@ -168,6 +168,23 @@
       "returns": { "result": { "ok": "unit", "err": "WalError" } }
     },
 
+    "wal_state_index_len": {
+      "doc": "Pin 18.2 sibling-target observer. Returns the number of entries in `state.wal_index`. Public accessor so callers (e.g. wal-bridge recovery-on-open) can iterate the WAL index without reaching into the record's representation. Targets that expose `wal_index` as a public field MAY also expose this for parity.",
+      "params": [
+        { "name": "state", "type": { "borrow": "WalState" } }
+      ],
+      "returns": "u32"
+    },
+
+    "wal_state_index_entry": {
+      "doc": "Pin 18.2 sibling-target observer. Returns the i-th entry of `state.wal_index` (0-based, `i < wal_state_index_len(state)`). Companion to `wal_state_index_len` for recovery-on-open cache priming where targets without exposed-field access need a fn-form accessor. Returns `option<WalIndexEntry>` so out-of-range indices are signaled cleanly.",
+      "params": [
+        { "name": "state", "type": { "borrow": "WalState" } },
+        { "name": "i",     "type": "u32" }
+      ],
+      "returns": { "option": "WalIndexEntry" }
+    },
+
     "wal_checksum_step": {
       "doc": "One step of the Fibonacci-style cumulative checksum. (s0', s1') = ((s0 + x0 + s1) mod 2^32, (s1 + x1 + s0') mod 2^32). Pure function; targets MAY inline this. Exposed in the shape surface so cross-target equivalence tests can call it directly with known vectors.",
       "params": [

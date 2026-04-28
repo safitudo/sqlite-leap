@@ -300,6 +300,23 @@ represent in-progress transactions that didn't commit, and they
 will be overwritten by the next writer. Recovery does not erase
 them; it just doesn't consult them.
 
+## Wal-index iteration (Pin 18.2 — sibling-target observer)
+
+Targets that emit `WalState.wal_index` as a record-internal field
+(C `LeapWalState`, Zig `WalState`, Go `WalState`, Python `WalState`)
+MUST also expose two function-form observers so upstream consumers
+(notably `wal-bridge` recovery-on-open cache priming) can iterate the
+index without breaking encapsulation:
+
+- `wal_state_index_len(state) -> u32` — count of entries.
+- `wal_state_index_entry(state, i) -> option<WalIndexEntry>` — i-th
+  entry (0-based), or `none` if `i >= len`.
+
+The Rust target may forgo these (its `wal_index` field is `pub` so
+consumers iterate directly); declaring them is still cheap and keeps
+the surface uniform across targets. The shapes are declared in
+`shapes.json` under `functions`.
+
 ## Concurrency model (v1: single-writer, multi-reader)
 
 - One writer at a time, gated by an exclusive writer lock on the

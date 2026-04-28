@@ -34,9 +34,29 @@ close_database_at(db: Database, path: string)
     -> ok | RuntimeCondition
 serialize_database_to(db: Database, path: string)
     -> ok | RuntimeCondition
+serialize_database_to_with_sync(db: Database, path: string, sync_level: SyncLevel)
+    -> ok | RuntimeCondition
 deserialize_database_from(path: string)
     -> Database | RuntimeCondition
 ```
+
+`serialize_database_to_with_sync` is the **fsync-gated** variant
+required by `wal-bridge`'s `JournalMode::Delete` commit arm. The
+`sync_level` parameter is the canonical `SyncLevel` declared in
+`parts/storage/parts/wal/shapes.json::SyncLevel` (Off / Normal /
+Full / Extra). Semantics:
+
+- write `<path>.leap-stage`,
+- if `sync_level >= Full`: `fsync(staging)` before rename,
+- atomic `rename(staging, <path>)`,
+- if `sync_level == Extra`: best-effort `fsync(parent_dir)`.
+
+`serialize_database_to(db, path)` is preserved as the unconditional-
+fsync convenience wrapper (equivalent to
+`serialize_database_to_with_sync(db, path, SyncLevel::Full)`); direct
+callers (tests, the `close_database_at` close-time path) MAY use it,
+but the wal-bridge Delete-mode commit MUST use `with_sync` to honor
+the connection's `PRAGMA synchronous` level.
 
 `open_database_at`:
 1. Unlink any leftover `<path>.leap-stage` (open protocol step 1 of

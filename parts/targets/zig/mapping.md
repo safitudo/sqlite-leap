@@ -379,6 +379,37 @@ owning leaf (parts/core) emits them.
 - **Cross-part imports:** `@import("../core.zig")` etc., using the relative path from the current leaf to the imported leaf's file.
 - **Override hook:** `emits.zig.path` in front-matter.
 
+### Build gate vs cross-leaf imports (Pin 18.2 G2 finding)
+
+Zig 0.16's `zig build-obj <single-file.zig>` rejects relative imports
+that escape the file's parent dir ("file outside module path"). This
+matters whenever a leaf imports from a sibling leaf in a different
+directory tree (`src-zig/storage/wal_bridge.zig` importing
+`../core.zig`, etc.).
+
+Two acceptable resolutions per leaf, declared at emission time:
+
+1. **Subdirectory siblings (preferred for storage leaves):** when all
+   imports resolve within the same subdirectory (e.g. all of
+   `src-zig/storage/{page_cache,storage_lock,storage_wal,wal_bridge}.zig`),
+   use bare relative imports `@import("page_cache.zig")` and gate
+   builds with `zig build-obj` rooted at that directory:
+   `(cd src-zig/storage && zig build-obj wal_bridge.zig …)`.
+2. **Cross-tree imports:** when a leaf legitimately needs `../core.zig`
+   or another sibling tree, use a **module-graph build gate** instead
+   of `build-obj`: emit a one-shot `build.zig` that names the leaf
+   as a module with explicit `addImport` for each cross-tree dep, then
+   run `zig build`. The build.zig itself is generator output, kept
+   minimal (≤ 30 lines).
+
+Forward-declaring opaque stand-ins for cross-tree types when they are
+used only as borrowed references (no field access) is **also**
+acceptable as a temporary measure if the consuming leaf does not
+actually dereference the imported type — the wal-bridge G2 emission
+forward-declared `Database` from mem-store this way because the
+in-place commit path consults the cache, not `db`. When the consuming
+code starts calling methods on the imported type, lift to (1) or (2).
+
 ### File skeleton
 
 ```zig
