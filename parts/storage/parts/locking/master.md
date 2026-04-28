@@ -5,8 +5,11 @@ inherits:
   - /parts/storage/master.md
   - /schema/shape.schema.json
 emits:
-  rust:
-    path: src-rust/storage_lock.rs
+  rust:   { path: src-rust/storage_lock.rs }
+  c:      { path: src-c/storage/storage_lock.c, headers: [src-c/storage/storage_lock.h] }
+  zig:    { path: src-zig/storage/storage_lock.zig }
+  go:     { path: src-go/storage/storage_lock.go }
+  python: { path: src-python/storage/storage_lock.py }
 ---
 
 # Part: storage/locking

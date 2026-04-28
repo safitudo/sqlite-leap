@@ -31,12 +31,14 @@ This is the spec the L4 INSERT bench depends on for honest comparison
 with mainline-WAL — every COMMIT pays one fsync; mainline pays one
 fsync; same disk-cost contract.
 
-**Phase 18.1 (this part) targets Rust only.** The 4-target sibling
-emission (C/Zig/Go/Python) lands in Phase 18.2 once the Rust
-prototype proves the spec is coherent end-to-end. **No multi-target
-emission slot is declared in this leaf.** The wal/ leaf already
-defines the byte-format surface; this leaf defines only the
-cursor-signature migration and the bridge to mem-store.
+**Phase 18.1 (Rust prototype) is canonical and validated.** Phase 18.2
+sibling emission to C / Zig / Go / Python is **in scope** as of
+2026-04-27 — the Rust prototype proved the spec coherent end-to-end
+(L4 100k INSERT 94.9k qps, mainline integrity_check ok, reopen
+recovery green). Multi-target emission slots are declared at the
+end of this leaf; the wal/ leaf defines the byte-format surface and
+this leaf defines the cursor-signature migration and the bridge to
+mem-store across all 5 targets.
 
 ## Why a new leaf (not just extending mem-store)
 
@@ -433,9 +435,8 @@ on-disk artifacts differ; the observable query results do not.
 Smoke counts: 7-step demo, expect all 7 PASS for the leaf to be
 considered green at Phase 18.1.
 
-## Out of scope (Phase 18.2+)
+## Out of scope (Phase 18.3+)
 
-- 4-target sibling emission (C/Zig/Go/Python). Pin 18 phase 18.2 wave.
 - `wal-shm`-mediated multi-process WAL. Pin 20+.
 - `PASSIVE` vs `RESTART` vs `TRUNCATE` checkpoint variants. v1 is
   PASSIVE.

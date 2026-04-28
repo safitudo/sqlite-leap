@@ -591,7 +591,12 @@ Pin 19 is the boundary spec; tree-wide migration is per-landing
 follow-up (Pin 19.2). See sibling `MIGRATION.md` for the full list
 of parts and code sites that change after this leaf is canonical.
 
-## Smoke probe (Phase 19.1, Rust only)
+## Smoke probe (Phase 19.1 Rust + 19.2 sibling)
+
+Phase 19.1 Rust is canonical (validated 2026-04-27: L4 100k INSERT
+94.9k qps, integrity_check ok). Phase 19.2 sibling emission to
+C / Zig / Go / Python is in scope; each sibling target runs the
+same smoke probe with target-idiomatic example wiring.
 
 `src-rust/examples/btree_write_smoke.rs`:
 
@@ -647,10 +652,10 @@ actually shrinks the COMMIT working set).
 
 ## Phase pins
 
-- **Phase 19.1** — Rust prototype. Cursor write path
+- **Phase 19.1 (DONE 2026-04-27)** — Rust prototype. Cursor write path
   rewrite + pager_allocate_page + commit-path simplification.
   Validated by smoke probe + L4 bench parity.
-- **Phase 19.2** — 4-target sibling emission (C/Zig/Go/Python).
+- **Phase 19.2 (IN SCOPE 2026-04-27)** — 4-target sibling emission (C/Zig/Go/Python).
   The cache-flush commit path lifts to all 5 targets; the cursor
   write path lifts to all 5 targets. Mainline-readable post-commit
   on every target. Cross-target byte-identity on the WAL file

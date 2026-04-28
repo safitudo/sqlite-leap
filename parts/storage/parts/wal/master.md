@@ -6,6 +6,12 @@ inherits:
   - /parts/storage/parts/file-format/master.md
   - /parts/storage/parts/fileformat-read/master.md
   - /parts/storage/parts/fileformat-write/master.md
+emits:
+  rust:   { path: src-rust/storage_wal.rs }
+  c:      { path: src-c/storage/storage_wal.c, headers: [src-c/storage/storage_wal.h] }
+  zig:    { path: src-zig/storage/storage_wal.zig }
+  go:     { path: src-go/storage/storage_wal.go }
+  python: { path: src-python/storage/storage_wal.py }
 ---
 
 # Part: storage/wal
@@ -18,10 +24,20 @@ WAL produced by mainline must be replayable by leap-WAL. WAL frames
 are part of the on-disk contract — getting them right is required
 for the "Done" criterion.
 
-This is the foundational design pass. **No target code is emitted
-from this part yet.** The deliverable is the language-neutral spec
-(this file) plus the shape declarations (`shapes.json`). Targets
-will be added in a subsequent wave once the spec is stable.
+**Phase 4b (Rust prototype) is canonical and validated**
+(`src-rust/storage_wal.rs`, 787 LOC, mainline-readable WAL frames,
+fsync gate honors `PRAGMA synchronous`, WAL replay on reopen). The
+Rust file is the canonical reference for sibling targets; the
+spec in this file plus `shapes.json` are the language-neutral
+contract.
+
+**Phase 4b.2 (multi-target sibling emission, in scope 2026-04-27).**
+Emit slots are declared in the frontmatter for all 5 targets. C /
+Zig / Go / Python siblings implement the same surface (`wal_open`,
+`wal_append_frame`, `wal_commit`, `wal_rollback`, `wal_read_page`,
+`wal_checkpoint`, plus the codec helpers). Cross-target WAL byte
+identity on the Phase 19.1 smoke probe (100-row INSERT into
+`/tmp/leap-bw-1.db`) is the acceptance gate.
 
 ## Why a WAL
 

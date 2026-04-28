@@ -5,8 +5,11 @@ inherits:
   - /parts/storage/parts/pager/master.md
   - /parts/storage/parts/file-format/master.md
 emits:
-  rust: { path: src-rust/page_cache.rs }
-  c:    { path: src-c/storage/page_cache.c, headers: [src-c/storage/page_cache.h] }
+  rust:   { path: src-rust/page_cache.rs }
+  c:      { path: src-c/storage/page_cache.c, headers: [src-c/storage/page_cache.h] }
+  zig:    { path: src-zig/storage/page_cache.zig }
+  go:     { path: src-go/storage/page_cache.go }
+  python: { path: src-python/storage/page_cache.py }
 ---
 
 # Part: storage/page-cache
