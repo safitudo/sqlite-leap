@@ -42,11 +42,26 @@ The Rust target has behavioral test coverage for: JSON1 (5/5 targets), foreign k
 
 ## Reproduction
 
+Engine source for the five targets is distributed via [GitHub Releases](https://github.com/safitudo/sqlite-leap/releases) (the repo itself ships only the spec, tests, and bench harness — source lives outside `git` because it is regenerable from `parts/` for leaf parts and the resulting trees are large; see `docs/PUBLICATION.md` for the regen story).
+
 ### Mac (arm64)
 
 ```bash
-git clone https://github.com/safitudo/sqlite-leap.git  # placeholder; repo URL pending public push
+git clone https://github.com/safitudo/sqlite-leap.git
 cd sqlite-leap
+
+# Pull engine sources for the targets you want to reproduce
+TAG=v0.1.0-publication-2026-04-28
+for tgt in c rust zig go python; do
+  curl -L -o /tmp/src-$tgt.tar.gz \
+    https://github.com/safitudo/sqlite-leap/releases/download/$TAG/src-$tgt.tar.gz
+  tar xzf /tmp/src-$tgt.tar.gz
+done
+
+# Verify checksums
+curl -L -o SHA256SUMS \
+  https://github.com/safitudo/sqlite-leap/releases/download/$TAG/SHA256SUMS
+shasum -a 256 -c SHA256SUMS
 
 cargo build --release --manifest-path src-rust/Cargo.toml --example slt_runner --example lib_bench
 bash src-c/build_lib_bench.sh
