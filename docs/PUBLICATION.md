@@ -12,17 +12,25 @@ This post is deliberately honest about what *doesn't* beat mainline. Earlier dra
 
 ## Linux x86_64 native lib-mode benchmarks — apples-to-apples
 
-Source: `bench/results/2026-04-27-linux-x86_64/raw.csv` (post-G3, 2026-04-27). Pre-G3 baseline at `bench/results/2026-04-27-linux-native/raw.csv`. Ubuntu 22.04 (kernel 6.8), glibc 2.35, rustc 1.89.0, gcc 11.4.0. Both engines invoked as in-process libraries (`-llib`) with the same workload SQL. L3 reads from in-memory after setup (mainline `:memory:`, leap `Database::new()`); L4 writes file-backed via `--db PATH` honored on both sides (mainline opens the file, leap routes through `leap_storage_open_database_at`). Same machine, same hour, same run.
+Sources (per row, since each lane has its own apples-to-apples methodology and CSV):
+
+- L2 row: `bench/results/2026-04-27-linux-native/lane2-parseonly/raw.csv` (3 runs; filtered corpus, name-resolution-symmetric — see "L2 parse caveat" below).
+- L3 / L4 rows (leap-c, mainline): `bench/results/2026-04-27-linux-x86_64/raw.csv` (post-G3, 2026-04-28T03:17Z, leap-c only; mainline numbers in the same file).
+- L3 / L4 rows (leap-rust): `bench/results/2026-04-27-linux-native/raw.csv` (pre-G3, 2026-04-27T16:08Z, three-target run including leap-rust). leap-rust src-* did not rebuild on the Linux box post-G3, so the leap-rust column is the most recent run with all three targets in a single CSV. G3 is in-memory-cursor-only and pager-threading; perf-neutrality is verified on leap-c by comparing the linux-native CSV (pre-G3, leap-c 956,662 / 1,228,876) against the linux-x86_64 CSV (post-G3, leap-c 966,972 / 1,242,482) — within run-to-run noise (+1.1% / +1.1%).
+
+Ubuntu 22.04 (kernel 6.8), glibc 2.35, rustc 1.89.0, gcc 11.4.0. Both engines invoked as in-process libraries (`-llib`) with the same workload SQL. L3 reads from in-memory after setup (mainline `:memory:`, leap `Database::new()`); L4 writes file-backed via `--db PATH` honored on both sides (mainline opens the file, leap routes through `leap_storage_open_database_at`). Same machine, same hour for each row's pair.
 
 All three lanes are `--parse-only` / unmodified-workload symmetric: same harness, same flags on both engines. L2 runs `prepare_v2 + finalize` on mainline and `tokenize + parse` on leap (both drop the AST/stmt without stepping). L3 runs in-memory; L4 is file-backed via `--db PATH` honored on both sides.
 
 | Lane | mainline | leap-rust | leap-c | leap-c vs mainline | leap-rust vs mainline |
 |---|---:|---:|---:|---:|---:|
 | L2 parse-only, filtered (stmt/s) | 1,060,065 | 710,430 | 1,857,806 | **1.75× (win)** | **0.67× (lose)** |
-| L3 SELECT in-memory (sel/s) | 625,370 | 505,008 | 966,972 | **1.55× (win)** | **0.81× (lose)** |
+| L3 SELECT in-memory (sel/s) | 625,370 | 505,008 | 966,972 | **1.55× (win)** | **0.80× (lose)** |
 | L4 INSERT file-backed (ins/s) | 681,473 | 555,862 | 1,242,482 | **1.82× (win)** | **0.82× (lose)** |
 
-Wave G3 (cursor-signature migration × 4 sibling targets, 2026-04-27) was a perf-neutral correctness-only change: pre-G3 ratios were L3 1.51× / L4 1.81×, post-G3 L3 1.55× / L4 1.82× — within run-to-run noise.
+Wave G3 (cursor-signature migration × 4 sibling targets, 2026-04-27) was a perf-neutral correctness-only change. Pre-G3 leap-c L3/L4 (linux-native CSV): 956,662 sel/s / 1,228,876 ins/s. Post-G3 leap-c L3/L4 (linux-x86_64 CSV): 966,972 / 1,242,482. Delta +1.1% on both lanes — within run-to-run noise. Both CSVs are checked in.
+
+> **L2 caveat — and why this row is not in `linux-x86_64/raw.csv`.** The unfiltered L2 lane in `linux-x86_64/raw.csv` reports leap-c 2,378 stmt/s vs mainline 64,955 stmt/s — **leap-c loses 27×**. This is the corpus methodology issue: 52,122 of 157,307 statements in the unfiltered corpus reference tables that don't exist (because CREATEs aren't run in `--parse-only` mode), and leap's parser doesn't fast-reject on name-resolution while mainline's `prepare_v2` does. The headline 1.75× L2 row uses the **filtered** corpus (`lane2-parseonly/`) where both engines parse the same set of 157,182 statements that successfully tokenize on both sides. We publish the filtered number because it's apples-to-apples; we disclose the unfiltered number because the unfiltered file is the one a reviewer will pull first when checking citations.
 
 What this says, plainly:
 

@@ -1,7 +1,7 @@
 lane,target,value,units,elapsed_s,statements,errors,timestamp
-parse-speed,sqlite-mainline,25155,statements_per_second,6.248336,157182,191,2026-04-27T15:35:53Z
-select-in-memory,sqlite-mainline,252557,selects_per_second,0.395950,100000,0,2026-04-27T15:35:53Z
-insert-throughput,sqlite-mainline,277220,inserts_per_second,0.360741,100005,0,2026-04-27T15:35:54Z
-parse-speed,sqlite-leap-c,1041,statements_per_second,151.118619,157373,52122,2026-04-27T15:39:55Z
-select-in-memory,sqlite-leap-c,518405,selects_per_second,0.192899,100000,0,2026-04-27T15:39:55Z
-insert-throughput,sqlite-leap-c,586544,inserts_per_second,0.170499,100005,0,2026-04-27T15:39:56Z
+parse-speed,sqlite-mainline,64955,statements_per_second,2.418837,157116,191,2026-04-28T03:16:01Z
+parse-speed,sqlite-leap-c,2378,statements_per_second,66.137202,157307,52122,2026-04-28T03:17:07Z
+select-in-memory,sqlite-mainline,625370,selects_per_second,0.159905,100000,0,2026-04-28T03:17:08Z
+select-in-memory,sqlite-leap-c,966972,selects_per_second,0.103416,100000,0,2026-04-28T03:17:08Z
+insert-throughput,sqlite-mainline,681473,inserts_per_second,0.146748,100005,0,2026-04-28T03:17:08Z
+insert-throughput,sqlite-leap-c,1242482,inserts_per_second,0.080488,100005,0,2026-04-28T03:17:08Z

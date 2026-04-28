@@ -1,495 +1,108 @@
-[libmode] uname: Linux 7054af316713 6.6.12-linuxkit #1 SMP Fri Jan 19 08:53:17 UTC 2024 x86_64 GNU/Linux
-[libmode] glibc: ldd (Debian GLIBC 2.36-9+deb12u13) 2.36
-[libmode] rustc: rustc 1.82.0 (f6e511eec 2024-10-15)
-[libmode] cc:    cc (Debian 12.2.0-14+deb12u1) 12.2.0
+[libmode] uname: Linux stanislav-s 6.8.0-100-generic #100~22.04.1-Ubuntu SMP PREEMPT_DYNAMIC Mon Jan 19 17:10:19 UTC  x86_64 x86_64 x86_64 GNU/Linux
+[libmode] glibc: ldd (Ubuntu GLIBC 2.35-0ubuntu3.13) 2.35
+[libmode] rustc: 
+[libmode] cc:    cc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0
 [libmode] === build mainline sqlite_lib_bench ===
 [libmode] mainline lib_bench OK
 [libmode] === build leap-rust lib_bench ===
-    Updating crates.io index
- Downloading crates ...
-  Downloaded serde_core v1.0.228
-  Downloaded zeroize_derive v1.4.3
-  Downloaded block-buffer v0.10.4
-  Downloaded md-5 v0.10.6
-  Downloaded itoa v1.0.18
-  Downloaded aead v0.5.2
-  Downloaded generic-array v0.14.7
-  Downloaded cpufeatures v0.2.17
-  Downloaded subtle v2.6.1
-  Downloaded pbkdf2 v0.12.2
-  Downloaded version_check v0.9.5
-  Downloaded opaque-debug v0.3.1
-  Downloaded universal-hash v0.5.1
-  Downloaded digest v0.10.7
-  Downloaded crypto-common v0.1.7
-  Downloaded cipher v0.4.4
-  Downloaded cfg-if v1.0.4
-  Downloaded zmij v1.0.21
-  Downloaded ctr v0.9.2
-  Downloaded zeroize v1.8.2
-  Downloaded inout v0.1.4
-  Downloaded quote v1.0.45
-  Downloaded unicode-ident v1.0.24
-  Downloaded chacha20poly1305 v0.10.1
-  Downloaded proc-macro2 v1.0.106
-  Downloaded libloading v0.8.9
-  Downloaded poly1305 v0.8.0
-  Downloaded memchr v2.8.0
-  Downloaded typenum v1.20.0
-  Downloaded aes v0.8.4
-  Downloaded serde_json v1.0.149
-  Downloaded base64 v0.22.1
-  Downloaded hmac v0.12.1
-  Downloaded getrandom v0.2.17
-  Downloaded sha2 v0.10.9
-  Downloaded rand_core v0.6.4
-  Downloaded chacha20 v0.9.1
-  Downloaded syn v2.0.117
-  Downloaded libc v0.2.186
-   Compiling version_check v0.9.5
-   Compiling libc v0.2.186
-   Compiling typenum v1.20.0
-   Compiling cfg-if v1.0.4
-   Compiling proc-macro2 v1.0.106
-   Compiling quote v1.0.45
-   Compiling unicode-ident v1.0.24
-   Compiling subtle v2.6.1
-   Compiling cpufeatures v0.2.17
-   Compiling serde_core v1.0.228
-   Compiling opaque-debug v0.3.1
-   Compiling zmij v1.0.21
-   Compiling serde_json v1.0.149
-   Compiling itoa v1.0.18
-   Compiling memchr v2.8.0
-   Compiling base64 v0.22.1
-   Compiling libloading v0.8.9
-   Compiling generic-array v0.14.7
-   Compiling getrandom v0.2.17
-   Compiling block-buffer v0.10.4
-   Compiling inout v0.1.4
-   Compiling rand_core v0.6.4
-   Compiling syn v2.0.117
-   Compiling crypto-common v0.1.7
-   Compiling digest v0.10.7
-   Compiling universal-hash v0.5.1
-   Compiling aead v0.5.2
-   Compiling poly1305 v0.8.0
-   Compiling hmac v0.12.1
-   Compiling sha2 v0.10.9
-   Compiling md-5 v0.10.6
-   Compiling pbkdf2 v0.12.2
-   Compiling zeroize_derive v1.4.3
-   Compiling zeroize v1.8.2
-   Compiling cipher v0.4.4
-   Compiling chacha20 v0.9.1
-   Compiling ctr v0.9.2
-   Compiling aes v0.8.4
-   Compiling chacha20poly1305 v0.10.1
-   Compiling leap_sqlite v0.1.0 (/tmp/leap-libmode-1/src-rust)
-error[E0433]: failed to resolve: could not find `TryLockError` in `fs`
-   --> storage_lock.rs:453:26
-    |
-453 |             Err(std::fs::TryLockError::WouldBlock) => Err(LockError::Busy),
-    |                          ^^^^^^^^^^^^ could not find `TryLockError` in `fs`
-    |
-help: consider importing this enum
-    |
-18  + use std::sync::TryLockError;
-    |
-help: if you import `TryLockError`, refer to it directly
-    |
-453 -             Err(std::fs::TryLockError::WouldBlock) => Err(LockError::Busy),
-453 +             Err(TryLockError::WouldBlock) => Err(LockError::Busy),
-    |
-
-error[E0433]: failed to resolve: could not find `TryLockError` in `fs`
-   --> storage_lock.rs:454:26
-    |
-454 |             Err(std::fs::TryLockError::Error(e)) => {
-    |                          ^^^^^^^^^^^^ could not find `TryLockError` in `fs`
-    |
-help: consider importing this enum
-    |
-18  + use std::sync::TryLockError;
-    |
-help: if you import `TryLockError`, refer to it directly
-    |
-454 -             Err(std::fs::TryLockError::Error(e)) => {
-454 +             Err(TryLockError::Error(e)) => {
-    |
-
-error[E0433]: failed to resolve: could not find `TryLockError` in `fs`
-   --> storage_lock.rs:487:26
-    |
-487 |             Err(std::fs::TryLockError::WouldBlock) => {
-    |                          ^^^^^^^^^^^^ could not find `TryLockError` in `fs`
-    |
-help: consider importing this enum
-    |
-18  + use std::sync::TryLockError;
-    |
-help: if you import `TryLockError`, refer to it directly
-    |
-487 -             Err(std::fs::TryLockError::WouldBlock) => {
-487 +             Err(TryLockError::WouldBlock) => {
-    |
-
-error[E0433]: failed to resolve: could not find `TryLockError` in `fs`
-   --> storage_lock.rs:492:26
-    |
-492 |             Err(std::fs::TryLockError::Error(e)) => {
-    |                          ^^^^^^^^^^^^ could not find `TryLockError` in `fs`
-    |
-help: consider importing this enum
-    |
-18  + use std::sync::TryLockError;
-    |
-help: if you import `TryLockError`, refer to it directly
-    |
-492 -             Err(std::fs::TryLockError::Error(e)) => {
-492 +             Err(TryLockError::Error(e)) => {
-    |
-
-error[E0433]: failed to resolve: could not find `TryLockError` in `fs`
-   --> storage_lock.rs:509:26
-    |
-509 |             Err(std::fs::TryLockError::WouldBlock) => Err(LockError::Busy),
-    |                          ^^^^^^^^^^^^ could not find `TryLockError` in `fs`
-    |
-help: consider importing this enum
-    |
-18  + use std::sync::TryLockError;
-    |
-help: if you import `TryLockError`, refer to it directly
-    |
-509 -             Err(std::fs::TryLockError::WouldBlock) => Err(LockError::Busy),
-509 +             Err(TryLockError::WouldBlock) => Err(LockError::Busy),
-    |
-
-error[E0433]: failed to resolve: could not find `TryLockError` in `fs`
-   --> storage_lock.rs:510:26
-    |
-510 |             Err(std::fs::TryLockError::Error(e)) => Err(LockError::IoError(
-    |                          ^^^^^^^^^^^^ could not find `TryLockError` in `fs`
-    |
-help: consider importing this enum
-    |
-18  + use std::sync::TryLockError;
-    |
-help: if you import `TryLockError`, refer to it directly
-    |
-510 -             Err(std::fs::TryLockError::Error(e)) => Err(LockError::IoError(
-510 +             Err(TryLockError::Error(e)) => Err(LockError::IoError(
-    |
-
-warning: unused import: `Zeroize`
-  --> encryption.rs:38:15
-   |
-38 | use zeroize::{Zeroize, Zeroizing};
-   |               ^^^^^^^
-   |
-   = note: `#[warn(unused_imports)]` on by default
-
-warning: unused import: `RuntimeCondition`
-  --> vtab.rs:11:19
-   |
-11 | use crate::core::{RuntimeCondition, Value};
-   |                   ^^^^^^^^^^^^^^^^
-
-error[E0599]: no method named `try_lock_shared` found for reference `&File` in the current scope
-   --> storage_lock.rs:451:17
-    |
-451 |         match f.try_lock_shared() {
-    |                 ^^^^^^^^^^^^^^^ method not found in `&File`
-
-error[E0599]: no method named `unlock` found for reference `&File` in the current scope
-   --> storage_lock.rs:464:11
-    |
-464 |         f.unlock()
-    |           ^^^^^^ method not found in `&File`
-
-error[E0599]: no method named `unlock` found for reference `&File` in the current scope
-   --> storage_lock.rs:483:11
-    |
-483 |         f.unlock()
-    |           ^^^^^^ method not found in `&File`
-
-error[E0599]: no method named `try_lock` found for reference `&File` in the current scope
-   --> storage_lock.rs:485:17
-    |
-485 |         match f.try_lock() {
-    |                 ^^^^^^^^ method not found in `&File`
-
-error[E0599]: no method named `try_lock_shared` found for reference `&File` in the current scope
-   --> storage_lock.rs:489:27
-    |
-489 |                 let _ = f.try_lock_shared();
-    |                           ^^^^^^^^^^^^^^^ method not found in `&File`
-
-error[E0599]: no method named `try_lock_shared` found for reference `&File` in the current scope
-   --> storage_lock.rs:493:27
-    |
-493 |                 let _ = f.try_lock_shared();
-    |                           ^^^^^^^^^^^^^^^ method not found in `&File`
-
-error[E0599]: no method named `unlock` found for reference `&File` in the current scope
-   --> storage_lock.rs:503:11
-    |
-503 |         f.unlock()
-    |           ^^^^^^ method not found in `&File`
-
-error[E0599]: no method named `try_lock_shared` found for reference `&File` in the current scope
-   --> storage_lock.rs:507:17
-    |
-507 |         match f.try_lock_shared() {
-    |                 ^^^^^^^^^^^^^^^ method not found in `&File`
-
-warning: value assigned to `content_used` is never read
-   --> storage_fileformat.rs:338:21
-    |
-338 |                     content_used += cell.len();
-    |                     ^^^^^^^^^^^^
-    |
-    = help: maybe it is overwritten before being read?
-    = note: `#[warn(unused_assignments)]` on by default
-
-warning: value assigned to `cell_count` is never read
-   --> storage_fileformat.rs:339:21
-    |
-339 |                     cell_count += 1;
-    |                     ^^^^^^^^^^
-    |
-    = help: maybe it is overwritten before being read?
-
-warning: variable does not need to be mutable
-   --> wal_shm.rs:727:9
-    |
-727 |     let mut header = ShmHeaderRecord {
-    |         ----^^^^^^
-    |         |
-    |         help: remove this `mut`
-    |
-    = note: `#[warn(unused_mut)]` on by default
-
-warning: variable does not need to be mutable
-    --> compiler/select_compile.rs:9366:9
-     |
-9366 |     let mut after_stage = stage_pos_base + 1;
-     |         ----^^^^^^^^^^^
-     |         |
-     |         help: remove this `mut`
-
-Some errors have detailed explanations: E0433, E0599.
-For more information about an error, try `rustc --explain E0433`.
-warning: `leap_sqlite` (lib) generated 6 warnings
-error: could not compile `leap_sqlite` (lib) due to 14 previous errors; 6 warnings emitted
+bench/run-linux-libmode.sh: line 48: cargo: command not found
 [libmode] rust lib_bench FAIL
 [libmode] === build leap-c lib_bench ===
 make: *** No targets specified and no makefile found.  Stop.
-src-c/storage/fileformat_lib.c: In function 'decode_serial_value':
+src-c/storage/fileformat_lib.c: In function ‘decode_serial_value’:
 src-c/storage/fileformat_lib.c:753:54: warning: left shift of negative value [-Wshift-negative-value]
   753 |         if (v & ((int64_t)1 << 23)) v |= ~(int64_t)0 << 24;
       |                                                      ^~
 src-c/storage/fileformat_lib.c:766:54: warning: left shift of negative value [-Wshift-negative-value]
   766 |         if (v & ((int64_t)1 << 47)) v |= ~(int64_t)0 << 48;
       |                                                      ^~
-src-c/parser/expr.c: In function 'parse_bp':
-src-c/parser/expr.c:1527:17: warning: pointer used after 'free' [-Wuse-after-free]
- 1527 |                 free(items.items);
-      |                 ^~~~~~~~~~~~~~~~~
-src-c/parser/expr.c:1513:29: note: call to 'free' here
- 1513 |                             free(items.items);
-      |                             ^~~~~~~~~~~~~~~~~
-src-c/compiler/select_compile.c: In function 'emitter_append_list':
-src-c/compiler/select_compile.c:220:21: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+src-c/compiler/select_compile.c: In function ‘emitter_append_list’:
+src-c/compiler/select_compile.c:220:21: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
   220 |                     if (c->as.goto_.target != PC_PLACEHOLDER) c->as.goto_.target += off; break;
       |                     ^~
-src-c/compiler/select_compile.c:220:90: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+src-c/compiler/select_compile.c:220:90: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
   220 |                     if (c->as.goto_.target != PC_PLACEHOLDER) c->as.goto_.target += off; break;
       |                                                                                          ^~~~~
-src-c/compiler/select_compile.c:222:21: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+src-c/compiler/select_compile.c:222:21: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
   222 |                     if (c->as.if_.target != PC_PLACEHOLDER) c->as.if_.target += off; break;
       |                     ^~
-src-c/compiler/select_compile.c:222:86: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+src-c/compiler/select_compile.c:222:86: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
   222 |                     if (c->as.if_.target != PC_PLACEHOLDER) c->as.if_.target += off; break;
       |                                                                                      ^~~~~
-src-c/compiler/select_compile.c:224:21: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+src-c/compiler/select_compile.c:224:21: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
   224 |                     if (c->as.if_not.target != PC_PLACEHOLDER) c->as.if_not.target += off; break;
       |                     ^~
-src-c/compiler/select_compile.c:224:92: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+src-c/compiler/select_compile.c:224:92: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
   224 |                     if (c->as.if_not.target != PC_PLACEHOLDER) c->as.if_not.target += off; break;
       |                                                                                            ^~~~~
-src-c/compiler/select_compile.c:226:21: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+src-c/compiler/select_compile.c:226:21: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
   226 |                     if (c->as.jump_if_null.target != PC_PLACEHOLDER) c->as.jump_if_null.target += off; break;
       |                     ^~
-src-c/compiler/select_compile.c:226:104: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+src-c/compiler/select_compile.c:226:104: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
   226 |                     if (c->as.jump_if_null.target != PC_PLACEHOLDER) c->as.jump_if_null.target += off; break;
       |                                                                                                        ^~~~~
-src-c/compiler/select_compile.c:228:21: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+src-c/compiler/select_compile.c:228:21: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
   228 |                     if (c->as.gosub.target != PC_PLACEHOLDER) c->as.gosub.target += off; break;
       |                     ^~
-src-c/compiler/select_compile.c:228:90: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+src-c/compiler/select_compile.c:228:90: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
   228 |                     if (c->as.gosub.target != PC_PLACEHOLDER) c->as.gosub.target += off; break;
       |                                                                                          ^~~~~
-src-c/compiler/select_compile.c: In function 'sc_append_with_rebase':
-src-c/compiler/select_compile.c:1834:21: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+src-c/compiler/select_compile.c: In function ‘sc_append_with_rebase’:
+src-c/compiler/select_compile.c:1834:21: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
  1834 |                     if (c->as.goto_.target != PC_PLACEHOLDER) c->as.goto_.target += offset; break;
       |                     ^~
-src-c/compiler/select_compile.c:1834:93: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+src-c/compiler/select_compile.c:1834:93: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
  1834 |                     if (c->as.goto_.target != PC_PLACEHOLDER) c->as.goto_.target += offset; break;
       |                                                                                             ^~~~~
-src-c/compiler/select_compile.c:1836:21: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+src-c/compiler/select_compile.c:1836:21: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
  1836 |                     if (c->as.if_.target != PC_PLACEHOLDER) c->as.if_.target += offset; break;
       |                     ^~
-src-c/compiler/select_compile.c:1836:89: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+src-c/compiler/select_compile.c:1836:89: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
  1836 |                     if (c->as.if_.target != PC_PLACEHOLDER) c->as.if_.target += offset; break;
       |                                                                                         ^~~~~
-src-c/compiler/select_compile.c:1838:21: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+src-c/compiler/select_compile.c:1838:21: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
  1838 |                     if (c->as.if_not.target != PC_PLACEHOLDER) c->as.if_not.target += offset; break;
       |                     ^~
-src-c/compiler/select_compile.c:1838:95: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+src-c/compiler/select_compile.c:1838:95: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
  1838 |                     if (c->as.if_not.target != PC_PLACEHOLDER) c->as.if_not.target += offset; break;
       |                                                                                               ^~~~~
-src-c/compiler/select_compile.c:1840:21: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+src-c/compiler/select_compile.c:1840:21: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
  1840 |                     if (c->as.jump_if_null.target != PC_PLACEHOLDER) c->as.jump_if_null.target += offset; break;
       |                     ^~
-src-c/compiler/select_compile.c:1840:107: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+src-c/compiler/select_compile.c:1840:107: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
  1840 |                     if (c->as.jump_if_null.target != PC_PLACEHOLDER) c->as.jump_if_null.target += offset; break;
       |                                                                                                           ^~~~~
-src-c/compiler/select_compile.c:1842:21: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+src-c/compiler/select_compile.c:1842:21: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
  1842 |                     if (c->as.gosub.target != PC_PLACEHOLDER) c->as.gosub.target += offset; break;
       |                     ^~
-src-c/compiler/select_compile.c:1842:93: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+src-c/compiler/select_compile.c:1842:93: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
  1842 |                     if (c->as.gosub.target != PC_PLACEHOLDER) c->as.gosub.target += offset; break;
       |                                                                                             ^~~~~
-src-c/compiler/select_compile.c: At top level:
-src-c/compiler/select_compile.c:5736:12: warning: 'match_group_key_col' defined but not used [-Wunused-function]
+At top level:
+src-c/compiler/select_compile.c:5736:12: warning: ‘match_group_key_col’ defined but not used [-Wunused-function]
  5736 | static int match_group_key_col(
       |            ^~~~~~~~~~~~~~~~~~~
-In function 'compile_select_buffered',
-    inlined from 'leap_compiler_select_compile_compile_select_body' at src-c/compiler/select_compile.c:8260:16:
-src-c/compiler/select_compile.c:9367:12: warning: 'outer_schema' may be used uninitialized [-Wmaybe-uninitialized]
+src-c/compiler/select_compile.c: In function ‘leap_compiler_select_compile_compile_select_body’:
+src-c/compiler/select_compile.c:9367:12: warning: ‘outer_schema’ may be used uninitialized in this function [-Wmaybe-uninitialized]
  9367 |         if (outer_schema == &outer_schema_owned) {
       |            ^
-src-c/compiler/select_compile.c: In function 'leap_compiler_select_compile_compile_select_body':
-src-c/compiler/select_compile.c:9167:28: note: 'outer_schema' was declared here
+src-c/compiler/select_compile.c:9167:28: note: ‘outer_schema’ was declared here
  9167 |     const LeapTableSchema* outer_schema = schema;
       |                            ^~~~~~~~~~~~
-src-c/compiler/select_compile.c: In function 'compile_single_table_src':
-src-c/compiler/select_compile.c:3980:21: warning: pointer 'key_indices' may be used after 'realloc' [-Wuse-after-free]
- 3980 |                     free(key_indices); free(key_desc);                      \
-      |                     ^~~~~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:3992:17: note: in expansion of macro 'PUSH_KEY'
- 3992 |                 PUSH_KEY(proj_count + i, stmt->order_by.items[i].desc);
-      |                 ^~~~~~~~
-src-c/compiler/select_compile.c:3976:44: note: call to 'realloc' here
- 3976 |                 uint32_t* ki = (uint32_t*) realloc(key_indices, nc * sizeof(uint32_t)); \
-      |                                            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:3992:17: note: in expansion of macro 'PUSH_KEY'
- 3992 |                 PUSH_KEY(proj_count + i, stmt->order_by.items[i].desc);
-      |                 ^~~~~~~~
-src-c/compiler/select_compile.c:3980:40: warning: pointer 'key_desc' may be used after 'realloc' [-Wuse-after-free]
- 3980 |                     free(key_indices); free(key_desc);                      \
-      |                                        ^~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:3992:17: note: in expansion of macro 'PUSH_KEY'
- 3992 |                 PUSH_KEY(proj_count + i, stmt->order_by.items[i].desc);
-      |                 ^~~~~~~~
-src-c/compiler/select_compile.c:3977:44: note: call to 'realloc' here
- 3977 |                 bool*     kd = (bool*)     realloc(key_desc,    nc * sizeof(bool));     \
-      |                                            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:3992:17: note: in expansion of macro 'PUSH_KEY'
- 3992 |                 PUSH_KEY(proj_count + i, stmt->order_by.items[i].desc);
-      |                 ^~~~~~~~
-src-c/compiler/select_compile.c:3980:21: warning: pointer 'key_indices' may be used after 'realloc' [-Wuse-after-free]
- 3980 |                     free(key_indices); free(key_desc);                      \
-      |                     ^~~~~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:3999:21: note: in expansion of macro 'PUSH_KEY'
- 3999 |                     PUSH_KEY(i, false);
-      |                     ^~~~~~~~
-src-c/compiler/select_compile.c:3976:44: note: call to 'realloc' here
- 3976 |                 uint32_t* ki = (uint32_t*) realloc(key_indices, nc * sizeof(uint32_t)); \
-      |                                            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:3999:21: note: in expansion of macro 'PUSH_KEY'
- 3999 |                     PUSH_KEY(i, false);
-      |                     ^~~~~~~~
-src-c/compiler/select_compile.c:3980:40: warning: pointer 'key_desc' may be used after 'realloc' [-Wuse-after-free]
- 3980 |                     free(key_indices); free(key_desc);                      \
-      |                                        ^~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:3999:21: note: in expansion of macro 'PUSH_KEY'
- 3999 |                     PUSH_KEY(i, false);
-      |                     ^~~~~~~~
-src-c/compiler/select_compile.c:3977:44: note: call to 'realloc' here
- 3977 |                 bool*     kd = (bool*)     realloc(key_desc,    nc * sizeof(bool));     \
-      |                                            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:3999:21: note: in expansion of macro 'PUSH_KEY'
- 3999 |                     PUSH_KEY(i, false);
-      |                     ^~~~~~~~
-In function 'compile_joined_select',
-    inlined from 'leap_compiler_select_compile_compile_select_multi.part.0' at src-c/compiler/select_compile.c:8506:16:
-src-c/compiler/select_compile.c:5210:17: warning: pointer 'tops_arr' may be used after 'free' [-Wuse-after-free]
- 5210 |                 free(tops_arr); free(nexts_arr); free(afters_arr);
-      |                 ^~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:5163:5: note: call to 'free' here
- 5163 |     free(tops_arr); free(nexts_arr); free(afters_arr);
-      |     ^~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:5196:17: warning: pointer 'tops_arr' may be used after 'free' [-Wuse-after-free]
- 5196 |                 free(tops_arr); free(nexts_arr); free(afters_arr);
-      |                 ^~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:5163:5: note: call to 'free' here
- 5163 |     free(tops_arr); free(nexts_arr); free(afters_arr);
-      |     ^~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:5242:23: warning: pointer 'tops_arr' may be used after 'free' [-Wuse-after-free]
- 5242 |         if (em.oom) { free(tops_arr); free(nexts_arr); free(afters_arr); goto join_oom; }
-      |                       ^~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:5163:5: note: call to 'free' here
- 5163 |     free(tops_arr); free(nexts_arr); free(afters_arr);
-      |     ^~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:5210:33: warning: pointer 'nexts_arr' may be used after 'free' [-Wuse-after-free]
- 5210 |                 free(tops_arr); free(nexts_arr); free(afters_arr);
-      |                                 ^~~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:5163:21: note: call to 'free' here
- 5163 |     free(tops_arr); free(nexts_arr); free(afters_arr);
-      |                     ^~~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:5196:33: warning: pointer 'nexts_arr' may be used after 'free' [-Wuse-after-free]
- 5196 |                 free(tops_arr); free(nexts_arr); free(afters_arr);
-      |                                 ^~~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:5163:21: note: call to 'free' here
- 5163 |     free(tops_arr); free(nexts_arr); free(afters_arr);
-      |                     ^~~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:5242:39: warning: pointer 'nexts_arr' may be used after 'free' [-Wuse-after-free]
- 5242 |         if (em.oom) { free(tops_arr); free(nexts_arr); free(afters_arr); goto join_oom; }
-      |                                       ^~~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:5163:21: note: call to 'free' here
- 5163 |     free(tops_arr); free(nexts_arr); free(afters_arr);
-      |                     ^~~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:5210:50: warning: pointer 'afters_arr' may be used after 'free' [-Wuse-after-free]
- 5210 |                 free(tops_arr); free(nexts_arr); free(afters_arr);
-      |                                                  ^~~~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:5163:38: note: call to 'free' here
- 5163 |     free(tops_arr); free(nexts_arr); free(afters_arr);
-      |                                      ^~~~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:5196:50: warning: pointer 'afters_arr' may be used after 'free' [-Wuse-after-free]
- 5196 |                 free(tops_arr); free(nexts_arr); free(afters_arr);
-      |                                                  ^~~~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:5163:38: note: call to 'free' here
- 5163 |     free(tops_arr); free(nexts_arr); free(afters_arr);
-      |                                      ^~~~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:5242:56: warning: pointer 'afters_arr' may be used after 'free' [-Wuse-after-free]
- 5242 |         if (em.oom) { free(tops_arr); free(nexts_arr); free(afters_arr); goto join_oom; }
-      |                                                        ^~~~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:5163:38: note: call to 'free' here
- 5163 |     free(tops_arr); free(nexts_arr); free(afters_arr);
-      |                                      ^~~~~~~~~~~~~~~~
-src-c/compiler/delete_compile.c: In function 'dc_compile_expr_in_schema':
-src-c/compiler/delete_compile.c:117:5: warning: enumeration value 'LEAP_EXPR_PARAM' not handled in switch [-Wswitch]
+src-c/compiler/delete_compile.c: In function ‘dc_compile_expr_in_schema’:
+src-c/compiler/delete_compile.c:117:5: warning: enumeration value ‘LEAP_EXPR_PARAM’ not handled in switch [-Wswitch]
   117 |     switch (expr->kind) {
       |     ^~~~~~
-/usr/bin/ld: /tmp/ccs2yvBB.o: in function `leap_opcode_expr_execute':
-opcodes_expr.c:(.text+0x326b): undefined reference to `leap_scalar_json1_eval'
-/usr/bin/ld: opcodes_expr.c:(.text+0x3281): undefined reference to `leap_scalar_json1_eval'
-collect2: error: ld returned 1 exit status
-[libmode] c lib_bench FAIL (see log)
-[libmode] === Lane 2 parse ===
+src-c/scalar_json1.c:862:13: warning: ‘array_insert_at’ defined but not used [-Wunused-function]
+  862 | static bool array_insert_at(Arena* a, JsonArrayBody* arr, size_t at, JsonNode* v) {
+      |             ^~~~~~~~~~~~~~~
+src-c/examples/lib_bench.c: In function ‘main’:
+src-c/examples/lib_bench.c:589:5: warning: ignoring return value of ‘fread’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+  589 |     fread(src, 1, (size_t) sz, f);
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+built: src-c/build/lib_bench
+[libmode] c lib_bench OK
+[libmode] === Lane 2 parse (--parse-only; see lane2-parseonly/SUMMARY.md) ===
 [libmode]   parse-speed sqlite-mainline ...
 prepare err: ambiguous column name: t21.id | sql=SELECT t21.id, t21.c1 FROM t21 JOIN t21 ON t21.c1 = t21.id WHERE t21.c4 < 227.89
 prepare err: ambiguous column name: t43.id | sql=SELECT t43.id, t43.c1 FROM t43 JOIN t43 ON t43.c1 = t43.id WHERE t43.c4 < 452.50
@@ -682,235 +295,20 @@ prepare err: ambiguous column name: t54.id | sql=SELECT t54.id, t54.c1 FROM t54 
 prepare err: ambiguous column name: t40.id | sql=SELECT t40.id, t40.c1 FROM t40 JOIN t40 ON t40.c1 = t40.id WHERE t40.c4 < 614.31
 prepare err: ambiguous column name: t27.id | sql=SELECT t27.id, t27.c1 FROM t27 JOIN t27 ON t27.c1 = t27.id WHERE t27.c4 < 113.58
 prepare err: ambiguous column name: t50.id | sql=SELECT t50.id, t50.c1 FROM t50 JOIN t50 ON t50.c1 = t50.id WHERE t50.c4 < 315.83
-[libmode]     raw: elapsed_seconds=6.248336 statements=157182 errors=191 qps=25155
-[libmode]   parse-speed sqlite-leap-rust SKIP (binary missing: /tmp/leap-libmode-1/src-rust/target/release/examples/lib_bench)
-[libmode]   parse-speed sqlite-leap-c SKIP (binary missing: /tmp/leap-libmode-1/src-c/build/lib_bench)
+[libmode]     raw: elapsed_seconds=2.418837 statements=157116 errors=191 qps=64955
+[libmode]   parse-speed sqlite-leap-rust SKIP (binary missing: /tmp/leap-libmode-208283/src-rust/target/release/examples/lib_bench)
+[libmode]   parse-speed sqlite-leap-c ...
+[libmode]     raw: elapsed_seconds=66.137202 statements=157307 errors=52122 qps=2378
 [libmode] === Lane 3 SELECT ===
 [libmode]   select-in-memory sqlite-mainline ...
-[libmode]     raw: elapsed_seconds=0.395950 statements=100000 errors=0 qps=252557
-[libmode]   select-in-memory sqlite-leap-rust SKIP (binary missing: /tmp/leap-libmode-1/src-rust/target/release/examples/lib_bench)
-[libmode]   select-in-memory sqlite-leap-c SKIP (binary missing: /tmp/leap-libmode-1/src-c/build/lib_bench)
+[libmode]     raw: elapsed_seconds=0.159905 statements=100000 errors=0 qps=625370
+[libmode]   select-in-memory sqlite-leap-rust SKIP (binary missing: /tmp/leap-libmode-208283/src-rust/target/release/examples/lib_bench)
+[libmode]   select-in-memory sqlite-leap-c ...
+[libmode]     raw: elapsed_seconds=0.103416 statements=100000 errors=0 qps=966972
 [libmode] === Lane 4 INSERT ===
 [libmode]   insert-throughput sqlite-mainline ...
-[libmode]     raw: elapsed_seconds=0.360741 statements=100005 errors=0 qps=277220
-[libmode]   insert-throughput sqlite-leap-rust SKIP (binary missing: /tmp/leap-libmode-1/src-rust/target/release/examples/lib_bench)
-[libmode]   insert-throughput sqlite-leap-c SKIP (binary missing: /tmp/leap-libmode-1/src-c/build/lib_bench)
+[libmode]     raw: elapsed_seconds=0.146748 statements=100005 errors=0 qps=681473
+[libmode]   insert-throughput sqlite-leap-rust SKIP (binary missing: /tmp/leap-libmode-208283/src-rust/target/release/examples/lib_bench)
+[libmode]   insert-throughput sqlite-leap-c ...
+[libmode]     raw: elapsed_seconds=0.080488 statements=100005 errors=0 qps=1242482
 [libmode] === done ===
-[libmode-retry] === build mainline sqlite_lib_bench ===
-[libmode-retry] main OK
-[libmode-retry] === build leap-c lib_bench (with scalar_json1.c patch) ===
-src-c/storage/fileformat_lib.c: In function 'decode_serial_value':
-src-c/storage/fileformat_lib.c:753:54: warning: left shift of negative value [-Wshift-negative-value]
-  753 |         if (v & ((int64_t)1 << 23)) v |= ~(int64_t)0 << 24;
-      |                                                      ^~
-src-c/storage/fileformat_lib.c:766:54: warning: left shift of negative value [-Wshift-negative-value]
-  766 |         if (v & ((int64_t)1 << 47)) v |= ~(int64_t)0 << 48;
-      |                                                      ^~
-src-c/parser/expr.c: In function 'parse_bp':
-src-c/parser/expr.c:1527:17: warning: pointer used after 'free' [-Wuse-after-free]
- 1527 |                 free(items.items);
-      |                 ^~~~~~~~~~~~~~~~~
-src-c/parser/expr.c:1513:29: note: call to 'free' here
- 1513 |                             free(items.items);
-      |                             ^~~~~~~~~~~~~~~~~
-src-c/compiler/select_compile.c: In function 'emitter_append_list':
-src-c/compiler/select_compile.c:220:21: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
-  220 |                     if (c->as.goto_.target != PC_PLACEHOLDER) c->as.goto_.target += off; break;
-      |                     ^~
-src-c/compiler/select_compile.c:220:90: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
-  220 |                     if (c->as.goto_.target != PC_PLACEHOLDER) c->as.goto_.target += off; break;
-      |                                                                                          ^~~~~
-src-c/compiler/select_compile.c:222:21: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
-  222 |                     if (c->as.if_.target != PC_PLACEHOLDER) c->as.if_.target += off; break;
-      |                     ^~
-src-c/compiler/select_compile.c:222:86: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
-  222 |                     if (c->as.if_.target != PC_PLACEHOLDER) c->as.if_.target += off; break;
-      |                                                                                      ^~~~~
-src-c/compiler/select_compile.c:224:21: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
-  224 |                     if (c->as.if_not.target != PC_PLACEHOLDER) c->as.if_not.target += off; break;
-      |                     ^~
-src-c/compiler/select_compile.c:224:92: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
-  224 |                     if (c->as.if_not.target != PC_PLACEHOLDER) c->as.if_not.target += off; break;
-      |                                                                                            ^~~~~
-src-c/compiler/select_compile.c:226:21: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
-  226 |                     if (c->as.jump_if_null.target != PC_PLACEHOLDER) c->as.jump_if_null.target += off; break;
-      |                     ^~
-src-c/compiler/select_compile.c:226:104: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
-  226 |                     if (c->as.jump_if_null.target != PC_PLACEHOLDER) c->as.jump_if_null.target += off; break;
-      |                                                                                                        ^~~~~
-src-c/compiler/select_compile.c:228:21: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
-  228 |                     if (c->as.gosub.target != PC_PLACEHOLDER) c->as.gosub.target += off; break;
-      |                     ^~
-src-c/compiler/select_compile.c:228:90: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
-  228 |                     if (c->as.gosub.target != PC_PLACEHOLDER) c->as.gosub.target += off; break;
-      |                                                                                          ^~~~~
-src-c/compiler/select_compile.c: In function 'sc_append_with_rebase':
-src-c/compiler/select_compile.c:1834:21: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
- 1834 |                     if (c->as.goto_.target != PC_PLACEHOLDER) c->as.goto_.target += offset; break;
-      |                     ^~
-src-c/compiler/select_compile.c:1834:93: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
- 1834 |                     if (c->as.goto_.target != PC_PLACEHOLDER) c->as.goto_.target += offset; break;
-      |                                                                                             ^~~~~
-src-c/compiler/select_compile.c:1836:21: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
- 1836 |                     if (c->as.if_.target != PC_PLACEHOLDER) c->as.if_.target += offset; break;
-      |                     ^~
-src-c/compiler/select_compile.c:1836:89: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
- 1836 |                     if (c->as.if_.target != PC_PLACEHOLDER) c->as.if_.target += offset; break;
-      |                                                                                         ^~~~~
-src-c/compiler/select_compile.c:1838:21: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
- 1838 |                     if (c->as.if_not.target != PC_PLACEHOLDER) c->as.if_not.target += offset; break;
-      |                     ^~
-src-c/compiler/select_compile.c:1838:95: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
- 1838 |                     if (c->as.if_not.target != PC_PLACEHOLDER) c->as.if_not.target += offset; break;
-      |                                                                                               ^~~~~
-src-c/compiler/select_compile.c:1840:21: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
- 1840 |                     if (c->as.jump_if_null.target != PC_PLACEHOLDER) c->as.jump_if_null.target += offset; break;
-      |                     ^~
-src-c/compiler/select_compile.c:1840:107: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
- 1840 |                     if (c->as.jump_if_null.target != PC_PLACEHOLDER) c->as.jump_if_null.target += offset; break;
-      |                                                                                                           ^~~~~
-src-c/compiler/select_compile.c:1842:21: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
- 1842 |                     if (c->as.gosub.target != PC_PLACEHOLDER) c->as.gosub.target += offset; break;
-      |                     ^~
-src-c/compiler/select_compile.c:1842:93: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
- 1842 |                     if (c->as.gosub.target != PC_PLACEHOLDER) c->as.gosub.target += offset; break;
-      |                                                                                             ^~~~~
-src-c/compiler/select_compile.c: At top level:
-src-c/compiler/select_compile.c:5736:12: warning: 'match_group_key_col' defined but not used [-Wunused-function]
- 5736 | static int match_group_key_col(
-      |            ^~~~~~~~~~~~~~~~~~~
-In function 'compile_select_buffered',
-    inlined from 'leap_compiler_select_compile_compile_select_body' at src-c/compiler/select_compile.c:8260:16:
-src-c/compiler/select_compile.c:9367:12: warning: 'outer_schema' may be used uninitialized [-Wmaybe-uninitialized]
- 9367 |         if (outer_schema == &outer_schema_owned) {
-      |            ^
-src-c/compiler/select_compile.c: In function 'leap_compiler_select_compile_compile_select_body':
-src-c/compiler/select_compile.c:9167:28: note: 'outer_schema' was declared here
- 9167 |     const LeapTableSchema* outer_schema = schema;
-      |                            ^~~~~~~~~~~~
-src-c/compiler/select_compile.c: In function 'compile_single_table_src':
-src-c/compiler/select_compile.c:3980:21: warning: pointer 'key_indices' may be used after 'realloc' [-Wuse-after-free]
- 3980 |                     free(key_indices); free(key_desc);                      \
-      |                     ^~~~~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:3992:17: note: in expansion of macro 'PUSH_KEY'
- 3992 |                 PUSH_KEY(proj_count + i, stmt->order_by.items[i].desc);
-      |                 ^~~~~~~~
-src-c/compiler/select_compile.c:3976:44: note: call to 'realloc' here
- 3976 |                 uint32_t* ki = (uint32_t*) realloc(key_indices, nc * sizeof(uint32_t)); \
-      |                                            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:3992:17: note: in expansion of macro 'PUSH_KEY'
- 3992 |                 PUSH_KEY(proj_count + i, stmt->order_by.items[i].desc);
-      |                 ^~~~~~~~
-src-c/compiler/select_compile.c:3980:40: warning: pointer 'key_desc' may be used after 'realloc' [-Wuse-after-free]
- 3980 |                     free(key_indices); free(key_desc);                      \
-      |                                        ^~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:3992:17: note: in expansion of macro 'PUSH_KEY'
- 3992 |                 PUSH_KEY(proj_count + i, stmt->order_by.items[i].desc);
-      |                 ^~~~~~~~
-src-c/compiler/select_compile.c:3977:44: note: call to 'realloc' here
- 3977 |                 bool*     kd = (bool*)     realloc(key_desc,    nc * sizeof(bool));     \
-      |                                            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:3992:17: note: in expansion of macro 'PUSH_KEY'
- 3992 |                 PUSH_KEY(proj_count + i, stmt->order_by.items[i].desc);
-      |                 ^~~~~~~~
-src-c/compiler/select_compile.c:3980:21: warning: pointer 'key_indices' may be used after 'realloc' [-Wuse-after-free]
- 3980 |                     free(key_indices); free(key_desc);                      \
-      |                     ^~~~~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:3999:21: note: in expansion of macro 'PUSH_KEY'
- 3999 |                     PUSH_KEY(i, false);
-      |                     ^~~~~~~~
-src-c/compiler/select_compile.c:3976:44: note: call to 'realloc' here
- 3976 |                 uint32_t* ki = (uint32_t*) realloc(key_indices, nc * sizeof(uint32_t)); \
-      |                                            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:3999:21: note: in expansion of macro 'PUSH_KEY'
- 3999 |                     PUSH_KEY(i, false);
-      |                     ^~~~~~~~
-src-c/compiler/select_compile.c:3980:40: warning: pointer 'key_desc' may be used after 'realloc' [-Wuse-after-free]
- 3980 |                     free(key_indices); free(key_desc);                      \
-      |                                        ^~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:3999:21: note: in expansion of macro 'PUSH_KEY'
- 3999 |                     PUSH_KEY(i, false);
-      |                     ^~~~~~~~
-src-c/compiler/select_compile.c:3977:44: note: call to 'realloc' here
- 3977 |                 bool*     kd = (bool*)     realloc(key_desc,    nc * sizeof(bool));     \
-      |                                            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:3999:21: note: in expansion of macro 'PUSH_KEY'
- 3999 |                     PUSH_KEY(i, false);
-      |                     ^~~~~~~~
-In function 'compile_joined_select',
-    inlined from 'leap_compiler_select_compile_compile_select_multi.part.0' at src-c/compiler/select_compile.c:8506:16:
-src-c/compiler/select_compile.c:5210:17: warning: pointer 'tops_arr' may be used after 'free' [-Wuse-after-free]
- 5210 |                 free(tops_arr); free(nexts_arr); free(afters_arr);
-      |                 ^~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:5163:5: note: call to 'free' here
- 5163 |     free(tops_arr); free(nexts_arr); free(afters_arr);
-      |     ^~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:5196:17: warning: pointer 'tops_arr' may be used after 'free' [-Wuse-after-free]
- 5196 |                 free(tops_arr); free(nexts_arr); free(afters_arr);
-      |                 ^~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:5163:5: note: call to 'free' here
- 5163 |     free(tops_arr); free(nexts_arr); free(afters_arr);
-      |     ^~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:5242:23: warning: pointer 'tops_arr' may be used after 'free' [-Wuse-after-free]
- 5242 |         if (em.oom) { free(tops_arr); free(nexts_arr); free(afters_arr); goto join_oom; }
-      |                       ^~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:5163:5: note: call to 'free' here
- 5163 |     free(tops_arr); free(nexts_arr); free(afters_arr);
-      |     ^~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:5210:33: warning: pointer 'nexts_arr' may be used after 'free' [-Wuse-after-free]
- 5210 |                 free(tops_arr); free(nexts_arr); free(afters_arr);
-      |                                 ^~~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:5163:21: note: call to 'free' here
- 5163 |     free(tops_arr); free(nexts_arr); free(afters_arr);
-      |                     ^~~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:5196:33: warning: pointer 'nexts_arr' may be used after 'free' [-Wuse-after-free]
- 5196 |                 free(tops_arr); free(nexts_arr); free(afters_arr);
-      |                                 ^~~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:5163:21: note: call to 'free' here
- 5163 |     free(tops_arr); free(nexts_arr); free(afters_arr);
-      |                     ^~~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:5242:39: warning: pointer 'nexts_arr' may be used after 'free' [-Wuse-after-free]
- 5242 |         if (em.oom) { free(tops_arr); free(nexts_arr); free(afters_arr); goto join_oom; }
-      |                                       ^~~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:5163:21: note: call to 'free' here
- 5163 |     free(tops_arr); free(nexts_arr); free(afters_arr);
-      |                     ^~~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:5210:50: warning: pointer 'afters_arr' may be used after 'free' [-Wuse-after-free]
- 5210 |                 free(tops_arr); free(nexts_arr); free(afters_arr);
-      |                                                  ^~~~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:5163:38: note: call to 'free' here
- 5163 |     free(tops_arr); free(nexts_arr); free(afters_arr);
-      |                                      ^~~~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:5196:50: warning: pointer 'afters_arr' may be used after 'free' [-Wuse-after-free]
- 5196 |                 free(tops_arr); free(nexts_arr); free(afters_arr);
-      |                                                  ^~~~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:5163:38: note: call to 'free' here
- 5163 |     free(tops_arr); free(nexts_arr); free(afters_arr);
-      |                                      ^~~~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:5242:56: warning: pointer 'afters_arr' may be used after 'free' [-Wuse-after-free]
- 5242 |         if (em.oom) { free(tops_arr); free(nexts_arr); free(afters_arr); goto join_oom; }
-      |                                                        ^~~~~~~~~~~~~~~~
-src-c/compiler/select_compile.c:5163:38: note: call to 'free' here
- 5163 |     free(tops_arr); free(nexts_arr); free(afters_arr);
-      |                                      ^~~~~~~~~~~~~~~~
-src-c/compiler/delete_compile.c: In function 'dc_compile_expr_in_schema':
-src-c/compiler/delete_compile.c:117:5: warning: enumeration value 'LEAP_EXPR_PARAM' not handled in switch [-Wswitch]
-  117 |     switch (expr->kind) {
-      |     ^~~~~~
-src-c/scalar_json1.c:862:13: warning: 'array_insert_at' defined but not used [-Wunused-function]
-  862 | static bool array_insert_at(Arena* a, JsonArrayBody* arr, size_t at, JsonNode* v) {
-      |             ^~~~~~~~~~~~~~~
-built: src-c/build/lib_bench
-[libmode-retry] c lib_bench OK
--rwxr-xr-x 1 root root  17592 Apr 27 15:36 /tmp/leap-libmode-retry-1/bench/baselines/bin/sqlite_lib_bench
--rwxr-xr-x 1 root root 474024 Apr 27 15:37 /tmp/leap-libmode-retry-1/src-c/build/lib_bench
-[libmode-retry] === Lane 2 ===
-[libmode-retry]   parse-speed sqlite-leap-c ...
-[libmode-retry]     raw: elapsed_seconds=151.118619 statements=157373 errors=52122 qps=1041
-[libmode-retry] === Lane 3 ===
-[libmode-retry]   select-in-memory sqlite-leap-c ...
-[libmode-retry]     raw: elapsed_seconds=0.192899 statements=100000 errors=0 qps=518405
-[libmode-retry] === Lane 4 ===
-[libmode-retry]   insert-throughput sqlite-leap-c ...
-[libmode-retry]     raw: elapsed_seconds=0.170499 statements=100005 errors=0 qps=586544
-[libmode-retry] done
