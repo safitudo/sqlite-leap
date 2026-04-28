@@ -11,7 +11,11 @@ inherits:
   - /parts/storage/parts/fileformat-write/master.md
   - /parts/storage/parts/locking/master.md
 emits:
-  rust: { path: src-rust/storage_pager.rs }
+  rust:   { path: src-rust/storage_pager.rs }
+  c:      { path: src-c/storage/wal_bridge.c, headers: [src-c/storage/wal_bridge.h] }
+  zig:    { path: src-zig/storage/wal_bridge.zig }
+  go:     { path: src-go/storage/wal_bridge.go }
+  python: { path: src-python/storage/wal_bridge.py }
 ---
 
 # Part: storage/wal-bridge — Pager + WAL commit bridge

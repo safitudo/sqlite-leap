@@ -1,7 +1,6 @@
 ---
 name: storage/btree-write
 kind: leaf
-shapes: ./shapes.json
 inherits:
   - /parts/storage/parts/btree/master.md
   - /parts/storage/parts/page-cache/master.md
@@ -10,6 +9,13 @@ inherits:
   - /parts/storage/parts/mem-store/master.md
   - /parts/storage/parts/file-format/master.md
   - /parts/storage/parts/fileformat-write/master.md
+  - /parts/storage/parts/page-codec/master.md
+emits:
+  rust:   { path: src-rust/storage.rs }
+  c:      { path: src-c/storage/storage_btree.c, headers: [src-c/storage/storage_btree.h] }
+  zig:    { path: src-zig/storage_btree.zig }
+  go:     { path: src-go/storage/storage_btree.go }
+  python: { path: src-python/storage_btree.py }
 ---
 
 # Part: storage/btree-write — In-place B-tree write with per-page dirty tracking
