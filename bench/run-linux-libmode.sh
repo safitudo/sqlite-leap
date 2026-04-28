@@ -60,9 +60,50 @@ if [ -f src-c/build_lib_bench.sh ]; then
         && note "c lib_bench OK" || note "c lib_bench FAIL (see log)"
 fi
 
+# --- build leap-zig lib_bench ----------------------------------------------
+note "=== build leap-zig lib_bench ==="
+if command -v zig >/dev/null 2>&1; then
+    note "zig version: $(zig version)"
+    ( bash src-zig/build_lib_bench.sh >>"$LOG" 2>&1 ) \
+        && note "zig lib_bench OK" || note "zig lib_bench FAIL (see log)"
+else
+    note "zig lib_bench SKIP (zig not on PATH)"
+fi
+
+# --- build leap-go lib_bench -----------------------------------------------
+note "=== build leap-go lib_bench ==="
+if command -v go >/dev/null 2>&1; then
+    note "go version: $(go version)"
+    mkdir -p src-go/bin
+    ( cd src-go && go build -o bin/lib_bench ./cmd/lib_bench >>"$LOG" 2>&1 ) \
+        && note "go lib_bench OK" || note "go lib_bench FAIL (see log)"
+else
+    note "go lib_bench SKIP (go not on PATH)"
+fi
+
+# --- locate leap-python lib_bench (script, no build) ----------------------
+note "=== leap-python lib_bench ==="
+if command -v python3 >/dev/null 2>&1; then
+    note "python: $(python3 --version 2>&1)"
+    [ -f src-python/examples/lib_bench.py ] && note "python lib_bench OK" || note "python lib_bench MISSING"
+else
+    note "python lib_bench SKIP (python3 not on PATH)"
+fi
+
 RUST_BIN="$SCRATCH/src-rust/target/release/examples/lib_bench"
 C_BIN="$SCRATCH/src-c/build/lib_bench"
+ZIG_BIN="$SCRATCH/src-zig/zig-out/bin/lib_bench"
+GO_BIN="$SCRATCH/src-go/bin/lib_bench"
+PY_BIN="$SCRATCH/src-python/examples/lib_bench.py"
 MAIN_BIN="$SCRATCH/bench/baselines/bin/sqlite_lib_bench"
+
+# Wrapper to run Python script as if it were a binary (for run_lane).
+PY_RUN="$SCRATCH/src-python/run_lib_bench.sh"
+cat > "$PY_RUN" <<EOF
+#!/usr/bin/env bash
+exec python3 "$PY_BIN" "\$@"
+EOF
+chmod +x "$PY_RUN"
 
 ts() { date -u +"%Y-%m-%dT%H:%M:%SZ"; }
 
@@ -109,20 +150,31 @@ note "=== Lane 2 parse (--parse-only; see lane2-parseonly/SUMMARY.md) ==="
 # no step). The previous --time-setup mode timed full pipeline including
 # table-scan execution; profiling proved Lane 2 became dominated by VDBE
 # work, not parse. Parse-only is the apples-to-apples Lane 2 measurement.
-run_lane parse-speed sqlite-mainline   "$MAIN_BIN" "$L2_WL" "--parse-only" statements_per_second
-run_lane parse-speed sqlite-leap-rust  "$RUST_BIN" "$L2_WL" "--parse-only" statements_per_second
-run_lane parse-speed sqlite-leap-c     "$C_BIN"    "$L2_WL" "--parse-only" statements_per_second
+run_lane parse-speed sqlite-mainline    "$MAIN_BIN" "$L2_WL" "--parse-only" statements_per_second
+run_lane parse-speed sqlite-leap-rust   "$RUST_BIN" "$L2_WL" "--parse-only" statements_per_second
+run_lane parse-speed sqlite-leap-c      "$C_BIN"    "$L2_WL" "--parse-only" statements_per_second
+run_lane parse-speed sqlite-leap-zig    "$ZIG_BIN"  "$L2_WL" "--parse-only" statements_per_second
+run_lane parse-speed sqlite-leap-go     "$GO_BIN"   "$L2_WL" "--parse-only" statements_per_second
+# leap-python lib_bench doesn't implement --parse-only (always exec-mode);
+# documented gap, not a perf issue. Skip on L2.
+note "  parse-speed sqlite-leap-python SKIP (harness has no --parse-only mode)"
 
-note "=== Lane 3 SELECT ==="
-run_lane select-in-memory sqlite-mainline  "$MAIN_BIN" "$L3_WL" "" selects_per_second
-run_lane select-in-memory sqlite-leap-rust "$RUST_BIN" "$L3_WL" "" selects_per_second
-run_lane select-in-memory sqlite-leap-c    "$C_BIN"    "$L3_WL" "" selects_per_second
+note "=== Lane 3 SELECT (in-RAM both sides; mainline lib_bench defaults to :memory:) ==="
+run_lane select-in-memory sqlite-mainline    "$MAIN_BIN" "$L3_WL" "" selects_per_second
+run_lane select-in-memory sqlite-leap-rust   "$RUST_BIN" "$L3_WL" "" selects_per_second
+run_lane select-in-memory sqlite-leap-c      "$C_BIN"    "$L3_WL" "" selects_per_second
+run_lane select-in-memory sqlite-leap-zig    "$ZIG_BIN"  "$L3_WL" "" selects_per_second
+run_lane select-in-memory sqlite-leap-go     "$GO_BIN"   "$L3_WL" "" selects_per_second
+run_lane select-in-memory sqlite-leap-python "$PY_RUN"   "$L3_WL" "" selects_per_second
 
-note "=== Lane 4 INSERT ==="
+note "=== Lane 4 INSERT (--db on-disk; WAL-tier asymmetry caveat in PUBLISHED.md §B.3) ==="
 L4_DB=$(mktemp -u)
-run_lane insert-throughput sqlite-mainline  "$MAIN_BIN" "$L4_WL" "--time-setup --db ${L4_DB}.main" inserts_per_second
-run_lane insert-throughput sqlite-leap-rust "$RUST_BIN" "$L4_WL" "--time-setup --db ${L4_DB}.rust" inserts_per_second
-run_lane insert-throughput sqlite-leap-c    "$C_BIN"    "$L4_WL" "--time-setup --db ${L4_DB}.c"    inserts_per_second
+run_lane insert-throughput sqlite-mainline    "$MAIN_BIN" "$L4_WL" "--time-setup --db ${L4_DB}.main"   inserts_per_second
+run_lane insert-throughput sqlite-leap-rust   "$RUST_BIN" "$L4_WL" "--time-setup --db ${L4_DB}.rust"   inserts_per_second
+run_lane insert-throughput sqlite-leap-c      "$C_BIN"    "$L4_WL" "--time-setup --db ${L4_DB}.c"      inserts_per_second
+run_lane insert-throughput sqlite-leap-zig    "$ZIG_BIN"  "$L4_WL" "--time-setup --db ${L4_DB}.zig"    inserts_per_second
+run_lane insert-throughput sqlite-leap-go     "$GO_BIN"   "$L4_WL" "--time-setup --db ${L4_DB}.go"     inserts_per_second
+run_lane insert-throughput sqlite-leap-python "$PY_RUN"   "$L4_WL" "--time-setup --db ${L4_DB}.python" inserts_per_second
 rm -f "${L4_DB}".*
 
 note "=== done ==="

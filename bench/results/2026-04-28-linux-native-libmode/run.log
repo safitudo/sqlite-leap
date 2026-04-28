@@ -1,0 +1,326 @@
+[libmode] uname: Linux stanislav-s 6.8.0-100-generic #100~22.04.1-Ubuntu SMP PREEMPT_DYNAMIC Mon Jan 19 17:10:19 UTC  x86_64 x86_64 x86_64 GNU/Linux
+[libmode] glibc: ldd (Ubuntu GLIBC 2.35-0ubuntu3.13) 2.35
+[libmode] rustc: rustc 1.89.0 (29483883e 2025-08-04)
+[libmode] cc:    cc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0
+[libmode] === build mainline sqlite_lib_bench ===
+[libmode] mainline lib_bench OK
+[libmode] === build leap-rust lib_bench ===
+   Compiling version_check v0.9.5
+   Compiling libc v0.2.186
+   Compiling cfg-if v1.0.4
+   Compiling typenum v1.20.0
+   Compiling proc-macro2 v1.0.106
+   Compiling unicode-ident v1.0.24
+   Compiling quote v1.0.45
+   Compiling subtle v2.6.1
+   Compiling cpufeatures v0.2.17
+   Compiling serde_core v1.0.228
+   Compiling opaque-debug v0.3.1
+   Compiling zmij v1.0.21
+   Compiling serde_json v1.0.149
+   Compiling itoa v1.0.18
+   Compiling memchr v2.8.0
+   Compiling base64 v0.22.1
+   Compiling libloading v0.8.9
+   Compiling generic-array v0.14.7
+   Compiling syn v2.0.117
+   Compiling getrandom v0.2.17
+   Compiling rand_core v0.6.4
+   Compiling inout v0.1.4
+   Compiling block-buffer v0.10.4
+   Compiling crypto-common v0.1.7
+   Compiling digest v0.10.7
+   Compiling universal-hash v0.5.1
+   Compiling aead v0.5.2
+   Compiling poly1305 v0.8.0
+   Compiling hmac v0.12.1
+   Compiling sha2 v0.10.9
+   Compiling md-5 v0.10.6
+   Compiling pbkdf2 v0.12.2
+   Compiling zeroize_derive v1.4.3
+   Compiling zeroize v1.8.2
+   Compiling cipher v0.4.4
+   Compiling chacha20 v0.9.1
+   Compiling ctr v0.9.2
+   Compiling aes v0.8.4
+   Compiling chacha20poly1305 v0.10.1
+   Compiling leap_sqlite v0.1.0 (/tmp/leap-libmode-291024/src-rust)
+warning: unused import: `pager_get_page_mut`
+  --> storage.rs:32:42
+   |
+32 |     pager_allocate_page, pager_get_page, pager_get_page_mut, pager_new_in_memory,
+   |                                          ^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` on by default
+
+warning: unused imports: `build_leaf_page as pc_build_leaf_page` and `decode_interior_entries`
+  --> storage.rs:38:5
+   |
+38 |     build_leaf_page as pc_build_leaf_page, build_master_leaf,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+39 |     cell_pointers as pc_cell_pointers, decode_interior_entries,
+   |                                        ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `Zeroize`
+  --> encryption.rs:38:15
+   |
+38 | use zeroize::{Zeroize, Zeroizing};
+   |               ^^^^^^^
+
+warning: unused import: `RuntimeCondition`
+  --> vtab.rs:11:19
+   |
+11 | use crate::core::{RuntimeCondition, Value};
+   |                   ^^^^^^^^^^^^^^^^
+
+warning: value assigned to `content_used` is never read
+   --> storage_fileformat.rs:343:21
+    |
+343 |                     content_used += cell.len();
+    |                     ^^^^^^^^^^^^
+    |
+    = help: maybe it is overwritten before being read?
+    = note: `#[warn(unused_assignments)]` on by default
+
+warning: value assigned to `cell_count` is never read
+   --> storage_fileformat.rs:344:21
+    |
+344 |                     cell_count += 1;
+    |                     ^^^^^^^^^^
+    |
+    = help: maybe it is overwritten before being read?
+
+warning: value assigned to `remaining` is never read
+   --> storage_wal.rs:472:17
+    |
+472 |                 remaining = 0;
+    |                 ^^^^^^^^^
+    |
+    = help: maybe it is overwritten before being read?
+
+warning: variable does not need to be mutable
+   --> wal_shm.rs:727:9
+    |
+727 |     let mut header = ShmHeaderRecord {
+    |         ----^^^^^^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` on by default
+
+warning: variable does not need to be mutable
+    --> compiler/select_compile.rs:9366:9
+     |
+9366 |     let mut after_stage = stage_pos_base + 1;
+     |         ----^^^^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+
+warning: field `table_name` is never read
+   --> storage.rs:213:5
+    |
+199 | pub struct CursorHandle {
+    |            ------------ field in this struct
+...
+213 |     table_name: String,
+    |     ^^^^^^^^^^
+    |
+    = note: `CursorHandle` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+    = note: `#[warn(dead_code)]` on by default
+
+warning: constant `PAGE_TYPE_TABLE_LEAF` is never used
+   --> storage_fileformat.rs:276:7
+    |
+276 | const PAGE_TYPE_TABLE_LEAF: u8 = 0x0D;
+    |       ^^^^^^^^^^^^^^^^^^^^
+
+warning: field `region_index` is never read
+   --> wal_shm.rs:124:5
+    |
+121 | struct Region {
+    |        ------ field in this struct
+...
+124 |     region_index: u32,
+    |     ^^^^^^^^^^^^
+
+warning: function `read_header_record_at` is never used
+   --> wal_shm.rs:363:4
+    |
+363 | fn read_header_record_at(slice: &[u8], offset: usize) -> Result<ShmHeaderRecord, ShmError> {
+    |    ^^^^^^^^^^^^^^^^^^^^^
+
+warning: field `kind` is never read
+  --> connection_pool.rs:97:5
+   |
+93 | struct PreparedEntry {
+   |        ------------- field in this struct
+...
+97 |     kind: StmtKind,
+   |     ^^^^
+
+warning: function `compile_case_in_schema` is never used
+    --> compiler/select_compile.rs:3813:4
+     |
+3813 | fn compile_case_in_schema<'src>(
+     |    ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `ident_text` is never used
+  --> parser/create_table_stmt.rs:93:4
+   |
+93 | fn ident_text<'src>(tokens: &[Token<'src>], i: u32) -> Option<&'src str> {
+   |    ^^^^^^^^^^
+
+warning: `leap_sqlite` (lib) generated 16 warnings (run `cargo fix --lib -p leap_sqlite` to apply 6 suggestions)
+    Finished `release` profile [optimized] target(s) in 5.63s
+[libmode] rust lib_bench OK
+[libmode] === build leap-c lib_bench ===
+make: *** No targets specified and no makefile found.  Stop.
+src-c/storage/fileformat_lib.c: In function ‘decode_serial_value’:
+src-c/storage/fileformat_lib.c:753:54: warning: left shift of negative value [-Wshift-negative-value]
+  753 |         if (v & ((int64_t)1 << 23)) v |= ~(int64_t)0 << 24;
+      |                                                      ^~
+src-c/storage/fileformat_lib.c:766:54: warning: left shift of negative value [-Wshift-negative-value]
+  766 |         if (v & ((int64_t)1 << 47)) v |= ~(int64_t)0 << 48;
+      |                                                      ^~
+src-c/storage/storage_lock.c: In function ‘set_io’:
+src-c/storage/storage_lock.c:83:25: warning: implicit declaration of function ‘strdup’; did you mean ‘strcmp’? [-Wimplicit-function-declaration]
+   83 |     m->io_message_buf = strdup(buf);
+      |                         ^~~~~~
+      |                         strcmp
+src-c/storage/storage_lock.c:83:23: warning: assignment to ‘char *’ from ‘int’ makes pointer from integer without a cast [-Wint-conversion]
+   83 |     m->io_message_buf = strdup(buf);
+      |                       ^
+src-c/compiler/select_compile.c: In function ‘emitter_append_list’:
+src-c/compiler/select_compile.c:220:21: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  220 |                     if (c->as.goto_.target != PC_PLACEHOLDER) c->as.goto_.target += off; break;
+      |                     ^~
+src-c/compiler/select_compile.c:220:90: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  220 |                     if (c->as.goto_.target != PC_PLACEHOLDER) c->as.goto_.target += off; break;
+      |                                                                                          ^~~~~
+src-c/compiler/select_compile.c:222:21: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  222 |                     if (c->as.if_.target != PC_PLACEHOLDER) c->as.if_.target += off; break;
+      |                     ^~
+src-c/compiler/select_compile.c:222:86: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  222 |                     if (c->as.if_.target != PC_PLACEHOLDER) c->as.if_.target += off; break;
+      |                                                                                      ^~~~~
+src-c/compiler/select_compile.c:224:21: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  224 |                     if (c->as.if_not.target != PC_PLACEHOLDER) c->as.if_not.target += off; break;
+      |                     ^~
+src-c/compiler/select_compile.c:224:92: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  224 |                     if (c->as.if_not.target != PC_PLACEHOLDER) c->as.if_not.target += off; break;
+      |                                                                                            ^~~~~
+src-c/compiler/select_compile.c:226:21: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  226 |                     if (c->as.jump_if_null.target != PC_PLACEHOLDER) c->as.jump_if_null.target += off; break;
+      |                     ^~
+src-c/compiler/select_compile.c:226:104: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  226 |                     if (c->as.jump_if_null.target != PC_PLACEHOLDER) c->as.jump_if_null.target += off; break;
+      |                                                                                                        ^~~~~
+src-c/compiler/select_compile.c:228:21: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  228 |                     if (c->as.gosub.target != PC_PLACEHOLDER) c->as.gosub.target += off; break;
+      |                     ^~
+src-c/compiler/select_compile.c:228:90: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  228 |                     if (c->as.gosub.target != PC_PLACEHOLDER) c->as.gosub.target += off; break;
+      |                                                                                          ^~~~~
+src-c/compiler/select_compile.c: In function ‘sc_append_with_rebase’:
+src-c/compiler/select_compile.c:1834:21: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+ 1834 |                     if (c->as.goto_.target != PC_PLACEHOLDER) c->as.goto_.target += offset; break;
+      |                     ^~
+src-c/compiler/select_compile.c:1834:93: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+ 1834 |                     if (c->as.goto_.target != PC_PLACEHOLDER) c->as.goto_.target += offset; break;
+      |                                                                                             ^~~~~
+src-c/compiler/select_compile.c:1836:21: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+ 1836 |                     if (c->as.if_.target != PC_PLACEHOLDER) c->as.if_.target += offset; break;
+      |                     ^~
+src-c/compiler/select_compile.c:1836:89: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+ 1836 |                     if (c->as.if_.target != PC_PLACEHOLDER) c->as.if_.target += offset; break;
+      |                                                                                         ^~~~~
+src-c/compiler/select_compile.c:1838:21: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+ 1838 |                     if (c->as.if_not.target != PC_PLACEHOLDER) c->as.if_not.target += offset; break;
+      |                     ^~
+src-c/compiler/select_compile.c:1838:95: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+ 1838 |                     if (c->as.if_not.target != PC_PLACEHOLDER) c->as.if_not.target += offset; break;
+      |                                                                                               ^~~~~
+src-c/compiler/select_compile.c:1840:21: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+ 1840 |                     if (c->as.jump_if_null.target != PC_PLACEHOLDER) c->as.jump_if_null.target += offset; break;
+      |                     ^~
+src-c/compiler/select_compile.c:1840:107: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+ 1840 |                     if (c->as.jump_if_null.target != PC_PLACEHOLDER) c->as.jump_if_null.target += offset; break;
+      |                                                                                                           ^~~~~
+src-c/compiler/select_compile.c:1842:21: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+ 1842 |                     if (c->as.gosub.target != PC_PLACEHOLDER) c->as.gosub.target += offset; break;
+      |                     ^~
+src-c/compiler/select_compile.c:1842:93: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+ 1842 |                     if (c->as.gosub.target != PC_PLACEHOLDER) c->as.gosub.target += offset; break;
+      |                                                                                             ^~~~~
+At top level:
+src-c/compiler/select_compile.c:5736:12: warning: ‘match_group_key_col’ defined but not used [-Wunused-function]
+ 5736 | static int match_group_key_col(
+      |            ^~~~~~~~~~~~~~~~~~~
+src-c/compiler/select_compile.c: In function ‘leap_compiler_select_compile_compile_select_body’:
+src-c/compiler/select_compile.c:9367:12: warning: ‘outer_schema’ may be used uninitialized in this function [-Wmaybe-uninitialized]
+ 9367 |         if (outer_schema == &outer_schema_owned) {
+      |            ^
+src-c/compiler/select_compile.c:9167:28: note: ‘outer_schema’ was declared here
+ 9167 |     const LeapTableSchema* outer_schema = schema;
+      |                            ^~~~~~~~~~~~
+src-c/compiler/delete_compile.c: In function ‘dc_compile_expr_in_schema’:
+src-c/compiler/delete_compile.c:117:5: warning: enumeration value ‘LEAP_EXPR_PARAM’ not handled in switch [-Wswitch]
+  117 |     switch (expr->kind) {
+      |     ^~~~~~
+src-c/scalar_json1.c:862:13: warning: ‘array_insert_at’ defined but not used [-Wunused-function]
+  862 | static bool array_insert_at(Arena* a, JsonArrayBody* arr, size_t at, JsonNode* v) {
+      |             ^~~~~~~~~~~~~~~
+src-c/examples/lib_bench.c: In function ‘main’:
+src-c/examples/lib_bench.c:653:5: warning: ignoring return value of ‘fread’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+  653 |     fread(src, 1, (size_t) sz, f);
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+built: src-c/build/lib_bench
+[libmode] c lib_bench OK
+[libmode] === build leap-zig lib_bench ===
+[libmode] zig version: 0.16.0
+[libmode] zig lib_bench OK
+[libmode] === build leap-go lib_bench ===
+[libmode] go version: go version go1.25.0 linux/amd64
+[libmode] go lib_bench OK
+[libmode] === leap-python lib_bench ===
+[libmode] python: Python 3.10.12
+[libmode] python lib_bench OK
+[libmode] === Lane 2 parse (--parse-only; see lane2-parseonly/SUMMARY.md) ===
+[libmode]   parse-speed sqlite-mainline ...
+[libmode]     raw: elapsed_seconds=0.183894 statements=26204 errors=131169 qps=142494
+[libmode]   parse-speed sqlite-leap-rust ...
+[libmode]     raw: elapsed_seconds=68.001417 statements=157307 errors=39124 qps=2313
+[libmode]   parse-speed sqlite-leap-c ...
+[libmode]     raw: elapsed_seconds=63.949804 statements=157307 errors=52122 qps=2459
+[libmode]   parse-speed sqlite-leap-zig ...
+[libmode]     raw: elapsed_seconds=0.343116 statements=157307 errors=65332 qps=458465
+[libmode]   parse-speed sqlite-leap-go ...
+[libmode]     raw: elapsed_seconds=0.288474 statements=157307 errors=65332 qps=545307
+[libmode]   parse-speed sqlite-leap-python SKIP (harness has no --parse-only mode)
+[libmode] === Lane 3 SELECT (in-RAM both sides; mainline lib_bench defaults to :memory:) ===
+[libmode]   select-in-memory sqlite-mainline ...
+[libmode]     raw: elapsed_seconds=0.166411 statements=100000 errors=0 qps=600922
+[libmode]   select-in-memory sqlite-leap-rust ...
+[libmode]     raw: elapsed_seconds=0.147199 statements=100000 errors=0 qps=679354
+[libmode]   select-in-memory sqlite-leap-c ...
+[libmode]     raw: elapsed_seconds=0.107039 statements=100000 errors=0 qps=934236
+[libmode]   select-in-memory sqlite-leap-zig ...
+[libmode]     raw: elapsed_seconds=0.081725 statements=100000 errors=0 qps=1223621
+[libmode]   select-in-memory sqlite-leap-go ...
+[libmode]     raw: elapsed_seconds=0.167913 statements=100000 errors=0 qps=595546
+[libmode]   select-in-memory sqlite-leap-python ...
+[libmode]     raw: elapsed_seconds=8.059154 statements=100000 errors=0 qps=12408
+[libmode] === Lane 4 INSERT (--db on-disk; WAL-tier asymmetry caveat in PUBLISHED.md §B.3) ===
+[libmode]   insert-throughput sqlite-mainline ...
+[libmode]     raw: elapsed_seconds=0.152398 statements=100005 errors=0 qps=656211
+[libmode]   insert-throughput sqlite-leap-rust ...
+[libmode]     raw: elapsed_seconds=0.269005 statements=100005 errors=0 qps=371758
+[libmode]   insert-throughput sqlite-leap-c ...
+[libmode]     raw: elapsed_seconds=0.081608 statements=100005 errors=0 qps=1225436
+[libmode]   insert-throughput sqlite-leap-zig ...
+[libmode]     raw: elapsed_seconds=0.100472 statements=100005 errors=0 qps=995349
+[libmode]   insert-throughput sqlite-leap-go ...
+[libmode]     raw: elapsed_seconds=0.187310 statements=100005 errors=0 qps=533899
+[libmode]   insert-throughput sqlite-leap-python ...
+[libmode]     raw: elapsed_seconds=8.069033 statements=100005 errors=0 qps=12393
+[libmode] === done ===

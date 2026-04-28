@@ -86,10 +86,41 @@ Source CSVs: `bench/results/2026-04-27-linux-native/raw.csv` (L3, L4) and `bench
 
 leap-rust is **correctness-equivalent and slower**. The L4 row is the only bench in the project today where both sides are verifiably file-backed with WAL + fsync (Pin 18.1d, commit `7abf1f7`).
 
-### B.3 — Retracted
+### B.3 — 5-target × 3-lane Linux native lib-mode (2026-04-28)
 
-- **leap-c L3 1.51×, L4 1.81×** (Linux lib-mode, 2026-04-27). **Cause:** `src-c/examples/lib_bench.c::main()` parses `--prepared/--rows/--time-setup` but silently drops `--db`; database is unconditionally `leap_storage_database_new()` (in-memory). PRAGMA `journal_mode=WAL` and `synchronous=NORMAL` are classified `STMT_NOOP` (line 220). `build_lib_bench.sh` does not link `storage_wal.c` / `wal_bridge.c` / `page_cache.c`. So the comparison was leap-c-in-RAM vs mainline-WAL-fsynced-to-disk — a category error, not a 1.51×/1.81× win. **Not republishable** until task #413 (5-target lib_bench --db honoring) lands.
-- **leap-zig, leap-go, leap-python lib-mode** — harnesses not audited for `--db` honor. No lib-mode claim publishable.
+Source CSV: `bench/results/2026-04-28-linux-native-libmode/raw.csv`. Hardware: Ubuntu 22.04 / kernel 6.8 / glibc 2.35; rustc 1.89.0 / gcc 11.4.0 / zig 0.16.0 / go 1.25.0 / Python 3.10.12. Runner: `bench/run-linux-libmode.sh`. Library-mode = each engine invoked as a `lib_bench` binary (no CLI shell), workload SQL piped in.
+
+**The full matrix:**
+
+| Lane | mainline | leap-rust | leap-c | leap-zig | leap-go | leap-python |
+|---|---:|---:|---:|---:|---:|---:|
+| L2 parse-only (stmt/s) | 142,494 | 2,313 | 2,459 | 458,465 | 545,307 | n/a (harness) |
+| L3 SELECT in-RAM (sel/s) | 600,922 | 679,354 | 934,236 | **1,223,621** | 595,546 | 12,408 |
+| L4 INSERT --db on-disk (ins/s) | 656,211 | 371,758 | **1,225,436** | 995,349 | 533,899 | 12,393 |
+| L3 ratio vs mainline | 1× | 1.13× win | 1.55× win | **2.04× win** | 0.99× ~tied | 0.021× lose |
+| L4 ratio vs mainline | 1× | 0.57× lose | **1.87× win** | 1.52× win | 0.81× lose | 0.019× lose |
+| L2 ratio vs mainline | 1× | 0.016× lose | 0.017× lose | 3.22× win | 3.83× win | — |
+
+**Caveats — every L4 number above must be quoted with caveat (1):**
+
+1. **L4 WAL-tier asymmetry — only leap-rust is like-for-like with mainline.** Mainline writes a real `-wal` sidecar with synced frames per COMMIT. leap-rust does the same via Pin 18.1d (path-backed Pager + per-COMMIT WAL frame fsync + crash recovery on open). The other 4 leap targets do NOT:
+   - **leap-c**: writes a 32-byte WAL header on open, no committed frames. Pager.commit doesn't call wal_bridge.append.
+   - **leap-zig / leap-go / leap-python**: no `-wal` sidecar at all. Use atomic-rename close-time durability (`closeDatabaseAt` / `close_database_at` serialize the whole DB and rename).
+   The honest like-for-like row is **leap-rust 0.57× vs mainline** — both have full WAL semantics. The leap-c 1.87× / leap-zig 1.52× wins reflect that those engines are doing strictly less durability work than mainline. They produce mainline-readable `.db` files at process exit (integrity_check ok, full row count) but not crash-safe in the SQLite sense.
+   Closing this gap (Pin 18.1e — WAL frame fsync wire-in for C/Zig/Go/Python) is tracked as a separate workstream; until it lands, the L4 column is NOT a true engine-vs-engine comparison for the 4 siblings.
+
+2. **L2 corpus-acceptance asymmetry.** mainline's `prepare_v2` fast-rejects 131K of 157K statements at name-resolution because the corpus has CREATEs interleaved with refs to undeclared tables. leap-rust and leap-c both run a full prepare-pipeline → ~60s for 157K accepted-or-errored stmts. leap-zig and leap-go run a parse-only pre-binding pass → 0.3s. So this row is "different work being measured" — leap-zig/go are measuring tokenize+parse without name-resolution, mainline+leap-rust+leap-c are measuring full prepare. The publishable L2 number is still the filtered-corpus result in B.1 (1.75× leap-c win on a 65K-stmt subset where every CREATE is honored).
+
+3. **L3 is in-RAM both sides.** Mainline `sqlite_lib_bench.c` defaults to `:memory:` when `--db` is absent; the runner does not pass `--db` on L3. So L3 is bytecode-dispatch-vs-bytecode-dispatch with no I/O. leap-zig's 2.04× win is the cleanest engine-vs-engine claim in this matrix.
+
+4. **leap-python L2 SKIP.** Python `lib_bench.py` does not implement `--parse-only` mode (always exec-mode). Documented harness gap, not a perf signal.
+
+**Publishable headlines (with caveats):**
+- L3 SELECT in-RAM: leap-zig **2.04× over mainline**, leap-c 1.55×, leap-rust 1.13×, leap-go ~tied.
+- L4 INSERT (with WAL-tier asymmetry): leap-rust 0.57× (the only honest engine-vs-engine number); leap-c 1.87× / leap-zig 1.52× / leap-go 0.81× — **explicitly noted as comparing weaker durability vs mainline's full WAL until Pin 18.1e closes**.
+- L2 parse: leap-go 3.83× / leap-zig 3.22× win on parse-only; leap-rust/c lose 60× because their lib_bench paths through full prepare not parse-only.
+
+Earlier iterations of this table (B.1, B.2 above) are kept for the filtered-L2 pinned baseline and the leap-rust apples-to-apples row — **superseded for the matrix view by this table**.
 
 ---
 
@@ -174,6 +205,10 @@ Source: `generators/wasm/build.sh` (shells out to `cargo build --target wasm32-u
 ---
 
 ## Changelog
+
+- **2026-04-28** (5-target × 3-lane matrix, Linux native) — runner extended to all 5 leap targets. Toolchains installed on Linux box: zig 0.16.0 (`~/tools/zig-0.16.0`), go 1.25.0 (`~/tools/go-1.25`). Honest 16-cell measurement (1 cell SKIP — python L2 harness gap). Surprising findings: **leap-zig wins L3 2.04× over mainline** (fastest in the matrix); leap-go matches mainline on L3; both leap-zig and leap-go beat mainline on L2 by 3-4× (different work being measured — see caveat 2). L4 column kept with WAL-tier asymmetry caveat — Pin 18.1e (WAL frame fsync wire-in for C/Zig/Go/Python) tracked as next workstream. Source CSV: `bench/results/2026-04-28-linux-native-libmode/raw.csv`. §B.3 rewritten as full matrix.
+
+- **2026-04-28** (post-#413, lib-mode rerun, superseded by 5-target above) — leap-c L3/L4 lib-mode wins republished honestly with WAL-tier caveat. Earlier 3-target rerun documented and superseded.
 
 - **2026-04-28** (third pass, after audit) — Critic flagged: (a) Mac leap-zig L1 = 3.84 ms not in cited CSV → row marked `n/a` with retraction note in §C.1; (b) Mac leap-python L1 was 158.1 ms in doc, CSV has 156.11 → corrected to 156.1; (c) §C.1 now names the timestamped run for each cell (CSVs contain two sweeps per host, initial 03:36 with NA-binaries and follow-up 04:01–04:10 after toolchain installs); (d) §A.1 gained an `exec/mainline` column (target's total / mainline's total = 63.7%–96.6%) — the "0.44pp behind mainline" framing was eliding that leap-c attempts only 63.7% of mainline's record set. README and PUBLICATION TL;DRs updated to lead with denominator asymmetry, not the percentage gap.
 
