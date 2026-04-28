@@ -7,6 +7,17 @@ emits:
   rust:   { path: src-rust/examples/fileformat_write_runner.rs }
 ---
 
+## Pin 19b note: codec extraction
+
+The byte-encoding helpers (`encode_cell`, `build_leaf_page`,
+`build_interior_table_page`, `encode_varint_be`, `serial_type_for`,
+`usable_size`) are owned by `/parts/storage/parts/page-codec/`. This
+part imports them via `inherits:` and uses them inside the page-write
+orchestration (insert/split/root-collapse). After Pin 19b's sibling
+regen lands, the helper definitions in this file are stubs that call
+through to `page-codec`; until then, this file's helper bodies remain
+the canonical source.
+
 # File-format write (single-page append probe)
 
 Minimal probe of the SQLite on-disk **write** format. Reads an

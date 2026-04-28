@@ -1,0 +1,70 @@
+{
+  "$schema": "../../../../schema/shape.schema.json",
+  "owner": "/parts/storage/parts/page-codec",
+
+  "imports": {
+    "Value":            "/parts/core",
+    "RuntimeCondition": "/parts/core"
+  },
+
+  "types": {},
+
+  "functions": {
+    "encode_varint_be": {
+      "doc": "SQLite-format big-endian varint encoder. 1 byte for v ≤ 0x7f, 2 bytes for v ≤ 0x3fff, ..., up to 9 bytes covering the full u64 range. Mirrors the decode table in /parts/storage/parts/file-format/. Pure: same input → same output bytes.",
+      "params": [
+        { "name": "v", "type": "u64" }
+      ],
+      "returns": "blob"
+    },
+
+    "serial_type_for": {
+      "doc": "Pick the SQLite record-format serial type code for a Value. Null→0, Integer(n)→1..6/8/9 per the integer-narrowing table (see fileformat-write/master.md §'Integer serial-type picker'), Real→7, Text(s)→13+2*len(utf8(s)), Blob(b)→12+2*len(b). Exhaustive over the Value variant set; targets MUST NOT add a default arm that returns 0 for unknown variants (PC-5).",
+      "params": [
+        { "name": "value", "type": { "borrow": "Value" } }
+      ],
+      "returns": "u64"
+    },
+
+    "encode_cell": {
+      "doc": "Encode one table-leaf b-tree cell as: varint(payload_size) + varint(rowid) + record_header + record_body. Byte layout per /parts/storage/parts/fileformat-write/master.md §'Encode cell (leaf table)'. Pure; allocator-only side effect is the returned blob. The id column for INTEGER PRIMARY KEY tables is hoisted to rowid; callers pass Null in its values slot — this function does not enforce that, it is a caller contract.",
+      "params": [
+        { "name": "rowid",  "type": "i64" },
+        { "name": "values", "type": { "list": "Value" } }
+      ],
+      "returns": "blob"
+    },
+
+    "build_leaf_page": {
+      "doc": "Assemble a complete table-leaf b-tree page (page-type 0x0D). Returns exactly page_size bytes. Layout per /parts/storage/parts/fileformat-write/master.md §'build_leaf_page': optional 100-byte DbHeader reservation when is_page_one, 8-byte PageHeader, cell-pointer array, zero-filled free space, cells packed downward from usable_size = page_size - reserved_space. Pure.",
+      "params": [
+        { "name": "page_size",      "type": "u32" },
+        { "name": "reserved_space", "type": "u8"  },
+        { "name": "cells",          "type": { "list": { "tuple": ["i64", { "list": "Value" }] } } },
+        { "name": "is_page_one",    "type": "bool" }
+      ],
+      "returns": "blob"
+    },
+
+    "build_interior_table_page": {
+      "doc": "Assemble a complete table-interior b-tree page (page-type 0x05). Returns exactly page_size bytes. Layout per /parts/storage/parts/fileformat-write/master.md §'build_interior_table_page': optional 100-byte DbHeader reservation when is_page_one, 12-byte PageHeader (8 + 4 for right_child), cell-pointer array, zero-filled free space, cells packed downward; each interior cell = u32_be(left_child_pn) + varint(separator_rowid). The rightmost child has no cell — it lives in the page header's right_child field. Pure.",
+      "params": [
+        { "name": "page_size",          "type": "u32" },
+        { "name": "reserved_space",     "type": "u8"  },
+        { "name": "children",           "type": { "list": { "tuple": ["u32", "i64"] } } },
+        { "name": "rightmost_child_pn", "type": "u32" },
+        { "name": "is_page_one",        "type": "bool" }
+      ],
+      "returns": "blob"
+    },
+
+    "usable_size": {
+      "doc": "Returns page_size - reserved_space. Single-source-of-truth for the cell-content boundary. See /parts/storage/parts/fileformat-write/master.md §'Usable size — the reserved-space byte' for rationale: SQLite-CLI-created DBs default reserved_space to 12, not 0; missing this triggers PRAGMA integrity_check 'free space corruption' even when SELECT * returns correct data. Pure arithmetic.",
+      "params": [
+        { "name": "page_size",      "type": "u32" },
+        { "name": "reserved_space", "type": "u8"  }
+      ],
+      "returns": "u32"
+    }
+  }
+}

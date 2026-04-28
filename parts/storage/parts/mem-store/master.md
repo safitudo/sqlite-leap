@@ -509,6 +509,140 @@ performance. Targets MAY include a linear-scan fallback for
 backwards-compat with rows installed before pk_index was populated;
 the fallback's existence does not satisfy P16a-4 by itself.
 
+## Pin 19a (2026-04-27): pk_index RowLocation migration
+
+Prerequisite to pin 19 (in-place B-tree write). Pin 19's path-backed
+cursor read path needs `(page_no, cell_index)` to fetch a row from the
+page cache; the post-pin-16-amend `pk_index` value type — `u32
+row_index`, an offset into the `rows` Vec — cannot express that
+location. Pin 19a is the structural prep landing that introduces a
+sum-typed value carrying either an in-memory row index OR a paged
+location, without yet flipping the cursor read path. In-memory mode
+behavior is identical to today; path-backed mode pre-allocates the new
+variant slot, but cursor code paths still go through the row vector
+(pin 19.1 lights up the page-cache route).
+
+### Motivation
+
+Pin 19 cannot land on top of `map<i64, u32>`: the `u32` carries no
+page-locality information, so `cursor_seek_rowid` on a path-backed
+table has nowhere to record "rowid R lives on page P at cell index
+C." Inventing a parallel side-table per Pager would couple mem-store
+to wal-bridge in a way that crosses part boundaries; promoting
+`pk_index`'s value type to a discriminated union keeps the storage
+boundary clean. Landing the value-type migration FIRST (this pin) and
+the cursor rewrite SECOND (pin 19.1) splits the risk: 19a is
+behavior-preserving and easy to bisect; 19.1 is observably new and
+sits on a known-good base.
+
+### `RowLocation` type
+
+A discriminated union with two variants:
+
+- `InMemory { row_index: u32 }` — the rowid resolves to position
+  `row_index` in `MemTable.rows`. Used for `JournalMode::Memory`
+  (today's only populated path).
+- `Paged { page_no: u32, cell_index: u16 }` — the rowid resolves to
+  cell `cell_index` on page `page_no` in the Pager's page cache.
+  Used for `JournalMode::Wal` and `JournalMode::Delete` once pin 19.1
+  populates it. `cell_index` is `u16` because a page holds at most
+  `floor((page_size - header) / min_cell_size)` cells, which fits
+  comfortably below `u16::MAX` for every supported page size.
+
+Target representation guidance (each target chooses idiomatically):
+
+- Rust: `enum RowLocation { InMemory { row_index: u32 }, Paged {
+  page_no: u32, cell_index: u16 } }`.
+- C: tagged union — `struct RowLocation { uint8_t tag; union { struct
+  { uint32_t row_index; } in_memory; struct { uint32_t page_no;
+  uint16_t cell_index; } paged; } as; }`.
+- Python: 2-tuple discriminated by a sentinel string,
+  `("InMemory", row_index)` vs `("Paged", page_no, cell_index)`; or
+  a small dataclass pair.
+- Go: an interface `RowLocation` with two concrete struct types
+  `InMemoryLoc` and `PagedLoc`; or a struct with a kind tag.
+- Zig: `union(enum) { in_memory: struct { row_index: u32 }, paged:
+  struct { page_no: u32, cell_index: u16 } }`.
+
+The contract is target-agnostic: a `RowLocation` carries exactly one
+of the two variants, and the variant tag is observable.
+
+### `pk_index` value type
+
+The map's logical signature becomes `{ i64 → RowLocation }`. Targets
+choose the same containers as before (Rust
+`Rc<RefCell<BTreeMap<i64, RowLocation>>>`, Python dict, Go map, etc.);
+only the value type changes. Migration semantics:
+
+- Every `u32 row_index` value in the pre-19a representation maps
+  losslessly to `InMemory { row_index }`. No information is lost; no
+  call site that reads the map breaks if it pattern-matches on
+  `InMemory` and ignores `Paged`.
+- Pin P16a-2's invariant is restated for in-memory mode:
+  `pk_index.lookup(rowids[i]) == InMemory { row_index: i }` for every
+  `i in [0, rowids.len())` whenever the owning Database has
+  `journal_mode == Memory`.
+- For path-backed tables (`journal_mode in { Wal, Delete }`),
+  `pk_index` MAY be left empty in pin 19a. See below.
+
+### Path-backed pk_index population — stub in 19a
+
+Pin 19a does NOT require path-backed inserts to populate `pk_index`.
+The `cursor_insert_row` path on a `JournalMode::Wal` or `Delete`
+Database MAY leave `pk_index` empty, in which case `cursor_seek_rowid`
+falls through to the legacy linear `rowids` scan — identical to the
+pre-19a behavior on path-backed tables. Pin 19.1 is responsible for
+populating the `Paged` variant during page splits and inserts; pin
+19a only guarantees that the type can carry the value when 19.1
+arrives.
+
+### Numbered Correctness pins
+
+**P19a-1.** `RowLocation` carries exactly one variant tag at any time
+(`InMemory` xor `Paged`). The tag is observable; no call site
+inspects payload fields without first inspecting the tag.
+
+**P19a-2.** Every `pk_index` entry installed by code running under
+`journal_mode == Memory` has variant `InMemory`. Every entry
+installed by code running under `journal_mode in { Wal, Delete }` has
+variant `Paged` once pin 19.1 lands; in pin 19a, path-backed inserts
+MAY skip pk_index population entirely (the entry is absent), but MUST
+NOT install an `InMemory` entry on a path-backed table.
+
+**P19a-3.** Lossless promotion. Every pre-19a `u32 row_index` value
+maps to `InMemory { row_index }`; every post-19a `InMemory` lookup
+returns the same `row_index` an equivalent pre-19a `u32` lookup would
+have returned. P16a-2 is preserved verbatim under this promotion.
+
+**P19a-4.** Behavioral identity for in-memory mode. With
+`journal_mode == Memory`, no SLT-observable behavior changes between
+pre-19a and post-19a builds: cursor positioning, row ordering,
+INSERT/UPDATE/DELETE outcomes, and rowid assignment are all
+unchanged.
+
+**P19a-5.** Path-backed pk_index MAY be empty in 19a.
+`cursor_seek_rowid` on a path-backed table whose `pk_index` is empty
+MUST fall through to the linear `rowids` scan (the same fallback
+permitted by P16a-4) and return the correct row. Empty `pk_index` is
+NOT a violation in pin 19a.
+
+**P19a-6.** Pin 19.1 promise. Pin 19.1 will populate `Paged` entries
+for path-backed inserts and rewrite `cursor_seek_rowid` /
+`cursor_column` to consult the page cache via the `Paged` variant.
+Pin 19a's representation MUST admit that rewrite without a further
+shape change.
+
+### Out of scope (deferred to 19.1)
+
+- Cursor read-path rewrite to decode rows from `(page_no,
+  cell_index)` via `pager_get_page`.
+- Cursor write-path rewrite to encode rows into page-cache pages and
+  emit `Paged` pk_index entries.
+- The page-cache primary-store flip (rows live ON pages, not in the
+  `rows` Vec, for path-backed tables).
+- Commit-path simplification once the `rows` Vec is no longer the
+  source of truth on path-backed tables.
+
 ## Pin 18.1c (v8-pager): cursor signature migration
 
 Pin 18.1c is the structural migration that threads `&mut Pager`
