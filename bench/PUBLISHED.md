@@ -14,22 +14,25 @@ Format: each section is a measurement family. Within a family, every row names t
 
 Source: `tests/sqllogictest/results/corpus_2026_04_28_full/summary.json`. 622 upstream `.test` files × 6 targets, 60s per-file timeout, 70 min wall clock, Ubuntu 22.04 native (rustc 1.89, gcc 11.4, zig 0.16, go 1.25). **Record-level** pass-rate (each statement counted, not each file).
 
-| Target | pass | fail | defer | skip | timeouts | crashes | total | incl-SKIP | **excl-SKIP** |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| sqlite-leap-rust | 5,424,607 | 878 | 76 | 1,207,295 | 82 | **0** | 6,632,856 | 81.78% | **99.98%** |
-| sqlite-leap-python | 5,683,224 | 1,128 | 58 | 1,473,859 | 27 | 17 | 7,158,269 | 79.39% | **99.98%** |
-| sqlite-leap-go | 4,672,160 | 3,562 | 45 | 808,851 | 132 | **0** | 5,484,618 | 85.19% | **99.92%** |
-| sqlite-leap-zig | 4,803,848 | 8,121 | 298 | 857,565 | 119 | 11 | 5,669,832 | 84.73% | **99.83%** |
-| sqlite-leap-c | 4,105,212 | 672 | 17,549 | 600,079 | 123 | 88 | 4,723,512 | 86.91% | **99.56%** |
-| sqlite-mainline | 5,932,125 | 19 | 0 | 1,480,839 | 0 | 1 | 7,412,983 | 80.02% | **99.9997%** |
+| Target | pass | fail | defer | skip | timeouts | crashes | total | exec/mainline | incl-SKIP | **excl-SKIP** |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| sqlite-leap-rust | 5,424,607 | 878 | 76 | 1,207,295 | 82 | **0** | 6,632,856 | **89.5%** | 81.78% | **99.98%** |
+| sqlite-leap-python | 5,683,224 | 1,128 | 58 | 1,473,859 | 27 | 17 | 7,158,269 | **96.6%** | 79.39% | **99.98%** |
+| sqlite-leap-go | 4,672,160 | 3,562 | 45 | 808,851 | 132 | **0** | 5,484,618 | **74.0%** | 85.19% | **99.92%** |
+| sqlite-leap-zig | 4,803,848 | 8,121 | 298 | 857,565 | 119 | 11 | 5,669,832 | **76.5%** | 84.73% | **99.83%** |
+| sqlite-leap-c | 4,105,212 | 672 | 17,549 | 600,079 | 123 | 88 | 4,723,512 | **63.7%** | 86.91% | **99.56%** |
+| sqlite-mainline | 5,932,125 | 19 | 0 | 1,480,839 | 0 | 1 | 7,412,983 | 100% | 80.02% | **99.9997%** |
 
-**Headline number for public claims:** "On the full upstream sqllogictest corpus (622 files, ~7M records on Linux x86_64), the five leap targets pass 99.56% to 99.98% excl-SKIP, against mainline at 99.9997%. The largest gap is leap-c at 0.44 percentage points behind mainline." Each per-target number must cite this section.
+`exec/mainline` = (target's total records) / (mainline's total records). It quantifies **how much of mainline's executed test surface this target also attempts**. The remainder is bucketed as SKIP — runs that the target's harness or runner refused to execute (unimplemented features, parser gaps, runner directives the target doesn't honor, etc.).
+
+**Headline that must accompany any cross-target pass-rate claim:** "On the full upstream sqllogictest corpus, the five leap targets pass 99.56% to 99.98% excl-SKIP — but the targets evaluate different denominators. leap-python attempts 96.6% of mainline's records; leap-rust 89.5%; leap-zig 76.5%; leap-go 74.0%; leap-c **only 63.7%**. The narrow excl-SKIP gap (0.44pp for leap-c) is on a 36% smaller corpus than mainline's. The story isn't 'leap-c is 0.44pp behind mainline' — it's 'leap-c attempts 63.7% of what mainline runs and passes 99.56% of that subset.'"
 
 **Scope caveats that must be quoted alongside any pass-rate claim:**
 - Per-file 60s timeout; files that hang are counted as deferred. A no-timeout run would surface more crashes/hangs as failures, not advantages.
-- Record-level pass-rate, not file-level. File-level is in §A.2 below for comparison with the older v1 measurement.
+- Record-level pass-rate, not file-level. File-level is in §A.3 below for comparison with the older v1 measurement.
+- **Denominator asymmetry is material.** Each target's excl-SKIP percentage is computed against its own (target-specific, smaller) total, not against mainline's. The `exec/mainline` column makes the asymmetry explicit; it must be reported alongside the excl-SKIP number, not buried.
 - **Crashes are real, not noise.** leap-c has 88 crashes (largely a planner-perf timeout cluster in `random/index/*` and `random/groupby/*`); leap-python 17; leap-zig 11; leap-rust and leap-go zero. Mainline crashed on 1 file (likely a recursive-CTE depth-bound). These crashes are publication-relevant and must not be hidden when the excl-SKIP percentage is quoted.
-- mainline's incl-SKIP (80.02%) is *lower* than leap-c's (86.91%) because mainline reports more rows as SKIP on this harness's strict comparison, not because mainline runs less of the corpus. Use excl-SKIP for cross-engine comparison.
+- mainline's incl-SKIP (80.02%) is *lower* than leap-c's (86.91%) because mainline reports more rows as SKIP on this harness's strict comparison **on its own larger denominator**. Use excl-SKIP + `exec/mainline` together for cross-engine comparison.
 
 ### A.2 — 335-file post-G3 sample, Mac arm64 (2026-04-27, retained for comparison)
 
@@ -96,18 +99,20 @@ Source CSVs: `bench/results/2026-04-28-StanislacStudio.csv` (Mac M-series arm64)
 
 ### C.1 — L1 cold start (lower=better, ms)
 
-| target | Mac | Linux |
-|---|---:|---:|
-| sqlite-leap-c | 3.51 | 0.54 |
-| sqlite-leap-rust | 3.41 | 0.42 |
-| sqlite-leap-zig | 3.84 | 0.44 |
-| sqlite-leap-go | 4.23 | 0.93 |
-| sqlite-leap-python | 158.1 | 98.3 |
-| sqlite-mainline | 9.17 | 1.68 |
-| turso | 11.02 | 1.66 |
-| turso-core | 6.10 | n/a |
+Both Mac and Linux CSVs contain **two timestamped runs** per host: an initial 03:36 UTC sweep where some targets were missing built binaries (`NA,missing-binary`) and a follow-up 04:01–04:10 sweep after toolchain installs/builds completed. The numbers below are from the **completed-build runs**; the row date in the CSV identifies which.
 
-**Publishable:** leap-c/rust/zig 4–17× faster than mainline on cold start, both platforms. Python is the laggard (CPython startup).
+| target | Mac (run) | Linux (run) |
+|---|---:|---:|
+| sqlite-leap-c | 3.51 (03:36) | 0.54 (04:10) |
+| sqlite-leap-rust | 3.41 (03:36) | 0.42 (03:36) |
+| sqlite-leap-zig | **n/a — Mac CSV has no cold-start zig row** | 0.44 (04:01) |
+| sqlite-leap-go | 4.23 (04:03) | 0.93 (04:01) |
+| sqlite-leap-python | 156.1 (04:03) | 98.3 (04:01) |
+| sqlite-mainline | 9.17 (03:36) | 1.68 (03:36) |
+| turso | 11.02 (03:36) | 1.66 (03:36) |
+| turso-core | 6.10 (03:36) | n/a (not measured) |
+
+**Publishable:** leap-c, leap-rust, and leap-go beat mainline cold-start 2–4× on Mac and 2–4× on Linux. leap-zig beats mainline 3.8× on Linux; **on Mac, no cold-start measurement for leap-zig is in the cited CSV** — earlier drafts of this table reported a Mac leap-zig L1 of 3.84 ms which is not sourceable from `bench/results/2026-04-28-StanislacStudio.csv` and is therefore retracted; if a Mac-zig L1 is wanted, it needs a fresh CSV row. Python is the cold-start laggard on both platforms (CPython startup).
 
 ### C.2 — L5 binary size (lower=better, KB)
 
@@ -169,6 +174,8 @@ Source: `generators/wasm/build.sh` (shells out to `cargo build --target wasm32-u
 ---
 
 ## Changelog
+
+- **2026-04-28** (third pass, after audit) — Critic flagged: (a) Mac leap-zig L1 = 3.84 ms not in cited CSV → row marked `n/a` with retraction note in §C.1; (b) Mac leap-python L1 was 158.1 ms in doc, CSV has 156.11 → corrected to 156.1; (c) §C.1 now names the timestamped run for each cell (CSVs contain two sweeps per host, initial 03:36 with NA-binaries and follow-up 04:01–04:10 after toolchain installs); (d) §A.1 gained an `exec/mainline` column (target's total / mainline's total = 63.7%–96.6%) — the "0.44pp behind mainline" framing was eliding that leap-c attempts only 63.7% of mainline's record set. README and PUBLICATION TL;DRs updated to lead with denominator asymmetry, not the percentage gap.
 
 - **2026-04-28** (later) — A.1 promoted to full-corpus 622-file Linux native record-level rate. Sample (former A.1) demoted to A.2 with a Δ column showing the sample was ~0.01–0.43pp favorable per target. v1 file-level archival moved to A.3. Headline now cites real full-corpus, not a sample.
 

@@ -6,7 +6,7 @@
 
 **What carries.** From ~33K lines of language-neutral spec under `parts/`, agent emission produces ~234K lines of buildable engine source across five language trees (C, Rust, Zig, Go, Python). Those five engines:
 
-- Pass the full 622-file upstream `sqllogictest` corpus on Linux x86_64 native at 99.56–99.98% excl-SKIP (~7M records). Mainline runs the same corpus at 99.9997% on this harness. The largest gap to mainline is leap-c at 0.44pp behind. Crashes are real and disclosed: leap-c 88 (planner-perf cluster), leap-python 17, leap-zig 11; leap-rust and leap-go 0; mainline 1. (`PUBLISHED.md` §A.1)
+- Pass the full 622-file upstream `sqllogictest` corpus on Linux x86_64 native at 99.56–99.98% excl-SKIP — **on per-target denominators that differ from mainline's**. Mainline executes ~7.4M records at 99.9997%; leap-python attempts 96.6% of that, leap-rust 89.5%, leap-zig 76.5%, leap-go 74.0%, leap-c 63.7%. The narrow excl-SKIP gap (0.44pp for leap-c) is on a corpus 36% smaller than mainline's. The honest framing is "leap-c attempts 63.7% of what mainline runs and passes 99.56% of that subset," not "leap-c is 0.44pp behind mainline." Crashes are disclosed: leap-c 88 (planner-perf cluster), leap-python 17, leap-zig 11; leap-rust and leap-go 0; mainline 1. (`PUBLISHED.md` §A.1)
 - Write `.db` files that are SHA1-identical to mainline at two fixed fixtures (270-row split, 5,000-row deep-split); mainline `PRAGMA integrity_check` returns `ok` on every leap-emitted file. (§D)
 - Build at 207 KB (C, Mac stripped) to 4.6 MB (Go, Linux), with leap-c, leap-rust, leap-zig all under 3 MB peak RSS. (§C.2)
 - Compile to WASM (231 KB, via the Rust target). (§E)
@@ -57,18 +57,20 @@ Sources: `bench/results/2026-04-28-StanislacStudio.csv` (Mac M-series arm64), `b
 
 ### L1 cold start (lower=better, ms; spawn → first query ready)
 
+Both CSVs contain two timestamped sweeps per host (initial 03:36 UTC plus a 04:01–04:10 follow-up after toolchain installs); numbers below are from the completed-build sweep on each row.
+
 | target          |   Mac |  Linux |
 |-----------------|------:|-------:|
 | sqlite-leap-c   |  3.51 |   0.54 |
 | sqlite-leap-rust|  3.41 |   0.42 |
-| sqlite-leap-zig |  3.84 |   0.44 |
+| sqlite-leap-zig | **n/a** | 0.44 |
 | sqlite-leap-go  |  4.23 |   0.93 |
-| sqlite-leap-python | 158.1 | 98.3 |
+| sqlite-leap-python | 156.1 | 98.3 |
 | sqlite-mainline |  9.17 |   1.68 |
 | turso           | 11.02 |   1.66 |
 | turso-core      |  6.10 |    n/a |
 
-leap-c/rust/zig beat mainline cold-start 4–17× on both platforms. Python is the laggard (interpreter startup).
+leap-c, leap-rust, leap-go beat mainline cold-start 2–4× on Mac and 2–4× on Linux. leap-zig beats mainline 3.8× on Linux; **the Mac CSV has no cold-start leap-zig row** — an earlier draft of this table reported 3.84 ms which is not sourceable from the cited CSV and is retracted (see `PUBLISHED.md §C.1`). Python is the cold-start laggard on both platforms.
 
 ### L5 binary size (lower=better)
 
@@ -103,20 +105,21 @@ For engine-vs-engine throughput claims (L2/L3/L4), use the **lib-mode table at t
 
 Source: `tests/sqllogictest/results/corpus_2026_04_28_full/summary.json`. 622 upstream `.test` files × 6 targets, 60s per-file timeout, 70 min wall on Ubuntu 22.04 (rustc 1.89, gcc 11.4, zig 0.16, go 1.25). Record-level pass-rate.
 
-| Target | pass | fail | crashes | timeouts | total | incl-SKIP | excl-SKIP |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| rust | 5,424,607 | 878 | 0 | 82 | 6,632,856 | 81.78% | **99.98%** |
-| python | 5,683,224 | 1,128 | 17 | 27 | 7,158,269 | 79.39% | **99.98%** |
-| go | 4,672,160 | 3,562 | 0 | 132 | 5,484,618 | 85.19% | **99.92%** |
-| zig | 4,803,848 | 8,121 | 11 | 119 | 5,669,832 | 84.73% | **99.83%** |
-| c | 4,105,212 | 672 | 88 | 123 | 4,723,512 | 86.91% | **99.56%** |
-| **mainline sqlite** | **5,932,125** | **19** | **1** | **0** | **7,412,983** | **80.02%** | **99.9997%** |
+| Target | pass | fail | crashes | timeouts | total | exec/mainline | incl-SKIP | excl-SKIP |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| rust | 5,424,607 | 878 | 0 | 82 | 6,632,856 | **89.5%** | 81.78% | **99.98%** |
+| python | 5,683,224 | 1,128 | 17 | 27 | 7,158,269 | **96.6%** | 79.39% | **99.98%** |
+| go | 4,672,160 | 3,562 | 0 | 132 | 5,484,618 | **74.0%** | 85.19% | **99.92%** |
+| zig | 4,803,848 | 8,121 | 11 | 119 | 5,669,832 | **76.5%** | 84.73% | **99.83%** |
+| c | 4,105,212 | 672 | 88 | 123 | 4,723,512 | **63.7%** | 86.91% | **99.56%** |
+| **mainline sqlite** | **5,932,125** | **19** | **1** | **0** | **7,412,983** | 100% | **80.02%** | **99.9997%** |
 
-Three things to read here:
+Four things to read here:
 
-- **excl-SKIP is the cross-engine comparison number.** All 5 leap targets are within 0.44pp of mainline. The story isn't that mainline is reachable; the story is that one neutral spec produces five engines that all land within a percentage point of mainline on the full corpus.
-- **incl-SKIP is misleading without context.** Mainline's incl-SKIP (80.02%) is *lower* than leap-c's (86.91%) because mainline reports more rows as SKIP on this harness's strict comparison, not because mainline runs less of the corpus. Don't compare incl-SKIP across engines without converting to excl-SKIP first.
-- **Crashes are real, not noise.** leap-c has 88 crashes — most are a known planner-perf cluster in `random/index/*` and `random/groupby/*` where the C planner doesn't pick an index and times out at a deeper layer than the file-level 60s budget. leap-python 17 and leap-zig 11 are also real engine bugs, tracked. leap-rust and leap-go have 0 crashes. Mainline has 1 (likely a recursive-CTE depth case). I am not hiding these in the headline percentage.
+- **`exec/mainline` is the denominator-asymmetry column** and must be quoted alongside excl-SKIP. Each target's excl-SKIP rate is computed against its own (target-specific, smaller) total. leap-python attempts 96.6% of mainline's records; leap-c only 63.7%. So leap-c's 99.56% is on a corpus 36% smaller than mainline's. **The honest framing is "leap-c attempts 63.7% of what mainline runs and passes 99.56% of that subset," not "leap-c is 0.44pp behind mainline."** Earlier drafts buried this — that is the point of restating it here.
+- **excl-SKIP is the cross-engine comparison number, but only with `exec/mainline`.** Without the denominator column the percentage is misleading. All 5 leap targets are within 0.44pp of mainline *on what they attempt*; whether what they attempt is comparable to what mainline attempts is what `exec/mainline` measures.
+- **incl-SKIP is misleading without further context.** Mainline's incl-SKIP (80.02%) is *lower* than leap-c's (86.91%) because mainline reports more rows as SKIP on this harness's strict comparison **on its own larger denominator**, not because mainline runs less of the corpus. Don't compare incl-SKIP across engines without converting to excl-SKIP and reporting `exec/mainline` first.
+- **Crashes are real, not noise.** leap-c has 88 crashes — most are a known planner-perf cluster in `random/index/*` and `random/groupby/*` where the C planner doesn't pick an index and times out at a deeper layer than the file-level 60s budget. leap-python 17 and leap-zig 11 are also real engine bugs, tracked. leap-rust and leap-go have 0 crashes. Mainline has 1 (likely a recursive-CTE depth case). Crashes are not hidden inside the excl-SKIP percentage.
 
 **Per-file timeout:** 60 seconds. Files that hang at the file level are counted as deferred, which favors leap-c (large planner cluster) relative to a no-timeout run. A reviewer who runs without timeout will see more leap-c failures, not fewer.
 
