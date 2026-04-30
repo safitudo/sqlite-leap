@@ -10,7 +10,42 @@ Format: each section is a measurement family. Within a family, every row names t
 
 ## A. sqllogictest pass rates
 
-### A.1 — **PRIMARY**: 622-file v2 full corpus, Linux x86_64 native (2026-04-28)
+### A.1 — **PRIMARY**: 622-file v2 full corpus, Linux x86_64 native (2026-04-29, post-pcrebase)
+
+Source: `tests/sqllogictest/results/corpus_2026_04_29_post_pcrebase/summary.json`. 622 upstream `.test` files × 6 targets, per-target timeout (90s default; 240s for Python; 60s for sqlite mainline), Ubuntu 22.04 native (rustc 1.89, gcc 11.4, zig 0.16.0, go 1.25.0). **Record-level** pass-rate. Same harness as 2026-04-28 below, after landing two cross-target spec pins (Pin α29-pc-rebase + Pin α23-c-bufslot-mat) and three target-local crash fixes (Pin C-mem-1/2 for C, driver restore + buffer-slot rebase for Python/Zig).
+
+| Target | pass | fail | defer | skip | timeouts | crashes | total | exec/mainline | incl-SKIP | **excl-SKIP** |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| sqlite-leap-rust | 5,935,955 | 1,378 | 59 | 1,480,839 | 2 | **0** | 7,418,231 | **99.9%** | 80.02% | **99.98%** |
+| sqlite-leap-c | 5,935,363 | 1,764 | 64 | 1,480,839 | 2 | **0** | 7,418,030 | **99.9%** | 80.01% | **99.97%** |
+| sqlite-leap-go | 5,929,882 | 4,653 | 46 | 1,480,839 | 2 | **0** | 7,415,420 | **99.8%** | 79.97% | **99.92%** |
+| sqlite-leap-python | 5,847,741 | 1,124 | 57 | 1,479,902 | 17 | 3 | 7,328,824 | **98.4%** | 79.79% | **99.98%** |
+| sqlite-leap-zig | 4,848,858 | 8,116 | 298 | 864,302 | 119 | **0** | 5,721,574 | **81.6%** | 84.75% | **99.83%** |
+| sqlite-mainline | 5,939,855 | 19 | 0 | 1,480,839 | 0 | 0 | 7,420,713 | 100% | 80.04% | **100.00%** |
+
+**What changed vs A.1.archive (one day earlier).** Pin α29-pc-rebase fixed a silent-corrupt PC-target rebase in `compile_expr` arms (Binary, Call, Like-with-escape) that infinite-looped in the executor whenever a CASE-emitted `Goto`/`IfNot` sat in non-leading sub-code. Closure of that bug class:
+
+| Target | exec/main pre→post | crashes pre→post | timeouts pre→post |
+|---|---:|---:|---:|
+| leap-c | 63.7% → **99.9%** (+36.2pp) | 88 → 0 | 132 → 2 |
+| leap-go | 74.0% → **99.8%** (+25.8pp) | 0 → 0 | 128 → 2 |
+| leap-rust | 89.5% → **99.9%** (+10.4pp) | 0 → 0 | 82 → 2 |
+| leap-python | 96.6% → **98.4%** (+1.8pp) | 17 → 3 | 27 → 17 |
+| leap-zig | 76.5% → 81.6% (+5.1pp) | 11 → 0 | 119 → 119 (not affected by α29) |
+
+**The denominator-asymmetry headline that A.1.archive carried can now be retired** for four of five targets. As of this measurement, leap-rust / leap-c / leap-go all attempt **≥99.8%** of mainline's record surface and pass at 99.92–99.98% excl-SKIP. The C-vs-mainline gap that was 36.3pp on 2026-04-28 is now 0.1pp. The narrow-denominator caveat applies only to leap-zig (81.6%) and is a single residual target-local cluster.
+
+**The 2 timeouts on rust/c/go are the same 2 files** — `select4.test` and `select5.test`. Both are SQLite-distributed stress files with deeply nested 5-way unindexed equijoins; mainline finishes them with a real planner. These 10 cells (2 × 5 leap targets) are the entire remaining timeout debt outside the leap-zig cluster, and would close with a planner-level equijoin → hash-probe rewrite (deferred to a follow-up wave).
+
+**Headline that must accompany any cross-target pass-rate claim (post-2026-04-29):** "On the full upstream sqllogictest corpus, leap-rust/c/go pass 99.92–99.98% excl-SKIP at 99.8–99.9% of mainline's record surface; leap-python passes 99.98% at 98.4%; leap-zig passes 99.83% at 81.6% (a single residual target-local cluster). The five targets share one language-neutral spec."
+
+**Scope caveats:**
+- Per-target timeout: 90s default; 240s for the pure-Python interpreter (~100× constant-factor cost vs the compiled targets); 60s for mainline.
+- Crashes: 3 on Python (regressions from longer Python timeout exposing previously masked paths; under triage); 0 on the four compiled leap targets.
+- Record-level pass-rate.
+- leap-zig 119 timeouts are a separate target-local cluster, not the Pin α29 bug class.
+
+### A.1.archive — **SUPERSEDED**: 622-file v2 full corpus, Linux x86_64 native (2026-04-28)
 
 Source: `tests/sqllogictest/results/corpus_2026_04_28_full/summary.json`. 622 upstream `.test` files × 6 targets, 60s per-file timeout, 70 min wall clock, Ubuntu 22.04 native (rustc 1.89, gcc 11.4, zig 0.16, go 1.25). **Record-level** pass-rate (each statement counted, not each file).
 
