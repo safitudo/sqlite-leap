@@ -1082,6 +1082,38 @@ inner→outer ResultRow capture buffer and rewrites inner `ResultRow`
 opcodes to `BufferAppend` against THAT slot. The outer's slot 0 (and
 all higher outer-allocated slots) remain untouched by the inner.
 
+**Generalization (Pin α23-c-bufslot-mat):** this rebase rule applies to
+**every materialization helper that splices an independently-compiled
+SELECT body into a parent program**, not only `materialize_inner` for
+scalar / EXISTS / IN. In particular it applies to:
+
+1. **`materialize_select_to_prelude` / `materializePrelude`** — the
+   helper used for VIEW references, non-recursive CTE bindings, and
+   derived-table FROM (`FROM (SELECT ...) AS x`). When the inner body
+   itself contains an IN / EXISTS / scalar subquery, that subquery's
+   slot allocator (a freshly-constructed inner `SubCtx`) starts at slot
+   1 by convention; the view-output buffer also wants slot 1 from the
+   outer `BufCtx`. Without rebase the two collide and the inner
+   `BufferOpen` re-creates the view-output slot mid-scan with the wrong
+   `num_cols`, producing OOB at `BufferRead` time (Zig: panic; Rust:
+   panic; Go: silent wrong rows; Mac Zig ReleaseFast: silent wrong rows).
+2. **`materializeRecursiveCte`** — same shape, same rule.
+3. The **buffered-dispatch composition path** in `compileSelectBuffered`
+   where a CTE/view materialization wraps a single-table inner whose
+   WHERE has IN/EXISTS subqueries.
+
+Operationally, every such helper MUST, before allocating its own output
+slot from the parent counter: (a) scan the inner's emitted opcodes for
+the maximum `buffer_slot` referenced; (b) shift every `buffer_slot`
+field in the inner program by the parent's current `next_slot`; (c)
+bump the parent's `next_slot` past the shifted range; (d) only THEN
+call `freshSlot()` for the output capture buffer.
+
+Equivalently in implementations that allocate inner slots from a
+thread-local (Rust `BUF_ALLOC`): the `SubCtx` constructed for the inner
+compile MUST seed its `first_sub_buffer_slot` from the thread-local's
+current high-water mark, not from a hardcoded `1`.
+
 This rebase is the inner-subquery analog of the compound-SELECT
 buffer-slot rebase already specified for `WITH ... SELECT ... UNION ...`
 composition: the inner program references its own buffer slots at their

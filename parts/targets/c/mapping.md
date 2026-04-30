@@ -409,3 +409,46 @@ via `abort()` on OOM — but prefer to thread an error up instead.
 
 `LEAP_<PATH>_H` guard uses the file path in SHOUTY_SNAKE. Example:
 `src-c/vdbe/opcodes_control.h` → `LEAP_VDBE_OPCODES_CONTROL_H`.
+
+## Slot allocation contract (Pin C-mem-1)
+
+When emission needs to reserve a slot in a heap-grown array (typical
+shape: `realloc(items, new_len * sizeof(*items))` or a "synth list"
+that pre-reserves capacity), the contract is:
+
+> **Zero the slot before writing any individual field.**
+
+`realloc` returns memory whose new tail bytes are uninitialized.
+Writing only some fields of a record (e.g. `slot.kind = X; slot.as.X.a
+= Y;` while leaving `slot.as.X.b.has_value` un-set) leaves `has_value`
+holding garbage bytes — typically harmless at -O0 (stack-zero
+coincidence) but observable as `_Bool` UBSAN failures and silent
+"corrupt qualifier" reads at -O3.
+
+Every site that reserves or grows a record array MUST emit a
+`memset(&items[len], 0, sizeof(*items))` before field-set, OR use
+`calloc`-equivalent allocation. This applies in particular to
+`LeapExpr` synth-lists, `LeapOpcodeList` slots, projection-list
+realloc paths, and any compiler-side per-row scratch.
+
+Other targets (Rust, Zig with explicit allocator + `@memset`, Go with
+runtime zero-init, Python) get this for free; C must be explicit.
+
+## Register-count walk contract (Pin C-mem-2)
+
+The register count carried in a compiled program (`num_registers`)
+must equal `max(dest_reg) + 1` across **every** opcode variant that
+writes a destination register. The current C codebase computes this
+by switch-walking emitted opcodes; that switch MUST enumerate every
+opcode kind that carries a `dest_reg` field, including but not
+limited to: `BIN_OP`, `UNARY_OP`, `CAST`, `CAST_REAL_TO_TEXT`, `LIKE`,
+`GLOB`, `COLLATE`, `SCALAR`, plus all rows / scan / agg / window
+opcodes that write to a register.
+
+Undercounting causes a downstream `value_release` walk to read past
+the allocated register array — heap-buffer-overflow at -O3, ASAN
+reports it precisely. The neutral-spec equivalent rule:
+
+> **Register count is `max(dest_reg) + 1` over the union of
+> dest-reg-bearing fields of every opcode kind, not over a
+> hand-curated subset.**

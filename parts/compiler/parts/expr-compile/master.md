@@ -115,7 +115,16 @@ compile_expr(expr, reg_base):
             (rc, rr, rn) = compile_expr(rhs, ln)?
             dest         = rn
             kind         = map_binary(op)
-            code         = lc ++ rc ++ [BinOp { kind, lhs: lr, rhs: rr, dest_reg: dest }]
+            # PC-rebase pin (Pin α29-pc-rebase): rhs's compiled code carries
+            # self-relative Goto/IfNot targets in 0..len(rc). When appended
+            # after lc, those targets must be rebased by +len(lc). Plain
+            # concatenation (`lc ++ rc`) is INCORRECT whenever rc may contain
+            # CASE-emitted control opcodes — the CASE block silently
+            # self-loops in the executor. Use append_with_rebase.
+            code         = []
+            append_with_rebase(code, lc, offset = 0)
+            append_with_rebase(code, rc, offset = len(code))
+            code.push(BinOp { kind, lhs: lr, rhs: rr, dest_reg: dest })
             return Ok(code, result_reg: dest, next_reg: dest + 1)
 
         IsNull(arg, negated):
@@ -225,6 +234,56 @@ opcode gains a PC target, the rebase helper must learn to rewrite it.
 Empty `branches` is a PRECONDITION violation (caller must enforce; the
 parser rejects empty-branches CASE). If `compile_case` still sees an
 empty list, return `CompileError { message: "internal: Case with zero branches" }`.
+
+## Pin α29-pc-rebase — append-with-rebase rule for sub-expr concatenation
+
+**Any arm of `compile_expr` that concatenates compiled code from MORE
+THAN ONE sub-expression MUST use `append_with_rebase` for every
+non-leading sub-code, with `offset = len(code)` at the time of append.**
+Plain `code = lc ++ rc` (or `code.extend(rc)` in implementation languages)
+is incorrect whenever the trailing sub-code may contain
+self-relative-PC opcodes (today: `Goto`, `IfNot`, anything emitted by
+`compile_case`). The bug is silent at compile time and surfaces at
+execute time as either an infinite loop (`Goto target=current_pc`) or a
+mis-targeted branch into the middle of a sibling block — both manifest
+as a corpus-wide hang on any expression that places a CASE underneath a
+Binary or Call.
+
+Arms affected today:
+- **`Binary`** — has TWO sub-expressions (`lhs`, `rhs`). Lhs goes first
+  at offset 0 (rebase by 0 is a no-op but keep the call for uniformity);
+  rhs at offset `len(lc)`.
+- **`Call`** (when admitted by the per-target scalar catalog) — has N
+  sub-expressions for N args. Each arg's code is appended at the
+  current `len(code)` and rebased by that offset.
+
+Arms NOT affected (single sub-expr; first append is safe at offset 0):
+- `Unary`, `IsNull`, `Cast`, `Like` (when no escape), `Collate`.
+- `Like` with an `escape` clause appends THREE sub-expressions and
+  therefore IS affected — apply the same rule.
+
+Arms that already comply: `compile_case` itself (uses
+`append_with_rebase` from the outset).
+
+### Why this is target-agnostic
+
+The bug originates in the algorithm, not in any per-target helper. A
+target that emits CASE as native if/else (Zig, Python today) coincidentally
+avoids the bug because there are no PC-bearing opcodes in the sub-code
+to begin with. Targets that emit CASE as VDBE Goto/IfNot (Rust, C, Go)
+must apply the rule. The spec is the same for all five — the rebase
+helper exists in `compile_case`; reuse it.
+
+### Verification
+
+Minimal repro (all 5 targets must PASS, mainline-equivalent):
+
+```sql
+SELECT MAX( COALESCE(79, - 28 * CASE 67 WHEN 22 THEN 1 ELSE NULL END) );
+```
+
+Pre-fix: Rust/C/Go infinite-loop in `execute_program`. Post-fix: returns
+`79` (the COALESCE short-circuit).
 
 
 Three-address form: each opcode reads from two registers and writes
