@@ -10,20 +10,41 @@ Format: each section is a measurement family. Within a family, every row names t
 
 ## A. sqllogictest pass rates
 
-### A.1 — **PRIMARY**: 622-file v2 full corpus, Linux x86_64 native (2026-04-29, post-pcrebase)
+### A.1 — **PRIMARY**: 622-file v2 full corpus, Linux x86_64 native (2026-04-30, post-zigrebase)
 
-Source: `tests/sqllogictest/results/corpus_2026_04_29_post_pcrebase/summary.json`. 622 upstream `.test` files × 6 targets, per-target timeout (90s default; 240s for Python; 60s for sqlite mainline), Ubuntu 22.04 native (rustc 1.89, gcc 11.4, zig 0.16.0, go 1.25.0). **Record-level** pass-rate. Same harness as 2026-04-28 below, after landing two cross-target spec pins (Pin α29-pc-rebase + Pin α23-c-bufslot-mat) and three target-local crash fixes (Pin C-mem-1/2 for C, driver restore + buffer-slot rebase for Python/Zig).
+Source: `tests/sqllogictest/results/corpus_2026_04_30_post_zigrebase/summary.json`. 622 upstream `.test` files × 6 targets, per-target timeout (90s default; 240s for Python; 60s for sqlite mainline), Ubuntu 22.04 native (rustc 1.89, gcc 11.4, zig 0.16.0, go 1.25.0), 88 min wall clock with `--workers 2`. **Record-level** pass-rate. Same harness as A.1.archive below; superseded post-pcrebase block, after extending Pin α29-pc-rebase to all splice sites in `src-zig/compiler/select_compile.zig`.
 
 | Target | pass | fail | defer | skip | timeouts | crashes | total | exec/mainline | incl-SKIP | **excl-SKIP** |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| sqlite-leap-rust | 5,935,955 | 1,378 | 59 | 1,480,839 | 2 | **0** | 7,418,231 | **99.9%** | 80.02% | **99.98%** |
-| sqlite-leap-c | 5,935,363 | 1,764 | 64 | 1,480,839 | 2 | **0** | 7,418,030 | **99.9%** | 80.01% | **99.97%** |
-| sqlite-leap-go | 5,929,882 | 4,653 | 46 | 1,480,839 | 2 | **0** | 7,415,420 | **99.8%** | 79.97% | **99.92%** |
-| sqlite-leap-python | 5,847,741 | 1,124 | 57 | 1,479,902 | 17 | 3 | 7,328,824 | **98.4%** | 79.79% | **99.98%** |
-| sqlite-leap-zig | 4,848,858 | 8,116 | 298 | 864,302 | 119 | **0** | 5,721,574 | **81.6%** | 84.75% | **99.83%** |
+| sqlite-leap-rust | 5,935,956 | 1,378 | 59 | 1,480,839 | 2 | **0** | 7,418,232 | **99.96%** | 80.02% | **99.98%** |
+| sqlite-leap-c | 5,935,363 | 1,764 | 64 | 1,480,839 | 2 | **0** | 7,418,030 | **99.96%** | 80.01% | **99.97%** |
+| sqlite-leap-zig | 5,870,897 | 65,998 | 298 | 1,480,839 | 2 | **0** | 7,418,032 | **99.96%** | 79.14% | **98.88%** |
+| sqlite-leap-go | 5,929,882 | 4,653 | 46 | 1,480,839 | 2 | **0** | 7,415,420 | **99.93%** | 79.97% | **99.92%** |
+| sqlite-leap-python | 5,860,466 | 1,134 | 57 | 1,480,626 | 11 | 3 | 7,342,283 | **98.94%** | 79.82% | **99.98%** |
 | sqlite-mainline | 5,939,855 | 19 | 0 | 1,480,839 | 0 | 0 | 7,420,713 | 100% | 80.04% | **100.00%** |
 
-**A.1 addendum (2026-04-29, post-zigrebase spot-rerun):** A spec amendment to Pin α29-pc-rebase — extending the PC-target rebase rule from `compile_expr` arms to every splice site that assembles an independently-compiled sub-code buffer and inserts it into a parent emitter (`compileNoFromAggregate`, `compileSingleGroupAggregate`, JOIN `emitInnermostBody`) — and a 16-site sweep in `src-zig/compiler/select_compile.zig` reduced leap-zig timeouts from 119 → 2. Verification: re-ran all 119 previously-timing-out files against the patched zig binary; 117 now complete (with their normal FAIL records, no regressions on aggregates/select/groupby/select1 sanity checks); the 2 residuals are `select4.test` and `select5.test` — the same 5-way-unindexed-equijoin planner-stress files that already timeout on rust/c/go. **Headline impact for leap-zig:** timeouts 119→2, exec/mainline expected to lift from 81.6% toward parity with rust/c/go (~99.8%) once the full 6-target rerun lands. The spot-rerun is documented at `/tmp/zig_timeouts.txt` (timeout list) on the bench host; full-corpus rerun was attempted twice and wedged at the tail (last 32 files) under load average 14 — a rerun under cleaner load is the verified-but-unpublished update path.
+**What changed vs post-pcrebase.** Pin α29-pc-rebase was extended to splice sites beyond `compile_expr` arms (`compileNoFromAggregate`, `compileSingleGroupAggregate`, JOIN `emitInnermostBody`). 16-site sweep in `src-zig/compiler/select_compile.zig` lifted leap-zig:
+
+| leap-zig metric | post-pcrebase | post-zigrebase | Δ |
+|---|---:|---:|---:|
+| timeouts | 119 | 2 | -117 |
+| total records executed | 5,721,574 | 7,418,032 | +1,696,458 |
+| exec/mainline | 81.6% | **99.96%** | +18.4pp |
+| pass | 4,848,858 | 5,870,897 | +1,022,039 |
+
+The excl-SKIP rate moved 99.83% → 98.88% — but only because the previously-timing-out files now contribute their record-level FAILs (65,998 fails vs 8,116). On the *executed-record denominator*, leap-zig now matches rust/c/go's denominator parity (99.96% of mainline's record surface).
+
+**Denominator parity now holds across all 4 compiled targets** (rust/c/zig/go all at 99.93–99.96% exec/mainline). Python is the only target still in narrow-denominator territory at 98.94% (runtime-cost timeouts on index/* random files; 240s budget).
+
+**The 2 timeouts on every leap target are the same 2 files** — `select4.test` and `select5.test`. Both are SQLite-distributed stress files with deeply nested 5-way unindexed equijoins; mainline finishes them with a real planner. These 10 cells (2 × 5 leap targets) are the entire remaining timeout debt, and would close with a planner-level equijoin → hash-probe rewrite (deferred to a follow-up wave).
+
+**Headline (post-2026-04-30):** "On the full upstream sqllogictest corpus, leap-rust/c/go pass 99.92–99.98% excl-SKIP at 99.93–99.96% of mainline's record surface. leap-zig passes 98.88% at 99.96% of mainline's surface (the lower excl-SKIP reflects record-level fails the post-pcrebase build was masking via timeouts). leap-python passes 99.98% at 98.94%. The five targets share one language-neutral spec."
+
+**Scope caveats:**
+- Per-target timeout: 90s default; 240s for the pure-Python interpreter; 60s for mainline.
+- Crashes: 3 on Python (regressions from longer Python timeout exposing previously masked paths; under triage); 0 on the four compiled leap targets.
+- Record-level pass-rate.
+- leap-zig's 65,998 record-level FAILs are now the long pole (vs ~1k–5k for the other compiled targets); these are the substantive parity-gap items, no longer hidden behind timeouts.
 
 **What changed vs A.1.archive (one day earlier).** Pin α29-pc-rebase fixed a silent-corrupt PC-target rebase in `compile_expr` arms (Binary, Call, Like-with-escape) that infinite-looped in the executor whenever a CASE-emitted `Goto`/`IfNot` sat in non-leading sub-code. Closure of that bug class:
 
