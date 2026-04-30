@@ -267,12 +267,39 @@ Arms that already comply: `compile_case` itself (uses
 
 ### Why this is target-agnostic
 
-The bug originates in the algorithm, not in any per-target helper. A
-target that emits CASE as native if/else (Zig, Python today) coincidentally
-avoids the bug because there are no PC-bearing opcodes in the sub-code
-to begin with. Targets that emit CASE as VDBE Goto/IfNot (Rust, C, Go)
-must apply the rule. The spec is the same for all five — the rebase
-helper exists in `compile_case`; reuse it.
+The bug originates in the algorithm, not in any per-target helper.
+ALL targets that lower CASE to PC-bearing opcodes (Goto/IfNot) must
+apply the rule — observed live in Rust, C, Go, AND Zig. (An earlier
+revision of this pin assumed Zig avoided the bug because its expr
+compiler uses a threaded code-builder; that turned out to be wrong
+for `compileNoFromAggregate` and the JOIN `emitInnermostBody` path,
+which build sub-expressions into independent `code` buffers and
+splice them via `for (c.items) |op| emitter.push(op)`. Same bug class.)
+Python's CASE lowering happens to use Python `if`/`else` rather than
+PC-bearing ops, so the splice carries nothing PC-relative — but any
+future Python op that does emit PC-relative jumps must apply the rule.
+
+### Splice-site rule (extends arm rule above)
+
+Beyond the `compile_expr` arms named above, **every site in the
+compiler that takes an independently-compiled code buffer and splices
+it into a parent emitter MUST rebase by the parent's current
+`len(code)` at splice time.** Concretely the affected sites in any
+target's `select_compile` include but are not limited to:
+
+- The no-FROM aggregate path (`compileNoFromAggregate` / equivalent):
+  `agg_step.arg_expr` and `agg_step.sep_expr` sub-codes.
+- The single-group aggregate path (`compileSingleGroupAggregate`):
+  GROUP BY key codes, WHERE codes, agg-arg codes, projection codes.
+- The JOIN inner-body path (`emitInnermostBody` / equivalent): WHERE,
+  ON-predicate, projection codes for star/table-star/expr.
+- Any other helper that assembles `Vec<Opcode>`/`ArrayList(Opcode)`
+  off to the side and splices afterward.
+
+If unsure whether a splice site needs the rebase: rebasing is always
+safe — the sub-code's PC-relative ops shift correctly, and absolute-
+position ops carry their own non-relative payloads which `ec_rebase`
+doesn't touch.
 
 ### Verification
 
