@@ -1,0 +1,97 @@
+ROOT=/home/stanislav/code/sqlite-leap
+Total files: 622; targets: ['rust', 'c', 'go', 'zig', 'python', 'sqlite']
+Total runs: 3732; workers: 2
+  progress: 50/3732  elapsed=7s  rate=7.3/s  eta=501s
+  progress: 100/3732  elapsed=21s  rate=4.7/s  eta=769s
+  progress: 150/3732  elapsed=46s  rate=3.3/s  eta=1087s
+  progress: 200/3732  elapsed=56s  rate=3.6/s  eta=993s
+  progress: 250/3732  elapsed=61s  rate=4.1/s  eta=855s
+  progress: 300/3732  elapsed=63s  rate=4.7/s  eta=724s
+  progress: 350/3732  elapsed=65s  rate=5.4/s  eta=630s
+  progress: 400/3732  elapsed=67s  rate=6.0/s  eta=558s
+  progress: 450/3732  elapsed=69s  rate=6.5/s  eta=502s
+  progress: 500/3732  elapsed=71s  rate=7.1/s  eta=457s
+  progress: 550/3732  elapsed=73s  rate=7.6/s  eta=420s
+  progress: 600/3732  elapsed=75s  rate=8.0/s  eta=390s
+  progress: 650/3732  elapsed=171s  rate=3.8/s  eta=812s
+  progress: 700/3732  elapsed=192s  rate=3.6/s  eta=833s
+  progress: 750/3732  elapsed=234s  rate=3.2/s  eta=931s
+  progress: 800/3732  elapsed=243s  rate=3.3/s  eta=892s
+  progress: 850/3732  elapsed=258s  rate=3.3/s  eta=876s
+  progress: 900/3732  elapsed=262s  rate=3.4/s  eta=824s
+  progress: 950/3732  elapsed=264s  rate=3.6/s  eta=773s
+  progress: 1000/3732  elapsed=266s  rate=3.8/s  eta=727s
+  progress: 1050/3732  elapsed=268s  rate=3.9/s  eta=685s
+  progress: 1100/3732  elapsed=270s  rate=4.1/s  eta=647s
+  progress: 1150/3732  elapsed=273s  rate=4.2/s  eta=612s
+  progress: 1200/3732  elapsed=275s  rate=4.4/s  eta=581s
+  progress: 1250/3732  elapsed=367s  rate=3.4/s  eta=729s
+  progress: 1300/3732  elapsed=380s  rate=3.4/s  eta=711s
+  progress: 1350/3732  elapsed=440s  rate=3.1/s  eta=777s
+  progress: 1400/3732  elapsed=449s  rate=3.1/s  eta=748s
+  progress: 1450/3732  elapsed=472s  rate=3.1/s  eta=742s
+  progress: 1500/3732  elapsed=482s  rate=3.1/s  eta=717s
+  progress: 1550/3732  elapsed=484s  rate=3.2/s  eta=682s
+  progress: 1600/3732  elapsed=486s  rate=3.3/s  eta=648s
+  progress: 1650/3732  elapsed=488s  rate=3.4/s  eta=616s
+  progress: 1700/3732  elapsed=490s  rate=3.5/s  eta=586s
+  progress: 1750/3732  elapsed=493s  rate=3.6/s  eta=558s
+  progress: 1800/3732  elapsed=495s  rate=3.6/s  eta=532s
+  progress: 1850/3732  elapsed=498s  rate=3.7/s  eta=506s
+  progress: 1900/3732  elapsed=593s  rate=3.2/s  eta=572s
+  progress: 1950/3732  elapsed=614s  rate=3.2/s  eta=561s
+  progress: 2000/3732  elapsed=668s  rate=3.0/s  eta=578s
+  progress: 2050/3732  elapsed=681s  rate=3.0/s  eta=559s
+  progress: 2100/3732  elapsed=689s  rate=3.0/s  eta=535s
+  progress: 2150/3732  elapsed=691s  rate=3.1/s  eta=508s
+  progress: 2200/3732  elapsed=692s  rate=3.2/s  eta=482s
+  progress: 2250/3732  elapsed=693s  rate=3.2/s  eta=457s
+  progress: 2300/3732  elapsed=694s  rate=3.3/s  eta=432s
+  progress: 2350/3732  elapsed=695s  rate=3.4/s  eta=409s
+  progress: 2400/3732  elapsed=697s  rate=3.4/s  eta=387s
+  progress: 2450/3732  elapsed=698s  rate=3.5/s  eta=365s
+  progress: 2500/3732  elapsed=790s  rate=3.2/s  eta=389s
+  progress: 2550/3732  elapsed=1565s  rate=1.6/s  eta=726s
+  progress: 2600/3732  elapsed=2989s  rate=0.9/s  eta=1301s
+  progress: 2650/3732  elapsed=3391s  rate=0.8/s  eta=1384s
+  progress: 2700/3732  elapsed=4260s  rate=0.6/s  eta=1628s
+  progress: 2750/3732  elapsed=4532s  rate=0.6/s  eta=1618s
+  progress: 2800/3732  elapsed=4608s  rate=0.6/s  eta=1534s
+  progress: 2850/3732  elapsed=4657s  rate=0.6/s  eta=1441s
+  progress: 2900/3732  elapsed=4696s  rate=0.6/s  eta=1347s
+  progress: 2950/3732  elapsed=4735s  rate=0.6/s  eta=1255s
+  progress: 3000/3732  elapsed=4793s  rate=0.6/s  eta=1170s
+  progress: 3050/3732  elapsed=4856s  rate=0.6/s  eta=1086s
+  progress: 3100/3732  elapsed=4919s  rate=0.6/s  eta=1003s
+  progress: 3150/3732  elapsed=5186s  rate=0.6/s  eta=958s
+  progress: 3200/3732  elapsed=5206s  rate=0.6/s  eta=865s
+  progress: 3250/3732  elapsed=5220s  rate=0.6/s  eta=774s
+  progress: 3300/3732  elapsed=5230s  rate=0.6/s  eta=685s
+  progress: 3350/3732  elapsed=5236s  rate=0.6/s  eta=597s
+  progress: 3400/3732  elapsed=5240s  rate=0.6/s  eta=512s
+  progress: 3450/3732  elapsed=5243s  rate=0.7/s  eta=429s
+  progress: 3500/3732  elapsed=5246s  rate=0.7/s  eta=348s
+  progress: 3550/3732  elapsed=5249s  rate=0.7/s  eta=269s
+  progress: 3600/3732  elapsed=5253s  rate=0.7/s  eta=193s
+  progress: 3650/3732  elapsed=5257s  rate=0.7/s  eta=118s
+  progress: 3700/3732  elapsed=5262s  rate=0.7/s  eta=46s
+# full corpus run 2026-04-28 (6 targets)
+
+Files per target: 622 (FULL upstream corpus)
+Per-file timeout: 90s
+Wall clock: 5267s
+
+## Per-target aggregate (record-level)
+
+| target | PASS | FAIL | DEFER | SKIP | TOTAL | incl-SKIP | excl-SKIP |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| rust | 5935956 | 1378 | 59 | 1480839 | 7418232 | 80.02% | 99.98% |
+| c | 5935363 | 1764 | 64 | 1480839 | 7418030 | 80.01% | 99.97% |
+| go | 5929882 | 4653 | 46 | 1480839 | 7415420 | 79.97% | 99.92% |
+| zig | 5870897 | 65998 | 298 | 1480839 | 7418032 | 79.14% | 98.88% |
+| python | 5860466 | 1134 | 57 | 1480626 | 7342283 | 79.82% | 99.98% |
+| sqlite | 5939855 | 19 | 0 | 1480839 | 7420713 | 80.04% | 100.00% |
+
+## Top 10 DEFER reasons per target
+
+### rust

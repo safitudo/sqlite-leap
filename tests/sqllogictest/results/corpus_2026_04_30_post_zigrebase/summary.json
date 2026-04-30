@@ -1,0 +1,110 @@
+{
+  "meta": {
+    "files": 622,
+    "targets": [
+      "rust",
+      "c",
+      "go",
+      "zig",
+      "python",
+      "sqlite"
+    ],
+    "timeout_s": 90,
+    "wall_clock_s": 5266.91989159584,
+    "root": "/home/stanislav/code/sqlite-leap"
+  },
+  "rust": {
+    "pass": 5935956,
+    "fail": 1378,
+    "defer": 59,
+    "skip": 1480839,
+    "total": 7418232,
+    "incl_skip": 80.01847340444462,
+    "excl_skip": 99.97579745858157,
+    "timeouts": [
+      "select4.test",
+      "select5.test"
+    ],
+    "crashes": []
+  },
+  "c": {
+    "pass": 5935363,
+    "fail": 1764,
+    "defer": 64,
+    "skip": 1480839,
+    "total": 7418030,
+    "incl_skip": 80.01265834729706,
+    "excl_skip": 99.96921102925609,
+    "timeouts": [
+      "select4.test",
+      "select5.test"
+    ],
+    "crashes": []
+  },
+  "go": {
+    "pass": 5929882,
+    "fail": 4653,
+    "defer": 46,
+    "skip": 1480839,
+    "total": 7415420,
+    "incl_skip": 79.96690679691777,
+    "excl_skip": 99.92082002082371,
+    "timeouts": [
+      "select4.test",
+      "select5.test"
+    ],
+    "crashes": []
+  },
+  "zig": {
+    "pass": 5870897,
+    "fail": 65998,
+    "defer": 298,
+    "skip": 1480839,
+    "total": 7418032,
+    "incl_skip": 79.1435922627457,
+    "excl_skip": 98.88337805424213,
+    "timeouts": [
+      "select4.test",
+      "select5.test"
+    ],
+    "crashes": []
+  },
+  "python": {
+    "pass": 5860466,
+    "fail": 1134,
+    "defer": 57,
+    "skip": 1480626,
+    "total": 7342283,
+    "incl_skip": 79.81803479925794,
+    "excl_skip": 99.97968151326494,
+    "timeouts": [
+      "index/between/1000/slt_good_0.test",
+      "index/commute/1000/slt_good_0.test",
+      "index/commute/1000/slt_good_1.test",
+      "index/commute/1000/slt_good_2.test",
+      "index/in/1000/slt_good_0.test",
+      "index/in/1000/slt_good_1.test",
+      "index/orderby/1000/slt_good_0.test",
+      "index/orderby_nosort/1000/slt_good_1.test",
+      "index/view/1000/slt_good_0.test",
+      "select4.test",
+      "select5.test"
+    ],
+    "crashes": [
+      "index/commute/100/slt_good_12.test",
+      "index/commute/1000/slt_good_3.test",
+      "index/orderby_nosort/1000/slt_good_0.test"
+    ]
+  },
+  "sqlite": {
+    "pass": 5939855,
+    "fail": 19,
+    "defer": 0,
+    "skip": 1480839,
+    "total": 7420713,
+    "incl_skip": 80.04426259309584,
+    "excl_skip": 99.99968012789496,
+    "timeouts": [],
+    "crashes": []
+  }
+}
