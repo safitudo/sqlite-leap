@@ -51,7 +51,7 @@ git clone https://github.com/safitudo/sqlite-leap.git
 cd sqlite-leap
 
 # Pull engine sources for the targets you want to reproduce
-TAG=v0.1.0-publication-2026-04-28
+TAG=v0.1.1-publication-2026-04-30
 for tgt in c rust zig go python; do
   curl -L -o /tmp/src-$tgt.tar.gz \
     https://github.com/safitudo/sqlite-leap/releases/download/$TAG/src-$tgt.tar.gz
