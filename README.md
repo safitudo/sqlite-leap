@@ -111,7 +111,7 @@ The five `src-*` trees are reproducible from `parts/` for leaves under ~3K LOC p
 
 ## License
 
-(TBD — pending decision before public publication.)
+MIT — see [LICENSE](LICENSE). Same as the [LEAP methodology repo](https://github.com/safitudo/leap).
 
 ## Acknowledgements
 
